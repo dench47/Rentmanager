@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -42,6 +43,10 @@ fun PhoneNumberScreen(
     viewModel: PhoneNumberViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.resetLoading()
+    }
 
     Scaffold(
         containerColor = Color(0xFFFEFFBB)
@@ -108,24 +113,28 @@ fun PhoneNumberScreen(
                     onValueChange = { viewModel.onPhoneNumberChange(it) },
                     modifier = Modifier
                         .width(311.dp)
-                        .height(58.dp)
+                        .height(54.dp)
                         .clip(RoundedCornerShape(100.dp))
                         .then(
                             if (uiState.errorMessage != null) {
                                 Modifier.border(
-                                    width = 1.5.dp,
+                                    width = 1.dp,
                                     color = Color(0xFFFF0000),
                                     shape = RoundedCornerShape(100.dp)
                                 )
                             } else {
-                                Modifier
+                                Modifier.border(
+                                    width = 1.dp,
+                                    color = Color(0xFFD3D3D3),
+                                    shape = RoundedCornerShape(100.dp)
+                                )
                             }
                         ),
                     isError = uiState.errorMessage != null,
                     placeholder = {
                         Text(
                             text = "+7 (900) 000-00-00",
-                            color = Color(0xCCA6A6A6),
+                            color = Color(0x998E8E93),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
                             letterSpacing = (-0.4).sp
@@ -135,11 +144,11 @@ fun PhoneNumberScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(100.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color(0xFFF2F2F7),
+                        unfocusedContainerColor = Color(0xFFF2F2F7),
                         focusedBorderColor = if (uiState.errorMessage != null) Color(0xFFFF0000) else Color.Transparent,
                         unfocusedBorderColor = if (uiState.errorMessage != null) Color(0xFFFF0000) else Color.Transparent,
-                        errorContainerColor = Color.White,
+                        errorContainerColor = Color(0xFFF2F2F7),
                         errorBorderColor = Color(0xFFFF0000)
                     )
                 )
@@ -173,6 +182,7 @@ fun PhoneNumberScreen(
                 enabled = uiState.phoneNumber.isNotBlank(),
                 isLoading = uiState.isLoading
             )
+
 
             Spacer(modifier = Modifier.height(20.dp))
 

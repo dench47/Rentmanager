@@ -2,6 +2,7 @@ package com.rentmanager.app.ui.auth.code
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +23,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -101,9 +105,13 @@ fun SmsCodeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Code input — 4 squares
+            // Code input — 6 squares
+            val focusRequester = remember { FocusRequester() }
+
             Row(
-                modifier = Modifier.width(320.dp),
+                modifier = Modifier
+                    .width(320.dp)
+                    .clickable { focusRequester.requestFocus() },
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 repeat(6) { index ->
@@ -127,8 +135,9 @@ fun SmsCodeScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = TextStyle(color = Color.Transparent),
                 modifier = Modifier
-                    .size(1.dp)
-                    .padding(0.dp),
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .focusRequester(focusRequester),
                 singleLine = true,
                 maxLines = 1
             )

@@ -3,7 +3,6 @@ package com.rentmanager.app.data.api
 import com.rentmanager.app.data.model.PaymentDto
 import retrofit2.Response
 import retrofit2.http.GET
-import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface FinanceApi {

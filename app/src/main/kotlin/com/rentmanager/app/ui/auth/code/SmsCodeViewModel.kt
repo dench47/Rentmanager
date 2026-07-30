@@ -23,14 +23,14 @@ class SmsCodeViewModel : ViewModel() {
     }
 
     fun onCodeChange(newCode: String) {
-        if (newCode.length <= 4) {
+        if (newCode.length <= 6) {
             _uiState.update { it.copy(code = newCode, errorMessage = null) }
         }
     }
 
     fun onCodeComplete() {
-        if (_uiState.value.code.length < 4) {
-            _uiState.update { it.copy(errorMessage = "Введите 4 цифры") }
+        if (_uiState.value.code.length < 6) {
+            _uiState.update { it.copy(errorMessage = "Введите 6 цифр") }
             return
         }
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }

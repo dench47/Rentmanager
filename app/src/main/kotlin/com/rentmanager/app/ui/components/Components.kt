@@ -1,6 +1,8 @@
 package com.rentmanager.app.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -9,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,18 +24,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -81,7 +76,7 @@ fun StepProgressBar(
 fun BackButton(
     text: String = "Назад",
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     TextButton(
         onClick = onClick,
@@ -159,7 +154,10 @@ fun PrimaryButton(
 }
 
 /**
- * Кнопка-роль (Сдаю / Арендую).
+ * Кнопка-роль (Сдаю / Арендую) — Figma: Frame 7 / Frame 8
+ * Активная: bg #212121, текст белый
+ * Неактивная: bg прозрачный, border 0.5px #151515, текст #151515
+ * Размер: 172.5×54dp, скругление 100dp, padding 32dp×10dp
  */
 @Composable
 fun RoleButton(
@@ -168,41 +166,37 @@ fun RoleButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Row(
         modifier = modifier
             .width(172.5.dp)
             .height(54.dp)
             .clip(RoundedCornerShape(100.dp))
             .background(
-                if (isSelected) Color(0xFF212121) else Color.White
+                if (isSelected) Color(0xFF212121) else Color.Transparent
             )
             .then(
                 if (!isSelected) {
-                    Modifier
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(Color.Transparent)
-                        .then(
-                            Modifier
-                                .width(172.5.dp)
-                                .height(54.dp)
-                                .clip(RoundedCornerShape(100.dp))
-                                .background(Color.Transparent)
-                        )
+                    Modifier.border(
+                        width = 0.5.dp,
+                        color = Color.Black,
+                        shape = RoundedCornerShape(100.dp)
+                    )
                 } else {
                     Modifier
                 }
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        TextButton(onClick = onClick) {
-            Text(
-                text = text,
-                color = if (isSelected) Color.White else Color(0xFF151515),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = (-0.4).sp
             )
-        }
+            .padding(horizontal = 32.dp, vertical = 10.dp)
+            .clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            color = if (isSelected) Color.White else Color(0xFF151515),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.4).sp
+        )
     }
 }
 

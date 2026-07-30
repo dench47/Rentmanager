@@ -2,6 +2,7 @@ package com.rentmanager.app.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -28,6 +29,8 @@ fun RentManagerNavGraph(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screen.PhoneInput.route
 ) {
+    val context = LocalContext.current
+
     NavHost(
         navController = navController,
         startDestination = startDestination
@@ -38,7 +41,11 @@ fun RentManagerNavGraph(
                 onCodeSent = { phoneNumber ->
                     navController.navigate(Screen.SmsConfirm.createRoute(phoneNumber))
                 },
-                onBack = { navController.popBackStack() }
+                onBack = {
+                    if (!navController.popBackStack()) {
+                        (context as? android.app.Activity)?.finish()
+                    }
+                }
             )
         }
 

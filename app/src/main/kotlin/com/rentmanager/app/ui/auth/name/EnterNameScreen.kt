@@ -1,6 +1,7 @@
 package com.rentmanager.app.ui.auth.name
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -23,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -98,12 +98,17 @@ fun EnterNameScreen(
                 onValueChange = { viewModel.onNameChange(it) },
                 modifier = Modifier
                     .width(311.dp)
-                    .height(58.dp)
-                    .clip(RoundedCornerShape(100.dp)),
+                    .height(54.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .border(
+                        width = 1.dp,
+                        color = Color(0xFFD3D3D3),
+                        shape = RoundedCornerShape(100.dp)
+                    ),
                 placeholder = {
                     Text(
                         text = "Иван",
-                        color = Color(0xCCA6A6A6),
+                        color = Color(0x998E8E93),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = (-0.4).sp
@@ -112,8 +117,8 @@ fun EnterNameScreen(
                 singleLine = true,
                 shape = RoundedCornerShape(100.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color(0xFFF2F2F7),
+                    unfocusedContainerColor = Color(0xFFF2F2F7),
                     focusedBorderColor = Color.Transparent,
                     unfocusedBorderColor = Color.Transparent
                 )

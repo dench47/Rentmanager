@@ -30,4 +30,8 @@ class PhoneNumberViewModel : ViewModel() {
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         // Navigation handled by callback
     }
+
+    fun resetLoading() {
+        _uiState.update { it.copy(isLoading = false) }
+    }
 }
