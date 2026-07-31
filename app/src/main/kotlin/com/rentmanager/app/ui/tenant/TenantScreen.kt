@@ -98,6 +98,7 @@ fun TenantScreen(
                         DashboardCard(
                             iconRes = service.iconRes,
                             title = service.title,
+                            twoLines = service.twoLines,
                             onClick = { onServiceClick(service.id) }
                         )
                     }

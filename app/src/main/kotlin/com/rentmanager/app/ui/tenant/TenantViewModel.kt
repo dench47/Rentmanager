@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.update
 data class ServiceCard(
     val id: String,
     val title: String,
-    @DrawableRes val iconRes: Int
+    @DrawableRes val iconRes: Int,
+    val twoLines: Boolean = false
 )
 
 data class TenantUiState(
@@ -20,11 +21,11 @@ data class TenantUiState(
     val nextPaymentAmount: String = "130 000 ₽",
     val isPaid: Boolean = true,
     val services: List<ServiceCard> = listOf(
-        ServiceCard("1", "Недвижимость в пользовании", R.drawable.ic_card_my_properties),
+        ServiceCard("1", "Недвижимость\nв пользовании", R.drawable.ic_card_my_properties, twoLines = true),
         ServiceCard("2", "Арендодатели", R.drawable.ic_card_tenants),
-        ServiceCard("3", "Другие объекты в пользовании", R.drawable.ic_card_other),
+        ServiceCard("3", "Другие объекты\nв пользовании", R.drawable.ic_card_other, twoLines = true),
         ServiceCard("4", "Финансы", R.drawable.ic_card_finance),
-        ServiceCard("5", "Сообщения", R.drawable.ic_card_messages),
+        ServiceCard("5", "Сообщения", R.drawable.ic_card_messages_no_badge),
         ServiceCard("6", "Заказать услугу", R.drawable.ic_card_service)
     ),
     val hasPaymentButton: Boolean = false

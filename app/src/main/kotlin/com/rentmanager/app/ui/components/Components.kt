@@ -42,8 +42,6 @@ import androidx.compose.ui.unit.sp
 
 /**
  * Прогресс-бар из трёх сегментов (для онбординга).
- * @param currentStep 1, 2 или 3
- * @param modifier Modifier
  */
 @Composable
 fun StepProgressBar(
@@ -76,9 +74,6 @@ fun StepProgressBar(
     }
 }
 
-/**
- * Кнопка «Назад» со стрелкой.
- */
 @Composable
 fun BackButton(
     text: String = "Назад",
@@ -106,10 +101,6 @@ fun BackButton(
     }
 }
 
-/**
- * Главная кнопка в стиле Figma: чёрная, широкая, скруглённая.
- * Имеет ripple-эффект при нажатии и поддержку состояния загрузки.
- */
 @Composable
 fun PrimaryButton(
     text: String,
@@ -133,7 +124,7 @@ fun PrimaryButton(
                 if (enabled && !isLoading) {
                     Modifier.clickable(
                         interactionSource = interactionSource,
-                        indication = null, // Use default Material 3 ripple
+                        indication = null,
                         onClick = onClick
                     )
                 } else {
@@ -149,24 +140,18 @@ fun PrimaryButton(
                 strokeWidth = 2.dp
             )
         } else {
-        Text(
-            text = text,
-            color = if (enabled) Color.White else Color.White.copy(alpha = 0.6f),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = (-0.4).sp,
-            lineHeight = 20.sp
-        )
+            Text(
+                text = text,
+                color = if (enabled) Color.White else Color.White.copy(alpha = 0.6f),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = (-0.4).sp,
+                lineHeight = 20.sp
+            )
         }
     }
 }
 
-/**
- * Кнопка-роль (Сдаю / Арендую) — Figma: Frame 7 / Frame 8
- * Активная: bg #212121, текст белый
- * Неактивная: bg прозрачный, border 0.5px #151515, текст #151515
- * Размер: 172.5×54dp, скругление 100dp, padding 32dp×10dp
- */
 @Composable
 fun RoleButton(
     text: String,
@@ -209,9 +194,6 @@ fun RoleButton(
     }
 }
 
-/**
- * Круглая кнопка с иконкой (настройки).
- */
 @Composable
 fun IconCircleButton(
     onClick: () -> Unit,
@@ -235,9 +217,6 @@ fun IconCircleButton(
     }
 }
 
-/**
- * Чёрная кнопка «Оплатить» — широкая.
- */
 @Composable
 fun BlackPaymentButton(
     text: String,
@@ -266,18 +245,14 @@ fun BlackPaymentButton(
 
 /**
  * Dashboard card — Figma: 174×120dp, cornerRadius 30, #EFEFEF background.
- * Used in LandlordScreen and TenantScreen grids.
- * @param iconRes Drawable resource for the icon (50×50dp)
- * @param title Card label (Lato Bold 15px)
- * @param horizontalPaddingDp Custom horizontal padding (Figma varies per card)
- * @param showBadge Whether to show a green dot badge on the icon (for Messages)
- * @param onClick Card click handler
+ * @param twoLines If true, reduces top/bottom padding to fit two lines of text (e.g. "Недвижимость\nв пользовании")
  */
 @Composable
 fun DashboardCard(
     @DrawableRes iconRes: Int,
     title: String,
     showBadge: Boolean = false,
+    twoLines: Boolean = false,
     onClick: () -> Unit,
     @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
@@ -288,7 +263,7 @@ fun DashboardCard(
             .clip(RoundedCornerShape(30.dp))
             .background(Color(0xFFEFEFEF))
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 20.dp),
+            .padding(horizontal = 12.dp, vertical = if (twoLines) 10.dp else 20.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -306,7 +281,6 @@ fun DashboardCard(
                     modifier = Modifier.size(50.dp),
                     contentScale = ContentScale.Fit
                 )
-                // Green badge dot (Figma: Vector on Email-New, #9ED091)
                 if (showBadge) {
                     Box(
                         modifier = Modifier
@@ -317,7 +291,7 @@ fun DashboardCard(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(if (twoLines) 6.dp else 8.dp))
             // Label — Lato Bold 12sp, #151515E5
             Text(
                 text = title,
@@ -335,8 +309,6 @@ fun DashboardCard(
 
 /**
  * Premium banner — Figma: Frame 140, 353×153dp, cornerRadius 30, #FEFFBB background.
- * Used in both LandlordScreen and TenantScreen.
- * @param onConnectClick Callback for the "Подключить" button
  */
 @Composable
 fun PremiumBanner(
@@ -350,7 +322,6 @@ fun PremiumBanner(
             .clip(RoundedCornerShape(30.dp))
             .background(Color(0xFFFEFFBB))
     ) {
-        // Premium image (Figma: Rectangle 22, positioned at right side)
         Image(
             painter = painterResource(id = com.rentmanager.app.R.drawable.img_premium),
             contentDescription = null,
@@ -374,7 +345,6 @@ fun PremiumBanner(
                 letterSpacing = (-0.4).sp
             )
             Spacer(modifier = Modifier.height(8.dp))
-            // Bullet list — Figma: Inter Regular 14px, #151515CC
             Text(
                 text = "\u2022 Условие\n\u2022 Условие",
                 fontSize = 14.sp,
@@ -384,13 +354,13 @@ fun PremiumBanner(
                 lineHeight = 17.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
-            // Button below text — Figma: Frame 7, wraps content, auto left-aligned in Column
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(100.dp))
                     .background(Color(0xFF212121))
                     .clickable { onConnectClick() }
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Подключить",
@@ -404,11 +374,6 @@ fun PremiumBanner(
     }
 }
 
-/**
- * Bottom "На Главную" button — Figma: 110×54dp, cornerRadius 24,
- * transparent background, icon Home-4 + text "На Главную" (Inter Regular 9.5sp).
- * Adapted for Android: positioned above system navigation bar.
- */
 @Composable
 fun HomeTabButton(
     onClick: () -> Unit,
