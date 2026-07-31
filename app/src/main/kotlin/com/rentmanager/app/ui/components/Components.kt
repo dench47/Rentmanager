@@ -142,13 +142,14 @@ fun PrimaryButton(
                 strokeWidth = 2.dp
             )
         } else {
-            Text(
-                text = text,
-                color = if (enabled) Color.White else Color.White.copy(alpha = 0.6f),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = (-0.4).sp
-            )
+        Text(
+            text = text,
+            color = if (enabled) Color.White else Color.White.copy(alpha = 0.6f),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.4).sp,
+            lineHeight = 20.sp
+        )
         }
     }
 }
@@ -195,7 +196,8 @@ fun RoleButton(
             color = if (isSelected) Color.White else Color(0xFF151515),
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = (-0.4).sp
+            letterSpacing = (-0.4).sp,
+            lineHeight = 20.sp
         )
     }
 }
