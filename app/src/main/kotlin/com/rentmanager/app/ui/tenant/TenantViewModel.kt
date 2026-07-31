@@ -1,6 +1,8 @@
 package com.rentmanager.app.ui.tenant
 
+import androidx.annotation.DrawableRes
 import androidx.lifecycle.ViewModel
+import com.rentmanager.app.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,7 +11,7 @@ import kotlinx.coroutines.flow.update
 data class ServiceCard(
     val id: String,
     val title: String,
-    val iconPlaceholder: String // Unicode/emoji as placeholder for icon
+    @DrawableRes val iconRes: Int
 )
 
 data class TenantUiState(
@@ -18,12 +20,12 @@ data class TenantUiState(
     val nextPaymentAmount: String = "130 000 ₽",
     val isPaid: Boolean = true,
     val services: List<ServiceCard> = listOf(
-        ServiceCard("1", "Недвижимость в пользовании", "\uD83C\uDFE0"),
-        ServiceCard("2", "Арендодатели", "\uD83D\uDC64"),
-        ServiceCard("3", "Другие объекты в пользовании", "\uD83C\uDFE2"),
-        ServiceCard("4", "Финансы", "\uD83D\uDCB0"),
-        ServiceCard("5", "Сообщения", "\uD83D\uDCAC"),
-        ServiceCard("6", "Заказать услугу", "\uD83D\uDEE0")
+        ServiceCard("1", "Недвижимость в пользовании", R.drawable.ic_card_my_properties),
+        ServiceCard("2", "Арендодатели", R.drawable.ic_card_tenants),
+        ServiceCard("3", "Другие объекты в пользовании", R.drawable.ic_card_other),
+        ServiceCard("4", "Финансы", R.drawable.ic_card_finance),
+        ServiceCard("5", "Сообщения", R.drawable.ic_card_messages),
+        ServiceCard("6", "Заказать услугу", R.drawable.ic_card_service)
     ),
     val hasPaymentButton: Boolean = false
 )

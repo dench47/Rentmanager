@@ -1,16 +1,17 @@
 package com.rentmanager.app.ui.landlord.main
 
+import androidx.annotation.DrawableRes
 import androidx.lifecycle.ViewModel
+import com.rentmanager.app.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 
 data class LandlordCard(
     val id: String,
     val title: String,
-    val description: String = "",
-    val iconPlaceholder: String
+    @DrawableRes val iconRes: Int,
+    val showBadge: Boolean = false
 )
 
 data class LandlordUiState(
@@ -22,12 +23,12 @@ data class LandlordUiState(
     val nextPaymentAmount: String = "130 000 ₽",
     val isPaid: Boolean = true,
     val cards: List<LandlordCard> = listOf(
-        LandlordCard("1", "Моя недвижимость", "", "\uD83C\uDFE0"),
-        LandlordCard("2", "Арендаторы", "", "\uD83D\uDC64"),
-        LandlordCard("3", "Другие объекты", "", "\uD83C\uDFE2"),
-        LandlordCard("4", "Финансы", "", "\uD83D\uDCB0"),
-        LandlordCard("5", "Сообщения", "", "\uD83D\uDCAC"),
-        LandlordCard("6", "Заказать услугу", "", "\u2795")
+        LandlordCard("1", "Моя недвижимость", R.drawable.ic_card_my_properties),
+        LandlordCard("2", "Арендаторы", R.drawable.ic_card_tenants),
+        LandlordCard("3", "Другие объекты", R.drawable.ic_card_other),
+        LandlordCard("4", "Финансы", R.drawable.ic_card_finance),
+        LandlordCard("5", "Сообщения", R.drawable.ic_card_messages, showBadge = true),
+        LandlordCard("6", "Заказать услугу", R.drawable.ic_card_service)
     )
 )
 
