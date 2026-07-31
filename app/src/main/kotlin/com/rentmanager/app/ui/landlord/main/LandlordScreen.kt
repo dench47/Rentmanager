@@ -34,7 +34,7 @@ import com.rentmanager.app.ui.components.PremiumBanner
 
 /**
  * Landlord main dashboard — Figma: Модуль арендодателя, 393×880dp (node=162:4145).
- * No scroll — all content fits the screen. No System Bar placeholder.
+ * No scroll — all content fits the screen.
  */
 @Composable
 fun LandlordScreen(
@@ -62,9 +62,8 @@ fun LandlordScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .weight(1f) // Fill available space, no scroll
             ) {
-                // Top gap (no System Bar — Android status bar already handled by Scaffold)
+                // Top gap
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Header — Figma: "Арендодатель" Lato SemiBold 24px, letterSpacing -0.3
@@ -90,12 +89,12 @@ fun LandlordScreen(
                 // Gap stats → cards
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Cards grid (2 columns × 3 rows) — Figma: Frame 2087329453 (y=246, h=370)
+                // Cards grid (2 columns × 3 rows) — Figma: Frame 2087329453, 370dp height
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .height(370.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalArrangement = Arrangement.spacedBy(5.dp),
                     userScrollEnabled = false
@@ -104,7 +103,6 @@ fun LandlordScreen(
                         DashboardCard(
                             iconRes = card.iconRes,
                             title = card.title,
-                            showBadge = card.showBadge,
                             onClick = {
                                 when (card.id) {
                                     "1" -> onNavigateToMyProperties()
@@ -157,7 +155,6 @@ private fun LandlordStatsSection(
         ) {
             // Left: next payment — Figma: Frame 109 (w=163)
             Column(modifier = Modifier.width(163.dp)) {
-                // "Ближайшее поступление 10.02.2026" — Inter Regular 14px, #151515 opacity 0.6
                 Text(
                     text = "Ближайшее поступление $paymentDate",
                     fontSize = 14.sp,
@@ -168,7 +165,6 @@ private fun LandlordStatsSection(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                // Amount — Inter Medium 16px, #151515 opacity 0.9
                 Text(
                     text = paymentAmount,
                     fontSize = 16.sp,
@@ -180,7 +176,6 @@ private fun LandlordStatsSection(
 
             // Right: income across all objects — Figma: Frame 113 (x=207, w=122)
             Column(modifier = Modifier.width(122.dp)) {
-                // "Доход по всем объектам" — Inter Regular 14px, #151515 opacity 0.6
                 Text(
                     text = "Доход \nпо всем объектам",
                     fontSize = 14.sp,
@@ -191,7 +186,6 @@ private fun LandlordStatsSection(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                // Monthly income — Inter Medium 16px, #151515 opacity 0.9
                 Text(
                     text = monthlyIncome,
                     fontSize = 16.sp,
@@ -206,7 +200,6 @@ private fun LandlordStatsSection(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Status badge — Figma: Frame 97, 353×48dp, cornerRadius 100
-        // Transparent background per Figma design
         Box(
             modifier = Modifier
                 .width(353.dp)
@@ -219,7 +212,6 @@ private fun LandlordStatsSection(
                 text = if (isPaid) "Просрочек нет" else "Просрочено",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                // Figma: fill #7AB66A (Green style 175:2949)
                 color = Color(0xFF7AB66A),
                 letterSpacing = (-0.4).sp
             )

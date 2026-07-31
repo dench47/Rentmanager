@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -280,7 +279,7 @@ fun DashboardCard(
     title: String,
     showBadge: Boolean = false,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
@@ -289,7 +288,7 @@ fun DashboardCard(
             .clip(RoundedCornerShape(30.dp))
             .background(Color(0xFFEFEFEF))
             .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 20.dp),
+            .padding(horizontal = 12.dp, vertical = 20.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -319,10 +318,10 @@ fun DashboardCard(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            // Label — Lato Bold 13sp, #151515E5
+            // Label — Lato Bold 12sp, #151515E5
             Text(
                 text = title,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xE5151515),
                 letterSpacing = (-0.4).sp,
@@ -342,7 +341,7 @@ fun DashboardCard(
 @Composable
 fun PremiumBanner(
     onConnectClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
@@ -364,8 +363,8 @@ fun PremiumBanner(
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 20.dp)
+                .fillMaxWidth()
+                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 14.dp)
         ) {
             Text(
                 text = "Премиум",
@@ -384,14 +383,14 @@ fun PremiumBanner(
                 letterSpacing = (-0.4).sp,
                 lineHeight = 17.sp
             )
-            Spacer(modifier = Modifier.height(10.dp))
-            // Button below text — Figma: Frame 7
+            Spacer(modifier = Modifier.height(8.dp))
+            // Button below text — Figma: Frame 7, wraps content, auto left-aligned in Column
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(100.dp))
                     .background(Color(0xFF212121))
                     .clickable { onConnectClick() }
-                    .padding(horizontal = 32.dp, vertical = 12.dp)
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
                 Text(
                     text = "Подключить",

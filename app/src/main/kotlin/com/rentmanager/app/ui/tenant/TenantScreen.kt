@@ -53,9 +53,8 @@ fun TenantScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .weight(1f)
             ) {
-                // Top gap (no System Bar — Android status bar handled by Scaffold)
+                // Top gap
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Header — Figma: Frame 126 / "Арендатор" Lato SemiBold 24px
@@ -84,13 +83,13 @@ fun TenantScreen(
                     )
                 }
 
-                // Services grid (2 columns × 3 rows)
+                // Services grid (2 columns × 3 rows) — 370dp fixed
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .height(370.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                     verticalArrangement = Arrangement.spacedBy(5.dp),
                     userScrollEnabled = false
@@ -127,7 +126,6 @@ private fun PaymentInfoSection(
     Column(
         modifier = Modifier.width(353.dp)
     ) {
-        // Next payment date — Inter Regular 14px, #151515 opacity 0.6
         Text(
             text = "Ближайший платеж до $paymentDate",
             fontSize = 14.sp,
@@ -136,7 +134,6 @@ private fun PaymentInfoSection(
             letterSpacing = (-0.4).sp
         )
         Spacer(modifier = Modifier.height(4.dp))
-        // Payment amount — Inter Medium 16px, #151515 opacity 0.9
         Text(
             text = paymentAmount,
             fontSize = 16.sp,
@@ -147,7 +144,6 @@ private fun PaymentInfoSection(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Status badge — Figma: Frame 97, 353×48dp, cornerRadius 100
-        // Transparent background per Figma design
         Box(
             modifier = Modifier
                 .width(353.dp)
