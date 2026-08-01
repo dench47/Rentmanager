@@ -82,7 +82,7 @@ fun HomeScreen(
                 // Лево: аватар (Figma: 131-1099, 40×40 IMAGE) + «Андрей»
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Image(
-                        painter = painterResource(R.drawable.home_avatar),
+                        painter = painterResource(R.drawable.ic_default_avatar),
                         contentDescription = "Аватар",
                         modifier = Modifier
                             .size(40.dp)

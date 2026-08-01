@@ -275,6 +275,16 @@ fun RentManagerNavGraph(
             )
         }
 
+        // Landlords List
+        composable(Screen.LandlordsList.route) {
+            com.rentmanager.app.ui.landlord.otherproperties.LandlordsListScreen(
+                onLandlordClick = { landlordId ->
+                    // Navigate to landlord detail (to be implemented)
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         // Other Properties
         composable(Screen.OtherProperties.route) {
             com.rentmanager.app.ui.landlord.otherproperties.OtherPropertiesScreen(
