@@ -26,22 +26,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.theme.RentManagerTheme
 
 data class LandlordItem(
-    val id: String,
-    val name: String,
-    val company: String,
+    val id: String, val name: String, val company: String,
     @DrawableRes val avatarRes: Int? = null
 )
 
 @Composable
-fun LandlordsListScreen(
-    onLandlordClick: (String) -> Unit,
-    onBack: () -> Unit
-) {
+fun LandlordsListScreen(onLandlordClick: (String) -> Unit, onBack: () -> Unit) {
     val landlords = listOf(
         LandlordItem("1", "Кузнецов Андрей", "Vertex Studio", R.drawable.mock_avatar_kuznetsov),
         LandlordItem("2", "Новиков Тихон", "Nexus Dynamics", R.drawable.mock_avatar_novikov),
@@ -49,87 +46,26 @@ fun LandlordsListScreen(
         LandlordItem("4", "Морозова София", "Neural", R.drawable.mock_avatar_morozova)
     )
 
-    Scaffold(
-        containerColor = Color.White
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color.White)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 8.dp, top = 12.dp, bottom = 12.dp, end = 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+    Scaffold(containerColor = Color.White) { paddingValues ->
+        Column(Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
+            Row(Modifier.fillMaxWidth().padding(start = 8.dp, top = 12.dp, bottom = 12.dp, end = 0.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    modifier = Modifier
-                        .clickable { onBack() }
-                        .padding(end = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                Row(Modifier.clickable { onBack() }.padding(end = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_arrow_left),
-                        contentDescription = "Назад",
-                        modifier = Modifier.size(24.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                    Text(
-                        text = "Арендодатели",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF212121),
-                        letterSpacing = (-0.3).sp
-                    )
+                    Image(painter = painterResource(R.drawable.ic_arrow_left), contentDescription = "Назад", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit)
+                    Text("Арендодатели", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
                 }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(end = 4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.size(44.dp).clickable { },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_search),
-                            contentDescription = "Поиск",
-                            modifier = Modifier.size(24.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
-                    Box(
-                        modifier = Modifier.size(44.dp).clickable { },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_sort),
-                            contentDescription = "Сортировка",
-                            modifier = Modifier.size(24.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 4.dp)) {
+                    Box(Modifier.size(44.dp).clickable { }, Alignment.Center) { Image(painter = painterResource(R.drawable.ic_search), contentDescription = "Поиск", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit) }
+                    Box(Modifier.size(44.dp).clickable { }, Alignment.Center) { Image(painter = painterResource(R.drawable.ic_sort), contentDescription = "Сортировка", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit) }
                 }
             }
-
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize()) {
                 items(landlords) { landlord ->
-                    LandlordCard(
-                        name = landlord.name,
-                        company = landlord.company,
-                        avatarRes = landlord.avatarRes,
-                        onClick = { onLandlordClick(landlord.id) }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        thickness = 1.dp,
-                        color = Color.Black.copy(alpha = 0.1f)
-                    )
+                    LandlordCard(landlord.name, landlord.company, landlord.avatarRes) { onLandlordClick(landlord.id) }
+                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
                 }
             }
         }
@@ -137,49 +73,20 @@ fun LandlordsListScreen(
 }
 
 @Composable
-private fun LandlordCard(
-    name: String,
-    company: String,
-    @DrawableRes avatarRes: Int?,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+private fun LandlordCard(name: String, company: String, @DrawableRes avatarRes: Int?, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar — Figma: circle, 40×40
-        Image(
-            painter = painterResource(avatarRes ?: R.drawable.ic_default_avatar),
-            contentDescription = name,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape),
-            contentScale = ContentScale.Crop
-        )
-
-        Column(
-            modifier = Modifier.padding(start = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = name,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.Black,
-                letterSpacing = (-0.3).sp
-            )
-            if (company.isNotEmpty()) {
-                Text(
-                    text = company,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color(0x993C3C43),
-                    letterSpacing = (-0.4).sp
-                )
-            }
+        Image(painter = painterResource(avatarRes ?: R.drawable.ic_default_avatar), contentDescription = name, modifier = Modifier.size(40.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+        Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.Black, letterSpacing = (-0.3).sp)
+            if (company.isNotEmpty()) Text(company, fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
         }
     }
+}
+
+@Preview(showBackground = true, name = "Список арендодателей")
+@Composable
+private fun PreviewLandlordsList() {
+    RentManagerTheme { LandlordsListScreen(onLandlordClick = {}, onBack = {}) }
 }
