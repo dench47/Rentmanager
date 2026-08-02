@@ -101,37 +101,25 @@ fun RentManagerNavGraph(
             )
         }
 
-        // ========== Tenant Screen ==========
-        composable(Screen.TenantScreen.route) {
+        // ========== Tenant Screen (с опциональной кнопкой оплаты) ==========
+        composable(
+            route = Screen.TenantScreen.route + "?pay={pay}",
+            arguments = listOf(navArgument("pay") { type = NavType.BoolType; defaultValue = false })
+        ) { backStackEntry ->
+            val pay = backStackEntry.arguments?.getBoolean("pay") ?: false
             val tenantViewModel: TenantViewModel = viewModel()
-            // By default, show tenant screen WITHOUT payment button
-            // For screen WITH payment button, use TenantPaymentScreen route
-            TenantScreen(
-                onBack = {
-                    navController.popBackStack(Screen.MainScreen.route, inclusive = false)
-                },
-                onServiceClick = { serviceId ->
-                    // Navigate to service detail (to be implemented)
-                },
-                onPayClick = {
-                    navController.navigate(Screen.TenantPaymentScreen.route)
-                },
-                viewModel = tenantViewModel
-            )
-        }
-
-        // ========== Tenant Screen with Payment Button ==========
-        composable(Screen.TenantPaymentScreen.route) {
-            val tenantViewModel: TenantViewModel = viewModel()
-            LaunchedEffect(Unit) {
-                tenantViewModel.setHasPaymentButton(true)
+            LaunchedEffect(pay) {
+                tenantViewModel.setHasPaymentButton(pay)
             }
             TenantScreen(
                 onBack = {
                     navController.popBackStack(Screen.MainScreen.route, inclusive = false)
                 },
                 onServiceClick = { serviceId ->
-                    // Navigate to service detail
+                    when (serviceId) {
+                        "2" -> navController.navigate(Screen.LandlordsList.route)
+                        // other services to be implemented
+                    }
                 },
                 onPayClick = {
                     // Payment action
