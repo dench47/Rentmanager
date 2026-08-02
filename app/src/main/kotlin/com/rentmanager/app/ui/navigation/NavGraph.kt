@@ -1,9 +1,7 @@
 package com.rentmanager.app.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -11,18 +9,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.rentmanager.app.ui.auth.code.SmsCodeScreen
-import com.rentmanager.app.ui.auth.code.SmsCodeViewModel
 import com.rentmanager.app.ui.auth.name.EnterNameScreen
 import com.rentmanager.app.ui.auth.phone.PhoneNumberScreen
-import com.rentmanager.app.ui.auth.phone.PhoneNumberViewModel
 import com.rentmanager.app.ui.home.HomeScreen
 import com.rentmanager.app.ui.keyboard.KeyboardScreen
-import com.rentmanager.app.ui.landlord.main.LandlordScreen
-import com.rentmanager.app.ui.property.detail.PropertyDetailScreen
+import com.rentmanager.app.ui.role.RoleScreen
+import com.rentmanager.app.ui.role.UserRole
 import com.rentmanager.app.ui.settings.SettingsScreen
 import com.rentmanager.app.ui.services.ServicesScreen
-import com.rentmanager.app.ui.tenant.TenantScreen
-import com.rentmanager.app.ui.tenant.TenantViewModel
 
 @Composable
 fun RentManagerNavGraph(
@@ -35,7 +29,7 @@ fun RentManagerNavGraph(
         navController = navController,
         startDestination = startDestination
     ) {
-        // ========== Auth Flow (новые экраны из Figma) ==========
+        // ========== Auth Flow ==========
         composable(Screen.PhoneInput.route) {
             PhoneNumberScreen(
                 onCodeSent = { phoneNumber ->
@@ -76,7 +70,7 @@ fun RentManagerNavGraph(
             )
         }
 
-        // ========== Keyboard Screen (вариант ввода телефона) ==========
+        // ========== Keyboard Screen ==========
         composable(Screen.Keyboard.route) {
             KeyboardScreen(
                 onContinue = { phoneNumber ->
@@ -89,11 +83,9 @@ fun RentManagerNavGraph(
         // ========== Home Screen ==========
         composable(Screen.MainScreen.route) {
             HomeScreen(
-                onLandlordSelected = {
-                    navController.navigate(Screen.LandlordMain.route)
-                },
-                onTenantSelected = {
-                    navController.navigate(Screen.TenantScreen.route)
+                onRoleSelected = { role ->
+                    val roleType = if (role == UserRole.LANDLORD) "landlord" else "tenant"
+                    navController.navigate(Screen.RoleScreen.createRoute(roleType))
                 },
                 onSettingsClick = {
                     navController.navigate(Screen.Settings.route)
@@ -101,36 +93,15 @@ fun RentManagerNavGraph(
             )
         }
 
-        // ========== Tenant Screen (с опциональной кнопкой оплаты) ==========
+        // ========== Role Screen (unified landlord/tenant) ==========
         composable(
-            route = Screen.TenantScreen.route + "?pay={pay}",
-            arguments = listOf(navArgument("pay") { type = NavType.BoolType; defaultValue = false })
+            route = Screen.RoleScreen.route,
+            arguments = listOf(navArgument("roleType") { type = NavType.StringType })
         ) { backStackEntry ->
-            val pay = backStackEntry.arguments?.getBoolean("pay") ?: false
-            val tenantViewModel: TenantViewModel = viewModel()
-            LaunchedEffect(pay) {
-                tenantViewModel.setHasPaymentButton(pay)
-            }
-            TenantScreen(
-                onBack = {
-                    navController.popBackStack(Screen.MainScreen.route, inclusive = false)
-                },
-                onServiceClick = { serviceId ->
-                    when (serviceId) {
-                        "2" -> navController.navigate(Screen.LandlordsList.route)
-                        // other services to be implemented
-                    }
-                },
-                onPayClick = {
-                    // Payment action
-                },
-                viewModel = tenantViewModel
-            )
-        }
-
-        // ========== Landlord Main ==========
-        composable(Screen.LandlordMain.route) {
-            LandlordScreen(
+            val roleType = backStackEntry.arguments?.getString("roleType") ?: "landlord"
+            val role = if (roleType == "landlord") UserRole.LANDLORD else UserRole.TENANT
+            RoleScreen(
+                role = role,
                 onNavigateToMyProperties = {
                     navController.navigate(Screen.MyProperties.route)
                 },
@@ -146,34 +117,16 @@ fun RentManagerNavGraph(
                 onNavigateToMessages = {
                     navController.navigate(Screen.Messages.route)
                 },
+                onNavigateToLandlordsList = {
+                    navController.navigate(Screen.LandlordsList.route)
+                },
                 onBackToMain = {
                     navController.popBackStack(Screen.MainScreen.route, inclusive = false)
                 }
             )
         }
 
-        // ========== Property Detail ==========
-        composable(
-            route = Screen.PropertyDetail.route,
-            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
-            PropertyDetailScreen(
-                propertyId = propertyId,
-                onBack = { navController.popBackStack() },
-                onAddMeter = {
-                    // Show AddCounterDialog — handled inside screen via state
-                },
-                onCall = { /* TODO: make call */ },
-                onWrite = {
-                    navController.navigate(Screen.Chat.createRoute("landlord"))
-                }
-            )
-        }
-
-        // ========== Legacy: старые экраны (сохраняем для совместимости) ==========
-
-        // My Properties (placeholder)
+        // ========== My Properties ==========
         composable(Screen.MyProperties.route) {
             com.rentmanager.app.ui.landlord.myproperties.MyPropertiesScreen(
                 onPropertyClick = { propertyId ->
@@ -188,7 +141,7 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Create Property
+        // ========== Create Property ==========
         composable(Screen.CreateProperty.route) {
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
                 onBack = { navController.popBackStack() },
@@ -196,7 +149,7 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Edit Property
+        // ========== Edit Property ==========
         composable(
             route = Screen.EditProperty.route,
             arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
@@ -209,7 +162,7 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Attach Tenant
+        // ========== Attach Tenant ==========
         composable(
             route = Screen.AttachTenant.route,
             arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
@@ -222,7 +175,7 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Meter Detail
+        // ========== Meter Detail ==========
         composable(
             route = Screen.MeterDetail.route,
             arguments = listOf(
@@ -239,7 +192,24 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Tenants
+        // ========== Property Detail ==========
+        composable(
+            route = Screen.PropertyDetail.route,
+            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
+            com.rentmanager.app.ui.property.detail.PropertyDetailScreen(
+                propertyId = propertyId,
+                onBack = { navController.popBackStack() },
+                onAddMeter = { },
+                onCall = { },
+                onWrite = {
+                    navController.navigate(Screen.Chat.createRoute("landlord"))
+                }
+            )
+        }
+
+        // ========== Tenants List ==========
         composable(Screen.TenantsList.route) {
             com.rentmanager.app.ui.landlord.tenants.TenantsListScreen(
                 onTenantClick = { tenantId ->
@@ -249,6 +219,7 @@ fun RentManagerNavGraph(
             )
         }
 
+        // ========== Tenant Detail ==========
         composable(
             route = Screen.TenantDetail.route,
             arguments = listOf(navArgument("tenantId") { type = NavType.StringType })
@@ -263,7 +234,7 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Landlords List
+        // ========== Landlords List ==========
         composable(Screen.LandlordsList.route) {
             com.rentmanager.app.ui.landlord.otherproperties.LandlordsListScreen(
                 onLandlordClick = { landlordId ->
@@ -273,7 +244,7 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Other Properties
+        // ========== Other Properties ==========
         composable(Screen.OtherProperties.route) {
             com.rentmanager.app.ui.landlord.otherproperties.OtherPropertiesScreen(
                 onPropertyClick = { propertyId ->
@@ -294,14 +265,14 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Finance
+        // ========== Finance ==========
         composable(Screen.Finance.route) {
             com.rentmanager.app.ui.landlord.finance.FinanceScreen(
                 onBack = { navController.popBackStack() }
             )
         }
 
-        // Messages
+        // ========== Messages ==========
         composable(Screen.Messages.route) {
             com.rentmanager.app.ui.landlord.messages.MessagesScreen(
                 onChatClick = { chatId ->
@@ -311,6 +282,7 @@ fun RentManagerNavGraph(
             )
         }
 
+        // ========== Chat ==========
         composable(
             route = Screen.Chat.route,
             arguments = listOf(navArgument("chatId") { type = NavType.StringType })
@@ -322,14 +294,14 @@ fun RentManagerNavGraph(
             )
         }
 
-        // Settings
+        // ========== Settings ==========
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }
 
-        // Services
+        // ========== Services ==========
         composable(Screen.Services.route) {
             ServicesScreen(
                 onBack = { navController.popBackStack() }

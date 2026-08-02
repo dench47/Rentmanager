@@ -21,6 +21,11 @@ sealed class Screen(val route: String) {
     // Keyboard screen
     data object Keyboard : Screen("auth/keyboard")
 
+    // Role screen (unified landlord/tenant)
+    data object RoleScreen : Screen("role/{roleType}") {
+        fun createRoute(roleType: String) = "role/$roleType"
+    }
+
     // Landlord tabs
     data object LandlordMain : Screen("landlord/main")
     data object MyProperties : Screen("landlord/my_properties")

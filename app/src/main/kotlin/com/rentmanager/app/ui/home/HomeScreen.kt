@@ -32,11 +32,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.RoleButton
+import com.rentmanager.app.ui.role.UserRole
 
 @Composable
 fun HomeScreen(
-    onLandlordSelected: () -> Unit,
-    onTenantSelected: () -> Unit,
+    onRoleSelected: (UserRole) -> Unit,
     onSettingsClick: () -> Unit,
     viewModel: HomeViewModel = viewModel()
 ) {
@@ -168,7 +168,7 @@ fun HomeScreen(
                         isSelected = uiState.selectedRole == UserRole.LANDLORD,
                         onClick = {
                             viewModel.selectRole(UserRole.LANDLORD)
-                            onLandlordSelected()
+                            onRoleSelected(UserRole.LANDLORD)
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -177,7 +177,7 @@ fun HomeScreen(
                         isSelected = uiState.selectedRole == UserRole.TENANT,
                         onClick = {
                             viewModel.selectRole(UserRole.TENANT)
-                            onTenantSelected()
+                            onRoleSelected(UserRole.TENANT)
                         },
                         modifier = Modifier.weight(1f)
                     )
