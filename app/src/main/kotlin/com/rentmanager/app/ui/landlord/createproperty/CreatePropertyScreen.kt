@@ -143,7 +143,7 @@ fun CreatePropertyScreen(
                     expanded = tenantInfoExpanded,
                     onToggle = { tenantInfoExpanded = !tenantInfoExpanded }
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Default.Phone, null, Modifier.size(20.dp), tint = Color(0xFF717171))
                             Text("Номер телефона", fontSize = 14.sp, color = Color(0xD9151515), letterSpacing = (-0.4).sp)
