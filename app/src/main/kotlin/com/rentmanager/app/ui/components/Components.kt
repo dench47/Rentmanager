@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -119,18 +121,41 @@ fun DashboardCard(@DrawableRes iconRes: Int, title: String, showBadge: Boolean =
 
 @Composable
 fun PremiumBanner(onConnectClick: () -> Unit = {}, @SuppressLint("ModifierParameter") modifier: Modifier = Modifier) {
-    Box(modifier = modifier.width(353.dp).height(153.dp).clip(RoundedCornerShape(30.dp)).background(Color(0xFFFEFFBB))
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(353f / 153f)
+            .clip(RoundedCornerShape(30.dp))
+            .background(Color(0xFFFEFFBB))
     ) {
-        Image(painter = painterResource(com.rentmanager.app.R.drawable.img_premium), contentDescription = null,
-            modifier = Modifier.align(Alignment.BottomEnd).width(169.dp).height(153.dp), contentScale = ContentScale.Fit)
+        // Image pinned to right edge, proportionate height
+        Image(
+            painter = painterResource(com.rentmanager.app.R.drawable.img_premium),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .aspectRatio(169f / 153f),
+            contentScale = ContentScale.Fit
+        )
 
-        Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 14.dp)) {
+        // Left content — text + button
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 14.dp)
+        ) {
             Text("Премиум", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
             Spacer(Modifier.height(8.dp))
             Text("\u2022 Условие\n\u2022 Условие", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color(0xCC151515), letterSpacing = (-0.4).sp, lineHeight = 17.sp)
             Spacer(Modifier.height(10.dp))
-            Box(modifier = Modifier.background(Color(0xFF212121), RoundedCornerShape(100.dp)).clickable { onConnectClick() }
-                .padding(horizontal = 32.dp, vertical = 12.dp), contentAlignment = Alignment.Center
+            // Button — wraps content, auto left-aligned
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFF212121), RoundedCornerShape(100.dp))
+                    .clickable { onConnectClick() }
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text("Подключить", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.White, letterSpacing = (-0.4).sp)
             }
