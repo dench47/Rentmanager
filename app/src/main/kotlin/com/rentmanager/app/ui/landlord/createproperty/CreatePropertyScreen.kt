@@ -141,7 +141,9 @@ fun CreatePropertyScreen(
                     title = "Информация об объекте",
                     subtitle = "Эта информация будет видна арендатору",
                     expanded = tenantInfoExpanded,
-                    onToggle = { tenantInfoExpanded = !tenantInfoExpanded }
+                    onToggle = {
+                        tenantInfoExpanded = !tenantInfoExpanded
+                    }
                 ) {
                     Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -168,7 +170,9 @@ fun CreatePropertyScreen(
                     title = "Служебная информация",
                     subtitle = "Эта информация будет видна только вам",
                     expanded = serviceInfoExpanded,
-                    onToggle = { serviceInfoExpanded = !serviceInfoExpanded }
+                    onToggle = {
+                        serviceInfoExpanded = !serviceInfoExpanded
+                    }
                 ) {
                     UnderlineTextField(value = serviceInfo, onValueChange = { serviceInfo = it }, placeholder = "")
                 }
@@ -224,7 +228,7 @@ private fun UnderlineTextField(value: String, onValueChange: (String) -> Unit, p
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
             textStyle = TextStyle(fontSize = 16.sp, color = Color(0xFF212121), letterSpacing = (-0.4).sp),
             cursorBrush = SolidColor(Color(0xFF212121)),
             singleLine = true,
