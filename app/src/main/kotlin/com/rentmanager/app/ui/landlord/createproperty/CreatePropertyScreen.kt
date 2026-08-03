@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -125,7 +127,27 @@ fun CreatePropertyScreen(
                     expanded = tenantInfoExpanded,
                     onToggle = { tenantInfoExpanded = !tenantInfoExpanded }
                 ) {
-                    UnderlineTextField(value = tenantInfo, onValueChange = { tenantInfo = it }, placeholder = "")
+                    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Номер телефона
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Phone, null, Modifier.size(20.dp), tint = Color(0xFF717171))
+                            Text("Номер телефона", fontSize = 14.sp, color = Color(0xD9151515), letterSpacing = (-0.4).sp)
+                            Spacer(Modifier.weight(1f))
+                            Text("+7 (899) 99-99-99", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
+                        }
+
+                        // Пароль WiFi
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Wifi, null, Modifier.size(20.dp), tint = Color(0xFF717171))
+                            Text("Пароль WiFi", fontSize = 14.sp, color = Color(0xD9151515), letterSpacing = (-0.4).sp)
+                            Spacer(Modifier.weight(1f))
+                            Text("Rsjuff6749", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
+                        }
+
+                        // Правила объекта
+                        Text("Правила объекта", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xD9151515), letterSpacing = (-0.4).sp)
+                        Text("Использовать помещение исключительно в целях, указанных в договоре", fontSize = 13.sp, color = Color(0xB3151515), letterSpacing = (-0.4).sp)
+                    }
                 }
 
                 // 6. Служебная информация (accordion)
