@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -87,20 +86,6 @@ fun RoleButton(text: String, isSelected: Boolean, onClick: () -> Unit, modifier:
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text, color = if (isSelected) Color.White else Color(0xFF151515), fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp, lineHeight = 20.sp)
-    }
-}
-
-@Composable
-fun IconCircleButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
-        TextButton(onClick = onClick) { Icon(Icons.Filled.Settings, "Настройки", Modifier.size(24.dp), tint = Color(0xFFFFFFFF)) }
-    }
-}
-
-@Composable
-fun BlackPaymentButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.width(353.dp).height(54.dp).clip(RoundedCornerShape(100.dp)).background(Color(0xFF000000)), contentAlignment = Alignment.Center) {
-        TextButton(onClick = onClick) { Text(text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Normal, letterSpacing = (-0.4).sp) }
     }
 }
 
