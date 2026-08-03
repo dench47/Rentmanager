@@ -1,78 +1,142 @@
 package com.rentmanager.app.ui.settings
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.rentmanager.app.ui.theme.*
+import androidx.compose.ui.unit.sp
+import com.rentmanager.app.R
+import com.rentmanager.app.ui.theme.RentManagerTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    onBack: () -> Unit
-) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Настройки", style = MaterialTheme.typography.titleLarge) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Назад", tint = OnPrimary)
+fun SettingsScreen(onBack: () -> Unit) {
+    Scaffold(containerColor = Color.White) { paddingValues ->
+        Column(Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
+            // Navigation Bar
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 12.dp, bottom = 12.dp, end = 0.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.clickable { onBack() }.padding(end = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Image(painter = painterResource(R.drawable.ic_arrow_left), contentDescription = "Назад", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit)
+                    Text("Настройки", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
+                }
+            }
+
+            LazyColumn(Modifier.fillMaxSize()) {
+                // Avatar section
+                item {
+                    Column(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(80.dp)) {
+                            Image(painter = painterResource(R.drawable.ic_default_avatar), contentDescription = "Аватар", modifier = Modifier.size(80.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                            Box(Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFF6F6F6)).align(Alignment.BottomEnd), Alignment.Center) {
+                                Icon(Icons.Default.Edit, "Изменить", Modifier.size(16.dp), tint = Color(0xFF212121))
+                            }
+                        }
+                        Text("Установить аватар", fontSize = 14.sp, color = Color(0xFF7AB66A), letterSpacing = (-0.4).sp)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Primary,
-                    titleContentColor = OnPrimary,
-                    navigationIconContentColor = OnPrimary
-                )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("Настройки профиля", style = MaterialTheme.typography.titleMedium)
-            Divider()
+                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+                }
 
-            // Установить пароль
-            ListItem(
-                headlineContent = { Text("Установить пароль") },
-                leadingContent = { Icon(Icons.Default.Lock, contentDescription = null) }
-            )
+                // Profile fields
+                item { SettingsField("ФИО", "Иван Иванов", Icons.Default.Edit) }
+                item { SettingsField("Номер телефона", "+7 (900) 000-00-00", Icons.Default.Phone) }
+                item { SettingsField("Почтовый ящик", "example@mail.ru", Icons.Default.Email, isOptional = true) }
+                item { SettingsField("Название юридического лица", "", Icons.Default.Business, isOptional = true) }
 
-            // Изменить ФИО
-            ListItem(
-                headlineContent = { Text("Изменить ФИО") },
-                leadingContent = { Icon(Icons.Default.Edit, contentDescription = null) }
-            )
+                // Actions
+                item { SettingsAction("Установить пароль", Icons.Default.Lock) }
+                item { SettingsAction("Начальный экран", Icons.Default.Home, "Арендую / Сдаю") }
 
-            // Название юр. лица
-            ListItem(
-                headlineContent = { Text("Название юридического лица") },
-                leadingContent = { Icon(Icons.Default.Business, contentDescription = null) }
-            )
-
-            // Начальный экран
-            ListItem(
-                headlineContent = { Text("Начальный экран") },
-                supportingContent = { Text("Выберите модуль: Арендую / Сдаю") },
-                leadingContent = { Icon(Icons.Default.Home, contentDescription = null) }
-            )
-
-            Divider()
-
-            // Выйти
-            ListItem(
-                headlineContent = {
-                    Text("Выйти из учетной записи", color = Error)
-                },
-                leadingContent = { Icon(Icons.Default.Logout, contentDescription = null, tint = Error) }
-            )
+                // Destructive actions
+                item { SettingsAction("Выйти из учётной записи", Icons.AutoMirrored.Filled.ExitToApp, "С этого устройства / Со всех устройств", isDestructive = true) }
+                item { SettingsAction("Удалить учётную запись", Icons.Default.Delete, isDestructive = true) }
+            }
         }
     }
+}
+
+@Composable
+private fun SettingsField(label: String, value: String, icon: ImageVector, isOptional: Boolean = false) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable { }.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(icon, label, Modifier.size(24.dp), tint = Color(0xFF212121))
+            Column(Modifier.weight(1f)) {
+                Text(label, fontSize = 16.sp, color = Color(0xFF212121), letterSpacing = (-0.4).sp)
+                if (isOptional) Text("(необязательно)", fontSize = 13.sp, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
+                if (value.isNotEmpty()) Text(value, fontSize = 14.sp, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
+            }
+            Icon(Icons.Default.Edit, "Редактировать", Modifier.size(20.dp), tint = Color(0x993C3C43))
+        }
+        HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+    }
+}
+
+@Composable
+private fun SettingsAction(text: String, icon: ImageVector, subtitle: String = "", isDestructive: Boolean = false) {
+    val color = if (isDestructive) Color(0xFFE53935) else Color(0xFF212121)
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable { }.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(icon, text, Modifier.size(24.dp), tint = color)
+            Column(Modifier.weight(1f)) {
+                Text(text, fontSize = 16.sp, color = color, letterSpacing = (-0.4).sp)
+                if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 14.sp, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
+            }
+        }
+        HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+    }
+}
+
+@Preview(showBackground = true, name = "Настройки")
+@Composable
+private fun PreviewSettings() {
+    RentManagerTheme { SettingsScreen(onBack = {}) }
 }

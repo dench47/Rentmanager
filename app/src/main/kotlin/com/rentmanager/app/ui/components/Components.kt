@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -124,9 +125,10 @@ fun PremiumBanner(onConnectClick: () -> Unit = {}, @SuppressLint("ModifierParame
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(353f / 153f)
+            .height(153.dp)
             .clip(RoundedCornerShape(30.dp))
             .background(Color(0xFFFEFFBB))
+            .clipToBounds()
     ) {
         // Image pinned to right edge, proportionate height
         Image(
@@ -143,18 +145,18 @@ fun PremiumBanner(onConnectClick: () -> Unit = {}, @SuppressLint("ModifierParame
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 14.dp)
+                .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 12.dp)
         ) {
             Text("Премиум", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
             Spacer(Modifier.height(8.dp))
             Text("\u2022 Условие\n\u2022 Условие", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color(0xCC151515), letterSpacing = (-0.4).sp, lineHeight = 17.sp)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(6.dp))
             // Button — wraps content, auto left-aligned
             Box(
                 modifier = Modifier
                     .background(Color(0xFF212121), RoundedCornerShape(100.dp))
                     .clickable { onConnectClick() }
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text("Подключить", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.White, letterSpacing = (-0.4).sp)
