@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -157,5 +158,45 @@ fun HomeTabButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         Image(painter = painterResource(com.rentmanager.app.R.drawable.ic_tab_home), contentDescription = "На Главную", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit)
         Text("На Главную", fontSize = 9.5.sp, fontWeight = FontWeight.Normal, color = Color(0xFF404040), letterSpacing = (-0.4).sp)
+    }
+}
+
+@Composable
+fun BlackButtonWithIcon(
+    text: String,
+    @DrawableRes iconRes: Int,
+    onClick: () -> Unit = {},
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .background(Color(0xFF212121))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            Modifier.padding(horizontal = 32.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Image(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit,
+                colorFilter = ColorFilter.tint(Color(0xFFA6A6A6))
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White,
+                letterSpacing = (-0.4).sp
+            )
+        }
     }
 }

@@ -37,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -47,6 +46,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.BlackButtonWithIcon
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
 @Composable
@@ -186,23 +186,23 @@ fun CreatePropertyScreen(
             ) {
                 Spacer(Modifier.height(4.dp))
 
-                // 7. График платежей
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(100.dp)).background(Color(0xFF212121)).clickable { },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(Modifier.padding(horizontal = 32.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_calendar_edit),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            contentScale = ContentScale.Fit,
-                            colorFilter = ColorFilter.tint(Color(0xFFA6A6A6))
-                        )
-                        Spacer(Modifier.size(8.dp))
-                        Text("График платежей и реквизиты", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color.White, letterSpacing = (-0.4).sp)
-                    }
-                }
+                // 7. Добавить счетчики
+                BlackButtonWithIcon(
+                    text = "Добавить счетчики",
+                    iconRes = com.rentmanager.app.R.drawable.ic_plus_circle,
+                    onClick = { },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(Modifier.height(6.dp))
+
+                // 8. График платежей
+                BlackButtonWithIcon(
+                    text = "График платежей и реквизиты",
+                    iconRes = com.rentmanager.app.R.drawable.ic_calendar_edit,
+                    onClick = { },
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Spacer(Modifier.height(6.dp))
 
