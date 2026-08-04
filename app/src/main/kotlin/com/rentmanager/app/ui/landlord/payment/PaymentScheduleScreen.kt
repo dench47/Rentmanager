@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.landlord.payment
 
+import android.widget.NumberPicker
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -32,8 +34,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,8 +54,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.rentmanager.app.R
 
 data class VariablePayment(
@@ -173,11 +179,10 @@ fun PaymentScheduleScreen(
                             )
 
                             if (!variableActive) {
-                                NumberTextField(
+                                DayPickerWithDialog(
                                     value = fixedDay,
-                                    onValueChange = { fixedDay = it },
-                                    placeholder = "Число (7)",
-                                    modifier = Modifier.fillMaxWidth()
+                                    onDaySelected = { fixedDay = it },
+                                    modifier = Modifier.width(64.dp)
                                 )
                                 NumberTextField(
                                     value = fixedAmount,
@@ -468,6 +473,83 @@ private fun NumberTextField(
                     innerTextField()
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun DayPickerWithDialog(
+    value: String,
+    onDaySelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    val initialValue = value.toIntOrNull() ?: 1
+    var selectedValue by remember(initialValue) { mutableIntStateOf(initialValue) }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF5F5F5))
+            .clickable { showDialog = true }
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Text(
+            text = value.ifEmpty { "1" },
+            fontSize = 15.sp,
+            color = if (value.isEmpty()) Color(0xFF8E8E93) else Color(0xFF1D1D1F)
+        )
+    }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = {
+                Text(
+                    "Выберите день месяца",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1D1D1F),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AndroidView(
+                        factory = { context ->
+                            NumberPicker(context).apply {
+                                minValue = 1
+                                maxValue = 31
+                                this.value = initialValue
+                                setOnValueChangedListener { _, _, newVal ->
+                                    selectedValue = newVal
+                                }
+                            }
+                        },
+                        modifier = Modifier.height(200.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDaySelected(selectedValue.toString())
+                        showDialog = false
+                    }
+                ) {
+                    Text("Готово", color = Color(0xFF212121), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("Отмена", color = Color(0xFF8E8E93))
+                }
+            },
+            containerColor = Color.White
         )
     }
 }
