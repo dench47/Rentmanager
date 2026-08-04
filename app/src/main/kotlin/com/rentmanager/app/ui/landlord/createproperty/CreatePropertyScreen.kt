@@ -17,17 +17,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.filled.List
-
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -48,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
@@ -211,7 +210,12 @@ fun CreatePropertyScreen(
                                 )
                                 Text("Правила объекта", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F), letterSpacing = (-0.4).sp)
                             }
-                            PremiumTextField(value = rulesText, onValueChange = { rulesText = it }, placeholder = "Использовать помещение исключительно в целях, указанных в договоре")
+                            PremiumTextField(
+                                value = rulesText,
+                                onValueChange = { rulesText = it },
+                                placeholder = "Использовать помещение исключительно в целях, указанных в договоре",
+                                singleLine = false
+                            )
                         }
                     }
 
@@ -222,7 +226,12 @@ fun CreatePropertyScreen(
                         expanded = serviceInfoExpanded,
                         onToggle = { serviceInfoExpanded = !serviceInfoExpanded }
                     ) {
-                        PremiumTextField(value = serviceInfo, onValueChange = { serviceInfo = it }, placeholder = "")
+                        PremiumTextField(
+                            value = serviceInfo,
+                            onValueChange = { serviceInfo = it },
+                            placeholder = "",
+                            singleLine = false
+                        )
                     }
                 }
 
@@ -269,7 +278,9 @@ fun CreatePropertyScreen(
 private fun PremiumTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String
+    placeholder: String,
+    singleLine: Boolean = true,
+    imeAction: ImeAction = ImeAction.Default
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -287,7 +298,8 @@ private fun PremiumTextField(
                 letterSpacing = (-0.4).sp
             ),
             cursorBrush = SolidColor(Color(0xFF1D1D1F)),
-            singleLine = true,
+            singleLine = singleLine,
+            keyboardOptions = KeyboardOptions(imeAction = imeAction),
             decorationBox = { innerTextField ->
                 Box {
                     if (value.isEmpty()) {
