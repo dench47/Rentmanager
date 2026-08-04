@@ -118,7 +118,7 @@ fun CreatePropertyScreen(
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     // 1. Фото
                     Card(
@@ -264,19 +264,17 @@ private fun PremiumTextField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(2.dp),
+            modifier = Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 4.dp),
             placeholder = {
                 Text(
                     placeholder,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     color = Color(0xFF8E8E93),
                     letterSpacing = (-0.4).sp
                 )
             },
             textStyle = androidx.compose.ui.text.TextStyle(
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 color = Color(0xFF1D1D1F),
                 letterSpacing = (-0.4).sp
             ),
