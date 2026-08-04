@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
@@ -44,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
@@ -90,7 +88,7 @@ fun CreatePropertyScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
@@ -120,32 +118,32 @@ fun CreatePropertyScreen(
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 1. Фото — card with dashed border illusion
+                    // 1. Фото
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
                         Box(
-                            modifier = Modifier.fillMaxWidth().clickable { }.padding(20.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { }.padding(12.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Icon(
                                     Icons.Default.AddPhotoAlternate,
                                     null,
-                                    Modifier.size(24.dp),
+                                    Modifier.size(20.dp),
                                     tint = Color(0xFF007AFF)
                                 )
                                 Text(
                                     "Добавить фото",
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = Color(0xFF007AFF),
                                     letterSpacing = (-0.4).sp
@@ -155,25 +153,13 @@ fun CreatePropertyScreen(
                     }
 
                     // 2. Название
-                    PremiumTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        placeholder = "Название"
-                    )
+                    PremiumTextField(value = name, onValueChange = { name = it }, placeholder = "Название")
 
                     // 3. Адрес
-                    PremiumTextField(
-                        value = address,
-                        onValueChange = { address = it },
-                        placeholder = "Адрес"
-                    )
+                    PremiumTextField(value = address, onValueChange = { address = it }, placeholder = "Адрес")
 
                     // 4. Площадь
-                    PremiumTextField(
-                        value = area,
-                        onValueChange = { area = it },
-                        placeholder = "Площадь (м²)"
-                    )
+                    PremiumTextField(value = area, onValueChange = { area = it }, placeholder = "Площадь (м²)")
 
                     // 5. Информация об объекте (accordion)
                     PremiumAccordionCard(
@@ -185,71 +171,31 @@ fun CreatePropertyScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Row(
                                 Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.Phone,
-                                    null,
-                                    Modifier.size(20.dp),
-                                    tint = Color(0xFF007AFF)
-                                )
-                                Text(
-                                    "Номер телефона",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1D1D1F),
-                                    letterSpacing = (-0.4).sp
-                                )
+                                Icon(Icons.Default.Phone, null, Modifier.size(18.dp), tint = Color(0xFF007AFF))
+                                Text("Номер телефона", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F), letterSpacing = (-0.4).sp)
                             }
-                            PremiumTextField(
-                                value = phoneNumber,
-                                onValueChange = { phoneNumber = it },
-                                placeholder = "+7 (899) 99-99-99"
-                            )
+                            PremiumTextField(value = phoneNumber, onValueChange = { phoneNumber = it }, placeholder = "+7 (899) 99-99-99")
 
                             Row(
                                 Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Icon(
-                                    Icons.Default.Wifi,
-                                    null,
-                                    Modifier.size(20.dp),
-                                    tint = Color(0xFF007AFF)
-                                )
-                                Text(
-                                    "Пароль WiFi",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1D1D1F),
-                                    letterSpacing = (-0.4).sp
-                                )
+                                Icon(Icons.Default.Wifi, null, Modifier.size(18.dp), tint = Color(0xFF007AFF))
+                                Text("Пароль WiFi", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F), letterSpacing = (-0.4).sp)
                             }
-                            PremiumTextField(
-                                value = wifiPassword,
-                                onValueChange = { wifiPassword = it },
-                                placeholder = "Rsjuff6749"
-                            )
+                            PremiumTextField(value = wifiPassword, onValueChange = { wifiPassword = it }, placeholder = "Rsjuff6749")
 
-                            Text(
-                                "Правила объекта",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF1D1D1F),
-                                letterSpacing = (-0.4).sp
-                            )
-                            PremiumTextField(
-                                value = rulesText,
-                                onValueChange = { rulesText = it },
-                                placeholder = "Использовать помещение исключительно в целях, указанных в договоре"
-                            )
+                            Text("Правила объекта", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F), letterSpacing = (-0.4).sp)
+                            PremiumTextField(value = rulesText, onValueChange = { rulesText = it }, placeholder = "Использовать помещение исключительно в целях, указанных в договоре")
                         }
                     }
 
@@ -260,34 +206,28 @@ fun CreatePropertyScreen(
                         expanded = serviceInfoExpanded,
                         onToggle = { serviceInfoExpanded = !serviceInfoExpanded }
                     ) {
-                        PremiumTextField(
-                            value = serviceInfo,
-                            onValueChange = { serviceInfo = it },
-                            placeholder = ""
-                        )
+                        PremiumTextField(value = serviceInfo, onValueChange = { serviceInfo = it }, placeholder = "")
                     }
                 }
 
-                // Bottom buttons — original style
+                // Bottom buttons (fixed)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.White.copy(alpha = 0.95f))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Добавить счетчики
                     BlackButtonWithIcon(
                         text = "Добавить счетчики",
-                        iconRes = com.rentmanager.app.R.drawable.ic_plus_circle,
+                        iconRes = R.drawable.ic_plus_circle,
                         onClick = { },
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // График платежей
                     BlackButtonWithIcon(
                         text = "График платежей и реквизиты",
-                        iconRes = com.rentmanager.app.R.drawable.ic_calendar_edit,
+                        iconRes = R.drawable.ic_calendar_edit,
                         onClick = { },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -319,24 +259,24 @@ private fun PremiumTextField(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(4.dp),
+                .padding(2.dp),
             placeholder = {
                 Text(
                     placeholder,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     color = Color(0xFF8E8E93),
                     letterSpacing = (-0.4).sp
                 )
             },
             textStyle = androidx.compose.ui.text.TextStyle(
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 color = Color(0xFF1D1D1F),
                 letterSpacing = (-0.4).sp
             ),
@@ -359,14 +299,14 @@ private fun PremiumAccordionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onToggle() },
@@ -376,15 +316,15 @@ private fun PremiumAccordionCard(
                 Column(Modifier.weight(1f)) {
                     Text(
                         title,
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFF1D1D1F),
                         letterSpacing = (-0.4).sp
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(1.dp))
                     Text(
                         subtitle,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         color = Color(0xFF8E8E93),
                         letterSpacing = (-0.4).sp
                     )
@@ -392,7 +332,7 @@ private fun PremiumAccordionCard(
                 Icon(
                     if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     null,
-                    Modifier.size(20.dp),
+                    Modifier.size(18.dp),
                     tint = Color(0xFF007AFF)
                 )
             }
@@ -401,10 +341,4 @@ private fun PremiumAccordionCard(
             }
         }
     }
-}
-
-@Preview(showBackground = true, name = "Создание недвижимости")
-@Composable
-private fun PreviewCreateProperty() {
-    RentManagerTheme { CreatePropertyScreen(onBack = {}, onCreated = {}) }
 }
