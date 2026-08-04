@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -21,7 +23,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
@@ -71,6 +74,9 @@ fun CreatePropertyScreen(
     var phoneNumber by remember { mutableStateOf("") }
     var wifiPassword by remember { mutableStateOf("") }
     var rulesText by remember { mutableStateOf("") }
+
+    // Photos
+    var photoUris by remember { mutableStateOf(listOf<String>()) }
 
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
@@ -123,34 +129,76 @@ fun CreatePropertyScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // 1. Фото
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().clickable { }.padding(12.dp),
-                            contentAlignment = Alignment.Center
+                    // 1. Photos section
+                    if (photoUris.isEmpty()) {
+                        // Default — large camera icon with label
+                        Card(
+                            modifier = Modifier.fillMaxWidth().height(160.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            Box(
+                                modifier = Modifier.fillMaxSize().clickable { /* launch gallery */ },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    Icons.Default.AddPhotoAlternate,
-                                    null,
-                                    Modifier.size(20.dp),
-                                    tint = Color(0xFF007AFF)
-                                )
-                                Text(
-                                    "Добавить фото",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF007AFF),
-                                    letterSpacing = (-0.4).sp
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.AddAPhoto,
+                                        null,
+                                        Modifier.size(48.dp),
+                                        tint = Color(0xFF007AFF)
+                                    )
+                                    Text(
+                                        "Добавить фото",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF007AFF)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Photos grid — Figma: 88×88dp, cornerRadius 8, gap 8dp
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(photoUris.size) { index ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(88.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFD3D3D3)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        painter = painterResource(R.drawable.img_premium), // placeholder
+                                        contentDescription = "Фото ${index + 1}",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
+                            // Add more photos button
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .size(88.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFF5F5F5))
+                                        .clickable { /* launch gallery */ },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.AddAPhoto,
+                                        null,
+                                        Modifier.size(32.dp),
+                                        tint = Color(0xFF007AFF)
+                                    )
+                                }
                             }
                         }
                     }
