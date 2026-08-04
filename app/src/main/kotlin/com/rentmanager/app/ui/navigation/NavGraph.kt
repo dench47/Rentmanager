@@ -18,6 +18,8 @@ import com.rentmanager.app.ui.role.RoleScreen
 import com.rentmanager.app.ui.role.UserRole
 import com.rentmanager.app.ui.settings.SettingsScreen
 import com.rentmanager.app.ui.services.ServicesScreen
+import com.rentmanager.app.ui.tenant.properties.TenantPropertiesScreen
+import com.rentmanager.app.ui.landlord.payment.PaymentScheduleScreen
 
 @Composable
 fun RentManagerNavGraph(
@@ -125,6 +127,9 @@ fun RentManagerNavGraph(
                 onNavigateToLandlordsList = {
                     navController.navigate(Screen.LandlordsList.route)
                 },
+                onNavigateToTenantProperties = {
+                    navController.navigate(Screen.TenantProperties.route)
+                },
                 onBackToMain = {
                     navController.popBackStack(Screen.MainScreen.route, inclusive = false)
                 }
@@ -152,7 +157,8 @@ fun RentManagerNavGraph(
                 onBack = {
                     navController.popBackStack(Screen.RoleScreen.route, inclusive = false)
                 },
-                onCreated = { navController.popBackStack() }
+                onCreated = { navController.popBackStack() },
+                onPaymentSchedule = { navController.navigate(Screen.PaymentSchedule.route) }
             )
         }
 
@@ -213,6 +219,20 @@ fun RentManagerNavGraph(
                 onWrite = {
                     navController.navigate(Screen.Chat.createRoute("landlord"))
                 }
+            )
+        }
+
+        // ========== Tenant Properties ==========
+        composable(Screen.TenantProperties.route) {
+            TenantPropertiesScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ========== Payment Schedule ==========
+        composable(Screen.PaymentSchedule.route) {
+            PaymentScheduleScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

@@ -48,6 +48,7 @@ fun RoleScreen(
     onNavigateToFinance: () -> Unit = {},
     onNavigateToMessages: () -> Unit = {},
     onNavigateToLandlordsList: () -> Unit = {},
+    onNavigateToTenantProperties: () -> Unit = {},
     onBackToMain: () -> Unit = {},
     viewModel: RoleViewModel = viewModel()
 ) {
@@ -115,7 +116,7 @@ fun RoleScreen(
                             iconRes = card.iconRes,
                             title = card.title,
                             twoLines = card.twoLines,
-                            onClick = { handleCardClick(card.id, uiState.role, onNavigateToMyProperties, onNavigateToTenants, onNavigateToOtherProperties, onNavigateToFinance, onNavigateToMessages, onNavigateToLandlordsList) }
+                         onClick = { handleCardClick(card.id, uiState.role, onNavigateToMyProperties, onNavigateToTenants, onNavigateToOtherProperties, onNavigateToFinance, onNavigateToMessages, onNavigateToLandlordsList, onNavigateToTenantProperties) }
                         )
                     }
                 }
@@ -131,7 +132,8 @@ fun RoleScreen(
 private fun handleCardClick(
     cardId: String, role: UserRole,
     onMyProperties: () -> Unit, onTenants: () -> Unit, onOther: () -> Unit,
-    onFinance: () -> Unit, onMessages: () -> Unit, onLandlords: () -> Unit
+    onFinance: () -> Unit, onMessages: () -> Unit, onLandlords: () -> Unit,
+    onTenantProperties: () -> Unit
 ) {
     when (role) {
         UserRole.LANDLORD -> when (cardId) {
@@ -143,6 +145,7 @@ private fun handleCardClick(
             "6" -> onOther()
         }
         UserRole.TENANT -> when (cardId) {
+            "1" -> onTenantProperties()
             "2" -> onLandlords()
         }
     }

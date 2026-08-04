@@ -14,8 +14,10 @@ sealed class Screen(val route: String) {
     // Main
     data object MainScreen : Screen("main")
 
-    // Tenant screens (новые)
-    data object TenantScreen : Screen("tenant")
+    // Tenant screens
+    data object TenantProperties : Screen("tenant/properties")
+    // Payment Schedule
+    data object PaymentSchedule : Screen("landlord/payment_schedule")
     data object TenantPaymentScreen : Screen("tenant/payment")
 
     // Keyboard screen

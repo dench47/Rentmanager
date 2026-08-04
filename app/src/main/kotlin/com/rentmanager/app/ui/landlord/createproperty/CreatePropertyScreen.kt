@@ -69,7 +69,8 @@ private val GradientBackground = Brush.verticalGradient(
 fun CreatePropertyScreen(
     propertyId: String? = null,
     onBack: () -> Unit,
-    onCreated: () -> Unit
+    onCreated: () -> Unit,
+    onPaymentSchedule: () -> Unit = {}
 ) {
     val isEdit = propertyId != null
     var name by remember { mutableStateOf("") }
@@ -342,7 +343,7 @@ fun CreatePropertyScreen(
                     BlackButtonWithIcon(
                         text = "График платежей и реквизиты",
                         iconRes = R.drawable.ic_calendar_edit,
-                        onClick = { },
+                        onClick = { onPaymentSchedule() },
                         modifier = Modifier.fillMaxWidth()
                     )
 
