@@ -17,15 +17,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,18 +39,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
-import com.rentmanager.app.ui.components.BlackButtonWithIcon
 import com.rentmanager.app.ui.theme.RentManagerTheme
+
+private val GradientBackground = Brush.verticalGradient(
+    colors = listOf(Color.White, Color(0xFFF5F7FA))
+)
 
 @Composable
 fun CreatePropertyScreen(
@@ -68,205 +73,401 @@ fun CreatePropertyScreen(
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
 
-    Scaffold(containerColor = Color.White) { paddingValues ->
-        Column(
+    Scaffold(
+        containerColor = Color.Transparent
+    ) { paddingValues ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(GradientBackground)
                 .padding(paddingValues)
-                .background(Color.White)
         ) {
-            // Navigation Bar
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 12.dp, bottom = 8.dp, end = 0.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
+                // Navigation Bar
                 Row(
-                    modifier = Modifier.clickable { onBack() }.padding(end = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_arrow_left),
-                        contentDescription = "Назад",
-                        modifier = Modifier.size(24.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                    Text(
-                        if (isEdit) "Редактирование" else "Создание объекта",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF212121),
-                        letterSpacing = (-0.3).sp
-                    )
-                }
-            }
-
-            // Scrollable content
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp)
-            ) {
-                // 1. Фото
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFFF5F5F5)).clickable { },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Default.AddPhotoAlternate, null, Modifier.size(20.dp), tint = Color(0xFF757575))
-                        Text("Добавить фото", fontSize = 15.sp, color = Color(0xFF757575), letterSpacing = (-0.4).sp)
+                    Row(
+                        modifier = Modifier.clickable { onBack() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_arrow_left),
+                            contentDescription = "Назад",
+                            modifier = Modifier.size(24.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Spacer(Modifier.size(12.dp))
+                        Text(
+                            if (isEdit) "Редактирование" else "Новый объект",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1D1D1F),
+                            letterSpacing = (-0.3).sp
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(4.dp))
-
-                // 2. Название
-                UnderlineTextField(value = name, onValueChange = { name = it }, placeholder = "Название")
-
-                Spacer(Modifier.height(4.dp))
-
-                // 3. Адрес
-                UnderlineTextField(value = address, onValueChange = { address = it }, placeholder = "Адрес")
-
-                Spacer(Modifier.height(4.dp))
-
-                // 4. Площадь
-                UnderlineTextField(value = area, onValueChange = { area = it }, placeholder = "Площадь (м²)")
-
-                Spacer(Modifier.height(8.dp))
-
-                // 5. Информация об объекте (accordion)
-                AccordionCard(
-                    title = "Информация об объекте",
-                    subtitle = "Эта информация будет видна арендатору",
-                    expanded = tenantInfoExpanded,
-                    onToggle = {
-                        tenantInfoExpanded = !tenantInfoExpanded
-                    }
+                // Scrollable content
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.Phone, null, Modifier.size(20.dp), tint = Color(0xFF717171))
-                            Text("Номер телефона", fontSize = 14.sp, color = Color(0xD9151515), letterSpacing = (-0.4).sp)
+                    // 1. Фото — card with dashed border illusion
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().clickable { }.padding(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.AddPhotoAlternate,
+                                    null,
+                                    Modifier.size(24.dp),
+                                    tint = Color(0xFF007AFF)
+                                )
+                                Text(
+                                    "Добавить фото",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF007AFF),
+                                    letterSpacing = (-0.4).sp
+                                )
+                            }
                         }
-                        UnderlineTextField(value = phoneNumber, onValueChange = { phoneNumber = it }, placeholder = "+7 (899) 99-99-99")
+                    }
 
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.Wifi, null, Modifier.size(20.dp), tint = Color(0xFF717171))
-                            Text("Пароль WiFi", fontSize = 14.sp, color = Color(0xD9151515), letterSpacing = (-0.4).sp)
+                    // 2. Название
+                    PremiumTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        placeholder = "Название"
+                    )
+
+                    // 3. Адрес
+                    PremiumTextField(
+                        value = address,
+                        onValueChange = { address = it },
+                        placeholder = "Адрес"
+                    )
+
+                    // 4. Площадь
+                    PremiumTextField(
+                        value = area,
+                        onValueChange = { area = it },
+                        placeholder = "Площадь (м²)"
+                    )
+
+                    // 5. Информация об объекте (accordion)
+                    PremiumAccordionCard(
+                        title = "Информация об объекте",
+                        subtitle = "Эта информация будет видна арендатору",
+                        expanded = tenantInfoExpanded,
+                        onToggle = { tenantInfoExpanded = !tenantInfoExpanded }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Phone,
+                                    null,
+                                    Modifier.size(20.dp),
+                                    tint = Color(0xFF007AFF)
+                                )
+                                Text(
+                                    "Номер телефона",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1D1D1F),
+                                    letterSpacing = (-0.4).sp
+                                )
+                            }
+                            PremiumTextField(
+                                value = phoneNumber,
+                                onValueChange = { phoneNumber = it },
+                                placeholder = "+7 (899) 99-99-99"
+                            )
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Wifi,
+                                    null,
+                                    Modifier.size(20.dp),
+                                    tint = Color(0xFF007AFF)
+                                )
+                                Text(
+                                    "Пароль WiFi",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF1D1D1F),
+                                    letterSpacing = (-0.4).sp
+                                )
+                            }
+                            PremiumTextField(
+                                value = wifiPassword,
+                                onValueChange = { wifiPassword = it },
+                                placeholder = "Rsjuff6749"
+                            )
+
+                            Text(
+                                "Правила объекта",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF1D1D1F),
+                                letterSpacing = (-0.4).sp
+                            )
+                            PremiumTextField(
+                                value = rulesText,
+                                onValueChange = { rulesText = it },
+                                placeholder = "Использовать помещение исключительно в целях, указанных в договоре"
+                            )
                         }
-                        UnderlineTextField(value = wifiPassword, onValueChange = { wifiPassword = it }, placeholder = "Rsjuff6749")
+                    }
 
-                        Text("Правила объекта", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xD9151515), letterSpacing = (-0.4).sp)
-                        UnderlineTextField(value = rulesText, onValueChange = { rulesText = it }, placeholder = "Использовать помещение исключительно в целях, указанных в договоре")
+                    // 6. Служебная информация (accordion)
+                    PremiumAccordionCard(
+                        title = "Служебная информация",
+                        subtitle = "Эта информация будет видна только вам",
+                        expanded = serviceInfoExpanded,
+                        onToggle = { serviceInfoExpanded = !serviceInfoExpanded }
+                    ) {
+                        PremiumTextField(
+                            value = serviceInfo,
+                            onValueChange = { serviceInfo = it },
+                            placeholder = ""
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
-
-                // 6. Служебная информация (accordion)
-                AccordionCard(
-                    title = "Служебная информация",
-                    subtitle = "Эта информация будет видна только вам",
-                    expanded = serviceInfoExpanded,
-                    onToggle = {
-                        serviceInfoExpanded = !serviceInfoExpanded
+                // Bottom buttons
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Добавить счетчики — outline button
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                null,
+                                Modifier.size(20.dp),
+                                tint = Color(0xFF007AFF)
+                            )
+                            Spacer(Modifier.size(8.dp))
+                            Text(
+                                "Добавить счетчики",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = Color(0xFF1D1D1F),
+                                letterSpacing = (-0.4).sp
+                            )
+                        }
                     }
-                ) {
-                    UnderlineTextField(value = serviceInfo, onValueChange = { serviceInfo = it }, placeholder = "")
+
+                    // График платежей — outline button
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                null,
+                                Modifier.size(20.dp),
+                                tint = Color(0xFF007AFF)
+                            )
+                            Spacer(Modifier.size(8.dp))
+                            Text(
+                                "График платежей и реквизиты",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = Color(0xFF1D1D1F),
+                                letterSpacing = (-0.4).sp
+                            )
+                        }
+                    }
+
+                    // Сохранить — solid blue button
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (name.isNotBlank() && address.isNotBlank())
+                                Color(0xFF007AFF)
+                            else
+                                Color(0xFF007AFF).copy(alpha = 0.5f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = name.isNotBlank() && address.isNotBlank()) {
+                                    onCreated()
+                                }
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (isEdit) "Сохранить" else "Создать",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White,
+                                letterSpacing = (-0.4).sp
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
                 }
-            }
-
-            // Bottom buttons (fixed, not scrollable)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
-            ) {
-                Spacer(Modifier.height(4.dp))
-
-                // 7. Добавить счетчики
-                BlackButtonWithIcon(
-                    text = "Добавить счетчики",
-                    iconRes = com.rentmanager.app.R.drawable.ic_plus_circle,
-                    onClick = { },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(6.dp))
-
-                // 8. График платежей
-                BlackButtonWithIcon(
-                    text = "График платежей и реквизиты",
-                    iconRes = com.rentmanager.app.R.drawable.ic_calendar_edit,
-                    onClick = { },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(6.dp))
-
-                // Сохранить
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(100.dp))
-                        .background(if (name.isNotBlank() && address.isNotBlank()) Color(0xFF212121) else Color(0xFF212121).copy(alpha = 0.5f))
-                        .clickable(enabled = name.isNotBlank() && address.isNotBlank()) { onCreated() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(if (isEdit) "Сохранить" else "Создать", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
-                }
-
-                Spacer(Modifier.height(8.dp))
             }
         }
     }
 }
 
 @Composable
-private fun UnderlineTextField(value: String, onValueChange: (String) -> Unit, placeholder: String) {
-    Column(Modifier.fillMaxWidth()) {
-        BasicTextField(
+private fun PremiumTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-            textStyle = TextStyle(fontSize = 16.sp, color = Color(0xFF212121), letterSpacing = (-0.4).sp),
-            cursorBrush = SolidColor(Color(0xFF212121)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            placeholder = {
+                Text(
+                    placeholder,
+                    fontSize = 15.sp,
+                    color = Color(0xFF8E8E93),
+                    letterSpacing = (-0.4).sp
+                )
+            },
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = 15.sp,
+                color = Color(0xFF1D1D1F),
+                letterSpacing = (-0.4).sp
+            ),
             singleLine = true,
-            decorationBox = { innerTextField ->
-                Box { if (value.isEmpty()) Text(placeholder, fontSize = 16.sp, color = Color(0xFFBDBDBD), letterSpacing = (-0.4).sp); innerTextField() }
-            }
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent
+            )
         )
-        HorizontalDivider(thickness = 1.dp, color = Color.Black.copy(alpha = 0.08f))
     }
 }
 
 @Composable
-private fun AccordionCard(
+private fun PremiumAccordionCard(
     title: String,
     subtitle: String,
     expanded: Boolean,
     onToggle: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0xFFF3F3F3)).clickable { onToggle() }.padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
-                Spacer(Modifier.height(2.dp))
-                Text(subtitle, fontSize = 12.sp, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onToggle() },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF1D1D1F),
+                        letterSpacing = (-0.4).sp
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        subtitle,
+                        fontSize = 13.sp,
+                        color = Color(0xFF8E8E93),
+                        letterSpacing = (-0.4).sp
+                    )
+                }
+                Icon(
+                    if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    null,
+                    Modifier.size(20.dp),
+                    tint = Color(0xFF007AFF)
+                )
             }
-            Icon(
-                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                null,
-                Modifier.size(24.dp),
-                tint = Color(0xFF151515)
-            )
+            AnimatedVisibility(visible = expanded) {
+                content()
+            }
         }
-        AnimatedVisibility(visible = expanded) { content() }
     }
 }
 
