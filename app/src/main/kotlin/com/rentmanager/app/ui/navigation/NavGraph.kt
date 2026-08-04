@@ -12,6 +12,7 @@ import com.rentmanager.app.ui.auth.code.SmsCodeScreen
 import com.rentmanager.app.ui.auth.name.EnterNameScreen
 import com.rentmanager.app.ui.auth.phone.PhoneNumberScreen
 import com.rentmanager.app.ui.home.HomeScreen
+import com.rentmanager.app.ui.landlord.myproperties.mockProperties
 import com.rentmanager.app.ui.keyboard.KeyboardScreen
 import com.rentmanager.app.ui.role.RoleScreen
 import com.rentmanager.app.ui.role.UserRole
@@ -103,7 +104,11 @@ fun RentManagerNavGraph(
             RoleScreen(
                 role = role,
                 onNavigateToMyProperties = {
-                    navController.navigate(Screen.MyProperties.route)
+                    if (mockProperties.isEmpty()) {
+                        navController.navigate(Screen.CreateProperty.route)
+                    } else {
+                        navController.navigate(Screen.MyProperties.route)
+                    }
                 },
                 onNavigateToTenants = {
                     navController.navigate(Screen.TenantsList.route)
@@ -144,7 +149,9 @@ fun RentManagerNavGraph(
         // ========== Create Property ==========
         composable(Screen.CreateProperty.route) {
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    navController.popBackStack(Screen.RoleScreen.route, inclusive = false)
+                },
                 onCreated = { navController.popBackStack() }
             )
         }
