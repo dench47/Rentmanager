@@ -19,11 +19,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.List
+
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -48,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.BlackButtonWithIcon
-import com.rentmanager.app.ui.theme.RentManagerTheme
 
 private val GradientBackground = Brush.verticalGradient(
     colors = listOf(Color.White, Color(0xFFF5F7FA))
@@ -195,7 +198,19 @@ fun CreatePropertyScreen(
                             }
                             PremiumTextField(value = wifiPassword, onValueChange = { wifiPassword = it }, placeholder = "Rsjuff6749")
 
-                            Text("Правила объекта", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F), letterSpacing = (-0.4).sp)
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.List,
+                                    null,
+                                    Modifier.size(18.dp),
+                                    tint = Color(0xFF007AFF)
+                                )
+                                Text("Правила объекта", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F), letterSpacing = (-0.4).sp)
+                            }
                             PremiumTextField(value = rulesText, onValueChange = { rulesText = it }, placeholder = "Использовать помещение исключительно в целях, указанных в договоре")
                         }
                     }
