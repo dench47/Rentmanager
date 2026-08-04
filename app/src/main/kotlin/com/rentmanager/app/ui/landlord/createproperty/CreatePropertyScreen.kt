@@ -1,9 +1,13 @@
 package com.rentmanager.app.ui.landlord.createproperty
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +26,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -31,11 +33,14 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.BlackButtonWithIcon
 
@@ -77,6 +83,14 @@ fun CreatePropertyScreen(
 
     // Photos
     var photoUris by remember { mutableStateOf(listOf<String>()) }
+    var showPhotoMenuIndex by remember { mutableIntStateOf(-1) }
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            photoUris = photoUris + uris.map { it.toString() }
+        }
+    }
 
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
@@ -139,7 +153,7 @@ fun CreatePropertyScreen(
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Box(
-                                modifier = Modifier.fillMaxSize().clickable { /* launch gallery */ },
+                                modifier = Modifier.fillMaxSize().clickable { galleryLauncher.launch("image/*") },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(
@@ -167,20 +181,47 @@ fun CreatePropertyScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(photoUris.size) { index ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(88.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFFD3D3D3)),
-                                    contentAlignment = Alignment.Center
+                            @OptIn(ExperimentalFoundationApi::class)
+                            Box(
+                                modifier = Modifier
+                                    .size(88.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFD3D3D3))
+                                    .combinedClickable(
+                                        onClick = { },
+                                        onLongClick = { showPhotoMenuIndex = index }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = photoUris[index],
+                                    contentDescription = "Фото ${index + 1}",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+
+                                DropdownMenu(
+                                    expanded = showPhotoMenuIndex == index,
+                                    onDismissRequest = { showPhotoMenuIndex = -1 }
                                 ) {
-                                    Image(
-                                        painter = painterResource(R.drawable.img_premium), // placeholder
-                                        contentDescription = "Фото ${index + 1}",
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
+                                    DropdownMenuItem(
+                                        text = { Text("Сделать основным") },
+                                        onClick = {
+                                            if (index > 0) {
+                                                photoUris = listOf(photoUris[index]) + photoUris.filterIndexed { i, _ -> i != index }
+                                            }
+                                            showPhotoMenuIndex = -1
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Удалить", color = Color(0xFFE53935)) },
+                                        onClick = {
+                                            photoUris = photoUris.filterIndexed { i, _ -> i != index }
+                                            showPhotoMenuIndex = -1
+                                        }
                                     )
                                 }
+                            }
                             }
                             // Add more photos button
                             item {
@@ -189,7 +230,7 @@ fun CreatePropertyScreen(
                                         .size(88.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(Color(0xFFF5F5F5))
-                                        .clickable { /* launch gallery */ },
+                                        .clickable { galleryLauncher.launch("image/*") },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
