@@ -48,6 +48,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.BlackButtonWithIcon
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
 private val GradientBackground = Brush.verticalGradient(
@@ -267,107 +268,38 @@ fun CreatePropertyScreen(
                     }
                 }
 
-                // Bottom buttons
+                // Bottom buttons — original style
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White)
+                        .background(Color.White.copy(alpha = 0.95f))
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Добавить счетчики — outline button
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { }
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                null,
-                                Modifier.size(20.dp),
-                                tint = Color(0xFF007AFF)
-                            )
-                            Spacer(Modifier.size(8.dp))
-                            Text(
-                                "Добавить счетчики",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = Color(0xFF1D1D1F),
-                                letterSpacing = (-0.4).sp
-                            )
-                        }
-                    }
+                    // Добавить счетчики
+                    BlackButtonWithIcon(
+                        text = "Добавить счетчики",
+                        iconRes = com.rentmanager.app.R.drawable.ic_plus_circle,
+                        onClick = { },
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                    // График платежей — outline button
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { }
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                null,
-                                Modifier.size(20.dp),
-                                tint = Color(0xFF007AFF)
-                            )
-                            Spacer(Modifier.size(8.dp))
-                            Text(
-                                "График платежей и реквизиты",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = Color(0xFF1D1D1F),
-                                letterSpacing = (-0.4).sp
-                            )
-                        }
-                    }
+                    // График платежей
+                    BlackButtonWithIcon(
+                        text = "График платежей и реквизиты",
+                        iconRes = com.rentmanager.app.R.drawable.ic_calendar_edit,
+                        onClick = { },
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-                    // Сохранить — solid blue button
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (name.isNotBlank() && address.isNotBlank())
-                                Color(0xFF007AFF)
-                            else
-                                Color(0xFF007AFF).copy(alpha = 0.5f)
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    // Сохранить
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(100.dp))
+                            .background(if (name.isNotBlank() && address.isNotBlank()) Color(0xFF212121) else Color(0xFF212121).copy(alpha = 0.5f))
+                            .clickable(enabled = name.isNotBlank() && address.isNotBlank()) { onCreated() },
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = name.isNotBlank() && address.isNotBlank()) {
-                                    onCreated()
-                                }
-                                .padding(vertical = 16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                if (isEdit) "Сохранить" else "Создать",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color.White,
-                                letterSpacing = (-0.4).sp
-                            )
-                        }
+                        Text(if (isEdit) "Сохранить" else "Создать", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
                     }
 
                     Spacer(Modifier.height(8.dp))
