@@ -160,17 +160,17 @@ fun CreatePropertyScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Default.AddAPhoto,
-                                        null,
-                                        Modifier.size(48.dp),
-                                        tint = Color(0xFF007AFF)
-                                    )
-                                    Text(
-                                        "Добавить фото",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF007AFF)
+                                Icon(
+                                    Icons.Default.AddAPhoto,
+                                    null,
+                                    Modifier.size(48.dp),
+                                    tint = Color(0xFF8E8E93)
+                                )
+                                Text(
+                                    "Добавить фото",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF8E8E93)
                                     )
                                 }
                             }
@@ -450,7 +450,7 @@ private fun PremiumAccordionCard(
                     if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     null,
                     Modifier.size(18.dp),
-                    tint = Color(0xFF007AFF)
+                    tint = Color(0xFF1D1D1F)
                 )
             }
             AnimatedVisibility(visible = expanded) {
