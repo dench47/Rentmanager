@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -50,7 +51,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +61,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.rentmanager.app.R
+import java.util.Calendar
+
+// ---- Cache to persist state across navigation ----
+object PaymentScheduleCache {
+    var fixedDay: String = ""
+    var fixedAmount: String = ""
+    var fixedActive: Boolean = false
+
+    var variableActive: Boolean = false
+    var selectedDay: String = ""
+    var variableAmount: String = ""
+    val variableDates: MutableList<VariablePayment> = mutableListOf()
+
+    var calendarYear: Int = Calendar.getInstance().get(Calendar.YEAR)
+    var calendarMonth: Int = Calendar.getInstance().get(Calendar.MONTH) + 1 // 1-based
+
+    var selectedRequisite: String? = null
+}
 
 data class VariablePayment(
     val date: String,
@@ -71,33 +89,53 @@ private val GradientBackground = Brush.verticalGradient(
     colors = listOf(Color.White, Color(0xFFF5F7FA))
 )
 
+private val CreamColor = Color(0xFFFAF8F5)
+
 @Composable
 fun PaymentScheduleScreen(
     onBack: () -> Unit
 ) {
-    var fixedDay by remember { mutableStateOf("") }
-    var fixedAmount by remember { mutableStateOf("") }
-    var fixedActive by remember { mutableStateOf(false) }
+    val cache = PaymentScheduleCache
+
+    var fixedDay by remember { mutableStateOf(cache.fixedDay) }
+    var fixedAmount by remember { mutableStateOf(cache.fixedAmount) }
+    var fixedActive by remember { mutableStateOf(cache.fixedActive) }
     var fixedDirty by remember { mutableStateOf(false) }
 
-    var variableActive by remember { mutableStateOf(false) }
+    var variableActive by remember { mutableStateOf(cache.variableActive) }
     var variableDirty by remember { mutableStateOf(false) }
-    var selectedDay by remember { mutableStateOf("") }
-    var variableAmount by remember { mutableStateOf("") }
-    val variableDates = remember { mutableStateListOf<VariablePayment>() }
+    var selectedDay by remember { mutableStateOf(cache.selectedDay) }
+    var variableAmount by remember { mutableStateOf(cache.variableAmount) }
+    val variableDates = remember { mutableStateListOf<VariablePayment>().also { it.addAll(cache.variableDates) } }
 
-    var calendarYear by remember { mutableStateOf(2026) }
-    var calendarMonth by remember { mutableStateOf(8) }
+    var calendarYear by remember { mutableIntStateOf(cache.calendarYear) }
+    var calendarMonth by remember { mutableIntStateOf(cache.calendarMonth) }
 
     var requisitesExpanded by remember { mutableStateOf(false) }
     val requisitesList = remember { listOf("Реквизиты ИП", "Реквизиты ООО", "Карта Сбербанк") }
-    var selectedRequisite by remember { mutableStateOf<String?>(null) }
+    var selectedRequisite by remember { mutableStateOf(cache.selectedRequisite) }
+
+    // Persist to cache on each state change
+    fun save() {
+        cache.fixedDay = fixedDay
+        cache.fixedAmount = fixedAmount
+        cache.fixedActive = fixedActive
+        cache.variableActive = variableActive
+        cache.selectedDay = selectedDay
+        cache.variableAmount = variableAmount
+        cache.variableDates.clear()
+        cache.variableDates.addAll(variableDates)
+        cache.calendarYear = calendarYear
+        cache.calendarMonth = calendarMonth
+        cache.selectedRequisite = selectedRequisite
+    }
 
     fun resetFixed() {
         fixedActive = false
         fixedDirty = false
         fixedDay = ""
         fixedAmount = ""
+        save()
     }
 
     fun resetVariable() {
@@ -106,6 +144,7 @@ fun PaymentScheduleScreen(
         selectedDay = ""
         variableAmount = ""
         variableDates.clear()
+        save()
     }
 
     fun onFixedChange() {
@@ -117,6 +156,12 @@ fun PaymentScheduleScreen(
         if (fixedDirty) resetFixed()
         variableDirty = true
     }
+
+    // Check if variable month is current
+    val now = Calendar.getInstance()
+    val isCurrentMonth = calendarYear == now.get(Calendar.YEAR) &&
+            calendarMonth == now.get(Calendar.MONTH) + 1
+    val todayDay = now.get(Calendar.DAY_OF_MONTH)
 
     Scaffold(containerColor = Color.Transparent) { paddingValues ->
         Box(
@@ -202,29 +247,75 @@ fun PaymentScheduleScreen(
                             )
 
                             if (!variableActive) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    DayPickerWithDialog(
-                                        value = fixedDay,
-                                        onDaySelected = {
-                                            fixedDay = it
-                                            onFixedChange()
-                                        },
-                                        modifier = Modifier.width(80.dp)
-                                    )
-                                    NumberTextField(
-                                        value = fixedAmount,
-                                        onValueChange = {
-                                            fixedAmount = it
-                                            onFixedChange()
-                                        },
-                                        placeholder = "Сумма (руб.)",
-                                        textColor = Color(0xFF007AFF),
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                if (!fixedActive) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        DayPickerWithDialog(
+                                            value = fixedDay,
+                                            onDaySelected = {
+                                                fixedDay = it
+                                                onFixedChange()
+                                                save()
+                                            },
+                                            modifier = Modifier.width(80.dp)
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        NumberTextField(
+                                            value = fixedAmount,
+                                            onValueChange = {
+                                                fixedAmount = it
+                                                onFixedChange()
+                                                save()
+                                            },
+                                            placeholder = "Сумма",
+                                            modifier = Modifier.widthIn(max = 150.dp)
+                                        )
+                                    }
+                                } else {
+                                    val chosenDay = (fixedDay.ifEmpty { "1" }).toInt()
+                                    val cal = Calendar.getInstance().apply {
+                                        set(Calendar.DAY_OF_MONTH, 1)
+                                    }
+                                    val (targetMonth, targetYear) = if (chosenDay <= todayDay) {
+                                        cal.add(Calendar.MONTH, 1)
+                                        cal.get(Calendar.MONTH) + 1 to cal.get(Calendar.YEAR)
+                                    } else {
+                                        cal.get(Calendar.MONTH) + 1 to cal.get(Calendar.YEAR)
+                                    }
+                                    val dayStr = chosenDay.toString().padStart(2, '0')
+                                    val monthStr = targetMonth.toString().padStart(2, '0')
+                                    val yearStr = targetYear.toString()
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            "Следующий платеж",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF1D1D1F),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                "$dayStr.$monthStr.$yearStr",
+                                                fontSize = 16.sp,
+                                                color = Color(0xFF1D1D1F)
+                                            )
+                                            Text(
+                                                "${fixedAmount} руб.",
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1D1D1F)
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
@@ -248,6 +339,7 @@ fun PaymentScheduleScreen(
                                                         fixedDirty = false
                                                         variableActive = false
                                                         resetVariable()
+                                                        save()
                                                     }
                                                 },
                                             contentAlignment = Alignment.Center
@@ -319,27 +411,36 @@ fun PaymentScheduleScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        "<",
-                                        modifier = Modifier.clickable {
-                                            if (calendarMonth > 1) calendarMonth-- else { calendarMonth = 12; calendarYear-- }
-                                            onVariableChange()
-                                        },
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1D1D1F)
-                                    )
+                                    // "<" only visible if NOT current month
+                                    if (isCurrentMonth) {
+                                        Spacer(Modifier.width(24.dp))
+                                    } else {
+                                        Text(
+                                            "<",
+                                            modifier = Modifier.clickable {
+                                                if (calendarMonth > 1) calendarMonth-- else { calendarMonth = 12; calendarYear-- }
+                                                onVariableChange()
+                                                save()
+                                            },
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1D1D1F)
+                                        )
+                                    }
+
                                     Text(
                                         "${monthName(calendarMonth)} $calendarYear",
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF007AFF)
+                                        color = Color(0xFF1D1D1F)
                                     )
+
                                     Text(
                                         ">",
                                         modifier = Modifier.clickable {
                                             if (calendarMonth < 12) calendarMonth++ else { calendarMonth = 1; calendarYear++ }
                                             onVariableChange()
+                                            save()
                                         },
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
@@ -352,12 +453,15 @@ fun PaymentScheduleScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    val minDayForPicker = if (isCurrentMonth) todayDay else 1
                                     DayPickerWithDialog(
                                         value = selectedDay,
                                         onDaySelected = {
                                             selectedDay = it
                                             onVariableChange()
+                                            save()
                                         },
+                                        minDay = minDayForPicker,
                                         modifier = Modifier.width(80.dp)
                                     )
                                     NumberTextField(
@@ -365,9 +469,9 @@ fun PaymentScheduleScreen(
                                         onValueChange = {
                                             variableAmount = it
                                             onVariableChange()
+                                            save()
                                         },
                                         placeholder = "Сумма",
-                                        textColor = Color(0xFF007AFF),
                                         modifier = Modifier.weight(1f)
                                     )
                                     Box(
@@ -388,6 +492,7 @@ fun PaymentScheduleScreen(
                                                     selectedDay = ""
                                                     variableAmount = ""
                                                     onVariableChange()
+                                                    save()
                                                 }
                                             },
                                         contentAlignment = Alignment.Center
@@ -428,6 +533,7 @@ fun PaymentScheduleScreen(
                                                         variableDirty = false
                                                         fixedActive = false
                                                         resetFixed()
+                                                        save()
                                                     }
                                                 },
                                             contentAlignment = Alignment.Center
@@ -457,7 +563,7 @@ fun PaymentScheduleScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = CreamColor),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Row(
@@ -492,6 +598,7 @@ fun PaymentScheduleScreen(
                                     onClick = {
                                         selectedRequisite = req
                                         requisitesExpanded = false
+                                        save()
                                     }
                                 )
                             }
@@ -510,7 +617,6 @@ private fun NumberTextField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    textColor: Color = Color(0xFF1D1D1F),
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -523,8 +629,8 @@ private fun NumberTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            textStyle = TextStyle(fontSize = 15.sp, color = textColor),
-            cursorBrush = SolidColor(textColor),
+            textStyle = TextStyle(fontSize = 15.sp, color = Color(0xFF1D1D1F)),
+            cursorBrush = SolidColor(Color(0xFF1D1D1F)),
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
@@ -546,18 +652,21 @@ private fun NumberTextField(
 private fun DayPickerWithDialog(
     value: String,
     onDaySelected: (String) -> Unit,
+    minDay: Int = 1,
     modifier: Modifier = Modifier
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    val initialValue = value.toIntOrNull() ?: 1
+    val fallback = if (minDay > 1 && value.toIntOrNull()?.let { it < minDay } == true) minDay.toString()
+        else value.ifEmpty { "1" }
+    val initialValue = fallback.toIntOrNull() ?: minDay
     var selectedValue by remember(initialValue) { mutableIntStateOf(initialValue) }
 
     Box(modifier = modifier) {
         Text(
-            text = value.ifEmpty { "1" },
+            text = value.ifEmpty { minDay.toString() },
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF007AFF),
+            color = Color(0xFF1D1D1F),
             modifier = Modifier.clickable { showDialog = true }
         )
     }
@@ -566,7 +675,7 @@ private fun DayPickerWithDialog(
         Dialog(onDismissRequest = { showDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = Color.White
+                color = CreamColor
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -587,7 +696,7 @@ private fun DayPickerWithDialog(
                         AndroidView(
                             factory = { context ->
                                 NumberPicker(context).apply {
-                                    minValue = 1
+                                    this.minValue = minDay
                                     maxValue = 31
                                     this.value = initialValue
                                     setOnValueChangedListener { _, _, newVal ->
