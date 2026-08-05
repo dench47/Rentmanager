@@ -4,6 +4,7 @@ import android.widget.NumberPicker
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,8 +69,10 @@ object PaymentScheduleCache {
     var fixedDay: String = ""
     var fixedAmount: String = ""
     var fixedActive: Boolean = false
+    var fixedExpanded: Boolean = false
 
     var variableActive: Boolean = false
+    var variableExpanded: Boolean = false
     var selectedDay: String = ""
     var variableAmount: String = ""
     val variableDates: MutableList<VariablePayment> = mutableListOf()
@@ -100,9 +103,11 @@ fun PaymentScheduleScreen(
     var fixedDay by remember { mutableStateOf(cache.fixedDay) }
     var fixedAmount by remember { mutableStateOf(cache.fixedAmount) }
     var fixedActive by remember { mutableStateOf(cache.fixedActive) }
+    var fixedExpanded by remember { mutableStateOf(cache.fixedExpanded) }
     var fixedDirty by remember { mutableStateOf(false) }
 
     var variableActive by remember { mutableStateOf(cache.variableActive) }
+    var variableExpanded by remember { mutableStateOf(cache.variableExpanded) }
     var variableDirty by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf(cache.selectedDay) }
     var variableAmount by remember { mutableStateOf(cache.variableAmount) }
@@ -120,7 +125,9 @@ fun PaymentScheduleScreen(
         cache.fixedDay = fixedDay
         cache.fixedAmount = fixedAmount
         cache.fixedActive = fixedActive
+        cache.fixedExpanded = fixedExpanded
         cache.variableActive = variableActive
+        cache.variableExpanded = variableExpanded
         cache.selectedDay = selectedDay
         cache.variableAmount = variableAmount
         cache.variableDates.clear()
@@ -132,6 +139,7 @@ fun PaymentScheduleScreen(
 
     fun resetFixed() {
         fixedActive = false
+        fixedExpanded = false
         fixedDirty = false
         fixedDay = ""
         fixedAmount = ""
@@ -140,6 +148,7 @@ fun PaymentScheduleScreen(
 
     fun resetVariable() {
         variableActive = false
+        variableExpanded = false
         variableDirty = false
         selectedDay = ""
         variableAmount = ""
@@ -221,6 +230,17 @@ fun PaymentScheduleScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        if (!variableActive) {
+                                            fixedExpanded = !fixedExpanded
+                                            save()
+                                        }
+                                    },
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -246,7 +266,7 @@ fun PaymentScheduleScreen(
                                 color = Color(0xFF8E8E93)
                             )
 
-                            if (!variableActive) {
+                            if (fixedExpanded && !variableActive) {
                                 if (!fixedActive) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -294,7 +314,7 @@ fun PaymentScheduleScreen(
                                             "Следующий платеж",
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = Color(0xFF1D1D1F),
+                                            color = Color(0xFF007AFF),
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -309,7 +329,7 @@ fun PaymentScheduleScreen(
                                                 color = Color(0xFF1D1D1F)
                                             )
                                             Text(
-                                                "${fixedAmount} руб.",
+                                                "$fixedAmount руб.",
                                                 fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF1D1D1F)
@@ -380,6 +400,17 @@ fun PaymentScheduleScreen(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        if (!fixedActive) {
+                                            variableExpanded = !variableExpanded
+                                            save()
+                                        }
+                                    },
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -405,7 +436,7 @@ fun PaymentScheduleScreen(
                                 color = Color(0xFF8E8E93)
                             )
 
-                            if (!fixedActive) {
+                            if (variableExpanded && !fixedActive) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -424,7 +455,7 @@ fun PaymentScheduleScreen(
                                             },
                                             fontSize = 20.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1D1D1F)
+                                            color = Color(0xFF007AFF)
                                         )
                                     }
 
@@ -444,7 +475,7 @@ fun PaymentScheduleScreen(
                                         },
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1D1D1F)
+                                        color = Color(0xFF007AFF)
                                     )
                                 }
 
