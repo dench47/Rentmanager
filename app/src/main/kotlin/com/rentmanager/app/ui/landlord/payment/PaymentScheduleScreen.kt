@@ -78,8 +78,10 @@ fun PaymentScheduleScreen(
     var fixedDay by remember { mutableStateOf("") }
     var fixedAmount by remember { mutableStateOf("") }
     var fixedActive by remember { mutableStateOf(false) }
+    var fixedDirty by remember { mutableStateOf(false) }
 
     var variableActive by remember { mutableStateOf(false) }
+    var variableDirty by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf("") }
     var variableAmount by remember { mutableStateOf("") }
     val variableDates = remember { mutableStateListOf<VariablePayment>() }
@@ -90,6 +92,31 @@ fun PaymentScheduleScreen(
     var requisitesExpanded by remember { mutableStateOf(false) }
     val requisitesList = remember { listOf("Реквизиты ИП", "Реквизиты ООО", "Карта Сбербанк") }
     var selectedRequisite by remember { mutableStateOf<String?>(null) }
+
+    fun resetFixed() {
+        fixedActive = false
+        fixedDirty = false
+        fixedDay = ""
+        fixedAmount = ""
+    }
+
+    fun resetVariable() {
+        variableActive = false
+        variableDirty = false
+        selectedDay = ""
+        variableAmount = ""
+        variableDates.clear()
+    }
+
+    fun onFixedChange() {
+        if (variableDirty) resetVariable()
+        fixedDirty = true
+    }
+
+    fun onVariableChange() {
+        if (fixedDirty) resetFixed()
+        variableDirty = true
+    }
 
     Scaffold(containerColor = Color.Transparent) { paddingValues ->
         Box(
@@ -175,54 +202,71 @@ fun PaymentScheduleScreen(
                             )
 
                             if (!variableActive) {
-                                DayPickerWithDialog(
-                                    value = fixedDay,
-                                    onDaySelected = { fixedDay = it }
-                                )
-                                NumberTextField(
-                                    value = fixedAmount,
-                                    onValueChange = { fixedAmount = it },
-                                    placeholder = "Сумма (руб.)",
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    DayPickerWithDialog(
+                                        value = fixedDay,
+                                        onDaySelected = {
+                                            fixedDay = it
+                                            onFixedChange()
+                                        },
+                                        modifier = Modifier.width(80.dp)
+                                    )
+                                    NumberTextField(
+                                        value = fixedAmount,
+                                        onValueChange = {
+                                            fixedAmount = it
+                                            onFixedChange()
+                                        },
+                                        placeholder = "Сумма (руб.)",
+                                        textColor = Color(0xFF007AFF),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(44.dp)
-                                        .clip(RoundedCornerShape(100.dp))
-                                        .background(if (!variableActive) Color(0xFF212121) else Color(0xFFBDBDBD))
-                                        .clickable(enabled = !variableActive) {
-                                            if (fixedDay.isNotBlank() && fixedAmount.isNotBlank()) {
-                                                fixedActive = true
-                                                variableActive = false
-                                                variableDates.clear()
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
+                            // Buttons
+                            if (fixedDirty || fixedActive) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("ОК", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(44.dp)
-                                        .clip(RoundedCornerShape(100.dp))
-                                        .background(Color(0xFFE53935).copy(alpha = 0.1f))
-                                        .clickable {
-                                            fixedActive = false
-                                            fixedDay = ""
-                                            fixedAmount = ""
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("Отменить и очистить", color = Color(0xFFE53935), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    if (!fixedActive) {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(36.dp)
+                                                .clip(RoundedCornerShape(100.dp))
+                                                .background(Color(0xFF212121))
+                                                .clickable {
+                                                    if (fixedAmount.isNotBlank()) {
+                                                        if (fixedDay.isBlank()) fixedDay = "1"
+                                                        fixedActive = true
+                                                        fixedDirty = false
+                                                        variableActive = false
+                                                        resetVariable()
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("ОК", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                        }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(36.dp)
+                                                .clip(RoundedCornerShape(100.dp))
+                                                .background(Color(0xFFE53935).copy(alpha = 0.1f))
+                                                .clickable { resetFixed() },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("Отменить и очистить", color = Color(0xFFE53935), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -275,13 +319,32 @@ fun PaymentScheduleScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("<", Modifier.clickable {
-                                        if (calendarMonth > 1) calendarMonth-- else { calendarMonth = 12; calendarYear-- }
-                                    }, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                    Text("${monthName(calendarMonth)} $calendarYear", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                                    Text(">", Modifier.clickable {
-                                        if (calendarMonth < 12) calendarMonth++ else { calendarMonth = 1; calendarYear++ }
-                                    }, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "<",
+                                        modifier = Modifier.clickable {
+                                            if (calendarMonth > 1) calendarMonth-- else { calendarMonth = 12; calendarYear-- }
+                                            onVariableChange()
+                                        },
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1D1D1F)
+                                    )
+                                    Text(
+                                        "${monthName(calendarMonth)} $calendarYear",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF007AFF)
+                                    )
+                                    Text(
+                                        ">",
+                                        modifier = Modifier.clickable {
+                                            if (calendarMonth < 12) calendarMonth++ else { calendarMonth = 1; calendarYear++ }
+                                            onVariableChange()
+                                        },
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1D1D1F)
+                                    )
                                 }
 
                                 Row(
@@ -289,16 +352,22 @@ fun PaymentScheduleScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    NumberTextField(
+                                    DayPickerWithDialog(
                                         value = selectedDay,
-                                        onValueChange = { selectedDay = it },
-                                        placeholder = "День",
+                                        onDaySelected = {
+                                            selectedDay = it
+                                            onVariableChange()
+                                        },
                                         modifier = Modifier.width(80.dp)
                                     )
                                     NumberTextField(
                                         value = variableAmount,
-                                        onValueChange = { variableAmount = it },
+                                        onValueChange = {
+                                            variableAmount = it
+                                            onVariableChange()
+                                        },
                                         placeholder = "Сумма",
+                                        textColor = Color(0xFF007AFF),
                                         modifier = Modifier.weight(1f)
                                     )
                                     Box(
@@ -307,9 +376,9 @@ fun PaymentScheduleScreen(
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(Color(0xFF212121))
                                             .clickable {
-                                                val day = selectedDay.trim()
+                                                val day = selectedDay.ifEmpty { "1" }.trim()
                                                 val amount = variableAmount.trim()
-                                                if (day.isNotBlank() && amount.isNotBlank()) {
+                                                if (amount.isNotBlank()) {
                                                     variableDates.add(
                                                         VariablePayment(
                                                             "${day.padStart(2, '0')}.${calendarMonth.toString().padStart(2, '0')}.$calendarYear",
@@ -318,6 +387,7 @@ fun PaymentScheduleScreen(
                                                     )
                                                     selectedDay = ""
                                                     variableAmount = ""
+                                                    onVariableChange()
                                                 }
                                             },
                                         contentAlignment = Alignment.Center
@@ -339,42 +409,44 @@ fun PaymentScheduleScreen(
                                 }
                             }
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(44.dp)
-                                        .clip(RoundedCornerShape(100.dp))
-                                        .background(if (!fixedActive) Color(0xFF212121) else Color(0xFFBDBDBD))
-                                        .clickable(enabled = !fixedActive) {
-                                            if (variableDates.isNotEmpty()) {
-                                                variableActive = true
-                                                fixedActive = false
-                                                fixedDay = ""
-                                                fixedAmount = ""
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
+                            // Buttons
+                            if (variableDirty || variableActive) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text("ОК", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(44.dp)
-                                        .clip(RoundedCornerShape(100.dp))
-                                        .background(Color(0xFFE53935).copy(alpha = 0.1f))
-                                        .clickable {
-                                            variableActive = false
-                                            variableDates.clear()
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("Отменить и очистить", color = Color(0xFFE53935), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    if (!variableActive) {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(36.dp)
+                                                .clip(RoundedCornerShape(100.dp))
+                                                .background(Color(0xFF212121))
+                                                .clickable {
+                                                    if (variableDates.isNotEmpty()) {
+                                                        variableActive = true
+                                                        variableDirty = false
+                                                        fixedActive = false
+                                                        resetFixed()
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("ОК", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                        }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(36.dp)
+                                                .clip(RoundedCornerShape(100.dp))
+                                                .background(Color(0xFFE53935).copy(alpha = 0.1f))
+                                                .clickable { resetVariable() },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("Отменить и очистить", color = Color(0xFFE53935), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -438,6 +510,7 @@ private fun NumberTextField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
+    textColor: Color = Color(0xFF1D1D1F),
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -450,8 +523,8 @@ private fun NumberTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            textStyle = TextStyle(fontSize = 15.sp, color = Color(0xFF1D1D1F)),
-            cursorBrush = SolidColor(Color(0xFF1D1D1F)),
+            textStyle = TextStyle(fontSize = 15.sp, color = textColor),
+            cursorBrush = SolidColor(textColor),
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
@@ -472,20 +545,22 @@ private fun NumberTextField(
 @Composable
 private fun DayPickerWithDialog(
     value: String,
-    onDaySelected: (String) -> Unit
+    onDaySelected: (String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val initialValue = value.toIntOrNull() ?: 1
     var selectedValue by remember(initialValue) { mutableIntStateOf(initialValue) }
 
-    // Simple blue digit trigger — no box, just a number
-    Text(
-        text = value.ifEmpty { "1" },
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Medium,
-        color = Color(0xFF007AFF),
-        modifier = Modifier.clickable { showDialog = true }
-    )
+    Box(modifier = modifier) {
+        Text(
+            text = value.ifEmpty { "1" },
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF007AFF),
+            modifier = Modifier.clickable { showDialog = true }
+        )
+    }
 
     if (showDialog) {
         Dialog(onDismissRequest = { showDialog = false }) {
