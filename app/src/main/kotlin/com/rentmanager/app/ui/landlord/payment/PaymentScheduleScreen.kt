@@ -26,7 +26,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -49,6 +50,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -73,22 +75,18 @@ private val GradientBackground = Brush.verticalGradient(
 fun PaymentScheduleScreen(
     onBack: () -> Unit
 ) {
-    // Fixed payment state
     var fixedDay by remember { mutableStateOf("") }
     var fixedAmount by remember { mutableStateOf("") }
     var fixedActive by remember { mutableStateOf(false) }
 
-    // Variable payment state
     var variableActive by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf("") }
     var variableAmount by remember { mutableStateOf("") }
     val variableDates = remember { mutableStateListOf<VariablePayment>() }
 
-    // Calendar year / month
     var calendarYear by remember { mutableStateOf(2026) }
     var calendarMonth by remember { mutableStateOf(8) }
 
-    // Dropdown for requisites
     var requisitesExpanded by remember { mutableStateOf(false) }
     val requisitesList = remember { listOf("Реквизиты ИП", "Реквизиты ООО", "Карта Сбербанк") }
     var selectedRequisite by remember { mutableStateOf<String?>(null) }
@@ -101,7 +99,6 @@ fun PaymentScheduleScreen(
                 .padding(paddingValues)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Navigation Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -129,7 +126,6 @@ fun PaymentScheduleScreen(
                     }
                 }
 
-                // Scrollable content
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -181,8 +177,7 @@ fun PaymentScheduleScreen(
                             if (!variableActive) {
                                 DayPickerWithDialog(
                                     value = fixedDay,
-                                    onDaySelected = { fixedDay = it },
-                                    modifier = Modifier.width(64.dp)
+                                    onDaySelected = { fixedDay = it }
                                 )
                                 NumberTextField(
                                     value = fixedAmount,
@@ -275,7 +270,6 @@ fun PaymentScheduleScreen(
                             )
 
                             if (!fixedActive) {
-                                // Simple calendar control
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -290,7 +284,6 @@ fun PaymentScheduleScreen(
                                     }, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                 }
 
-                                // Day picker row
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -333,7 +326,6 @@ fun PaymentScheduleScreen(
                                     }
                                 }
 
-                                // Selected dates list
                                 LazyColumn(Modifier.heightIn(max = 150.dp)) {
                                     items(variableDates.toList()) { vp ->
                                         Row(
@@ -480,77 +472,71 @@ private fun NumberTextField(
 @Composable
 private fun DayPickerWithDialog(
     value: String,
-    onDaySelected: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onDaySelected: (String) -> Unit
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val initialValue = value.toIntOrNull() ?: 1
     var selectedValue by remember(initialValue) { mutableIntStateOf(initialValue) }
 
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFF5F5F5))
-            .clickable { showDialog = true }
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-    ) {
-        Text(
-            text = value.ifEmpty { "1" },
-            fontSize = 15.sp,
-            color = if (value.isEmpty()) Color(0xFF8E8E93) else Color(0xFF1D1D1F)
-        )
-    }
+    // Simple blue digit trigger — no box, just a number
+    Text(
+        text = value.ifEmpty { "1" },
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Medium,
+        color = Color(0xFF007AFF),
+        modifier = Modifier.clickable { showDialog = true }
+    )
 
     if (showDialog) {
-        AlertDialog(
-            onDismissRequest = { showDialog = false },
-            title = {
-                Text(
-                    "Выберите день месяца",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF1D1D1F),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            text = {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
+        Dialog(onDismissRequest = { showDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color.White
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
                 ) {
-                    AndroidView(
-                        factory = { context ->
-                            NumberPicker(context).apply {
-                                minValue = 1
-                                maxValue = 31
-                                this.value = initialValue
-                                setOnValueChangedListener { _, _, newVal ->
-                                    selectedValue = newVal
-                                }
-                            }
-                        },
-                        modifier = Modifier.height(200.dp)
+                    Text(
+                        "Выберите день месяца",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1D1D1F),
+                        textAlign = TextAlign.Center
                     )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDaySelected(selectedValue.toString())
-                        showDialog = false
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Box(modifier = Modifier.padding(horizontal = 48.dp)) {
+                        @Suppress("COMPOSE_APPLIER_CALL_MISMATCH")
+                        AndroidView(
+                            factory = { context ->
+                                NumberPicker(context).apply {
+                                    minValue = 1
+                                    maxValue = 31
+                                    this.value = initialValue
+                                    setOnValueChangedListener { _, _, newVal ->
+                                        selectedValue = newVal
+                                    }
+                                }
+                            },
+                            modifier = Modifier.height(150.dp)
+                        )
                     }
-                ) {
-                    Text("Готово", color = Color(0xFF212121), fontWeight = FontWeight.Bold)
+
+                    Spacer(Modifier.height(8.dp))
+
+                    TextButton(
+                        onClick = {
+                            onDaySelected(selectedValue.toString())
+                            showDialog = false
+                        }
+                    ) {
+                        Text("Готово", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold)
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDialog = false }) {
-                    Text("Отмена", color = Color(0xFF8E8E93))
-                }
-            },
-            containerColor = Color.White
-        )
+            }
+        }
     }
 }
 
