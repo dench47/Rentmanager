@@ -6,6 +6,7 @@ data class UserDto(
     @SerializedName("id") val id: String,
     @SerializedName("phone") val phone: String,
     @SerializedName("name") val name: String,
-    @SerializedName("role") val role: String? = null, // "landlord" / "tenant"
+    @SerializedName("is_landlord") val isLandlord: Boolean = false,
+    @SerializedName("is_tenant") val isTenant: Boolean = false,
     @SerializedName("legal_name") val legalName: String? = null
 )

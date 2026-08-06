@@ -26,7 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.ui.components.BackButton
 import com.rentmanager.app.ui.components.PrimaryButton
 import com.rentmanager.app.ui.components.StepProgressBar
@@ -36,7 +36,7 @@ import com.rentmanager.app.ui.components.StepProgressBar
 fun EnterNameScreen(
     onContinue: () -> Unit,
     onBack: () -> Unit,
-    viewModel: EnterNameViewModel = viewModel()
+    viewModel: EnterNameViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -130,10 +130,7 @@ fun EnterNameScreen(
             PrimaryButton(
                 text = "Продолжить",
                 onClick = {
-                    viewModel.onContinue()
-                    if (uiState.name.trim().isNotEmpty() && uiState.errorMessage == null) {
-                        onContinue()
-                    }
+                    viewModel.onContinue(onSuccess = { onContinue() })
                 },
                 enabled = uiState.name.trim().isNotEmpty(),
                 isLoading = uiState.isLoading

@@ -36,7 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.ui.components.BackButton
 import com.rentmanager.app.ui.components.StepProgressBar
 
@@ -45,7 +45,7 @@ fun SmsCodeScreen(
     phoneNumber: String,
     onConfirmed: () -> Unit,
     onBack: () -> Unit,
-    viewModel: SmsCodeViewModel = viewModel()
+    viewModel: SmsCodeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -129,7 +129,7 @@ fun SmsCodeScreen(
                     val filtered = newValue.filter { it.isDigit() }
                     viewModel.onCodeChange(filtered)
                     if (filtered.length == 6) {
-                        onConfirmed()
+                        viewModel.onCodeComplete(onSuccess = { onConfirmed() })
                     }
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

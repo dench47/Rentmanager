@@ -31,7 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.PrimaryButton
 import com.rentmanager.app.ui.components.StepProgressBar
@@ -40,7 +40,7 @@ import com.rentmanager.app.ui.components.StepProgressBar
 fun PhoneNumberScreen(
     onCodeSent: (String) -> Unit,
     onBack: () -> Unit,
-    viewModel: PhoneNumberViewModel = viewModel()
+    viewModel: PhoneNumberViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -178,10 +178,7 @@ fun PhoneNumberScreen(
             PrimaryButton(
                 text = "Продолжить",
                 onClick = {
-                    viewModel.onContinue()
-                    if (uiState.phoneNumber.length >= 10 && uiState.errorMessage == null) {
-                        onCodeSent(uiState.phoneNumber)
-                    }
+                    viewModel.onContinue(onCodeSent = { onCodeSent(uiState.phoneNumber) })
                 },
                 enabled = uiState.phoneNumber.isNotBlank(),
                 isLoading = uiState.isLoading

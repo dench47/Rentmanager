@@ -8,7 +8,11 @@ import kotlinx.coroutines.flow.asStateFlow
 data class MyPropertyItem(
     val id: String,
     val name: String,
-    val address: String
+    val address: String,
+    val schedule: List<String> = listOf(
+        "fullness", "fullness", "expired", "fullness",
+        "free", "free", "free", "free"
+    )
 )
 
 /**
@@ -19,7 +23,12 @@ data class MyPropertyItem(
  *   Аватар: mock_avatar_legend.png (imageRef: 58c3452f...)
  *   Кнопка «Дать доступ»: borderRadius 100px, обводка #CFCFCF, blur(3.65px), Inter Medium 13sp
  */
-private val figmaProperty = MyPropertyItem("1", "БЦ Легенда", "пр. Космонавтов, 1")
+private val figmaProperty = MyPropertyItem(
+    id = "1",
+    name = "БЦ Легенда",
+    address = "пр. Космонавтов, 1",
+    schedule = listOf("fullness", "fullness", "expired", "fullness", "free", "free", "free", "free")
+)
 
 enum class ViewMode { MONTHS, DAYS }
 

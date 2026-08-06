@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -108,8 +109,11 @@ fun MyPropertiesScreen(
                             onGrantAccess = { /* TODO: Дать доступ */ }
                         )
 
-                        // Индикаторы месяцев
-                        MonthIndicatorsRow()
+                        // Шахматка загруженности
+                        ScheduleRow(
+                            schedule = property.schedule,
+                            viewMode = viewMode
+                        )
 
                         // Разделитель между объектами
                         if (index < properties.lastIndex) {
@@ -344,15 +348,27 @@ private fun PropertyCard(
 }
 
 @Composable
-private fun MonthIndicatorsRow() {
+private fun ScheduleRow(
+    schedule: List<String>,
+    viewMode: ViewMode
+) {
+    val monthsLabels = listOf("СЕН", "ОКТ", "НОЯ", "ДЕК", "ЯНВ", "ФЕВ", "МАР", "АПР")
+    val daysLabels = (1..31).map { it.toString() }
+
+    val labels = when (viewMode) {
+        ViewMode.MONTHS -> monthsLabels.take(schedule.size)
+        ViewMode.DAYS -> daysLabels.take(schedule.size)
+    }
+
+    val scrollState = androidx.compose.foundation.rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // Фон #EFEFEF с borderRadius 20px (Figma 163:4931) — только вокруг месяцев
-        val months = listOf("СЕН", "ОКТ", "НОЯ", "ДЕК", "ЯНВ", "ФЕВ", "МАР", "АПР")
+        // Строка месяцев/дней с фоном #EFEFEF
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -360,43 +376,42 @@ private fun MonthIndicatorsRow() {
                 .padding(10.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(20.dp),
+                modifier = Modifier
+                    .horizontalScroll(scrollState)
+                    .height(20.dp),
                 horizontalArrangement = Arrangement.spacedBy(26.dp, Alignment.Start),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                months.forEach { month ->
+                labels.forEach { label ->
                     Text(
-                        month,
+                        label,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = (-0.4).sp,
-                        color = Color(0xE6151515), // Figma: rgba(21, 21, 21, 0.9)
+                        color = Color(0xE6151515),
                         textAlign = TextAlign.Center
                     )
                 }
             }
         }
 
-        // Индикаторы (SVG из Figma)
+        // Индикаторы — синхронный скролл
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(scrollState),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val indicators = listOf(
-                R.drawable.ic_indicator_fullness,
-                R.drawable.ic_indicator_fullness,
-                R.drawable.ic_indicator_expired,
-                R.drawable.ic_indicator_fullness,
-                R.drawable.ic_indicator_free,
-                R.drawable.ic_indicator_free,
-                R.drawable.ic_indicator_free,
-                R.drawable.ic_indicator_free
-            )
-            indicators.forEach { resId ->
+            schedule.forEach { state ->
+                val resId = when (state) {
+                    "fullness" -> R.drawable.ic_indicator_fullness
+                    "expired" -> R.drawable.ic_indicator_expired
+                    else -> R.drawable.ic_indicator_free
+                }
                 Image(
                     painter = painterResource(resId),
-                    contentDescription = null,
+                    contentDescription = state,
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(8.dp)),

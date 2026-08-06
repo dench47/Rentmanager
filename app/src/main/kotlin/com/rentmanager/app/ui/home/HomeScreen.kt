@@ -29,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.RoleButton
 import com.rentmanager.app.ui.role.UserRole
@@ -38,7 +38,7 @@ import com.rentmanager.app.ui.role.UserRole
 fun HomeScreen(
     onRoleSelected: (UserRole) -> Unit,
     onSettingsClick: () -> Unit,
-    viewModel: HomeViewModel = viewModel()
+    viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
