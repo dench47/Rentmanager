@@ -2,17 +2,18 @@ package com.rentmanager.app.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.rentmanager.app.ui.landlord.myproperties.MyPropertiesViewModel
 import com.rentmanager.app.ui.auth.code.SmsCodeScreen
 import com.rentmanager.app.ui.auth.name.EnterNameScreen
 import com.rentmanager.app.ui.auth.phone.PhoneNumberScreen
 import com.rentmanager.app.ui.home.HomeScreen
-import com.rentmanager.app.ui.landlord.myproperties.mockProperties
 import com.rentmanager.app.ui.keyboard.KeyboardScreen
 import com.rentmanager.app.ui.role.RoleScreen
 import com.rentmanager.app.ui.role.UserRole
@@ -20,6 +21,8 @@ import com.rentmanager.app.ui.settings.SettingsScreen
 import com.rentmanager.app.ui.services.ServicesScreen
 import com.rentmanager.app.ui.tenant.properties.TenantPropertiesScreen
 import com.rentmanager.app.ui.landlord.payment.PaymentScheduleScreen
+import com.rentmanager.app.ui.finance.FinanceScreen
+import com.rentmanager.app.ui.finance.SubscriptionScreen
 
 @Composable
 fun RentManagerNavGraph(
@@ -27,6 +30,7 @@ fun RentManagerNavGraph(
     startDestination: String = Screen.PhoneInput.route
 ) {
     val context = LocalContext.current
+    val propertiesViewModel: MyPropertiesViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -105,13 +109,9 @@ fun RentManagerNavGraph(
             val role = if (roleType == "landlord") UserRole.LANDLORD else UserRole.TENANT
             RoleScreen(
                 role = role,
-                onNavigateToMyProperties = {
-                    if (mockProperties.isEmpty()) {
-                        navController.navigate(Screen.CreateProperty.route)
-                    } else {
+                    onNavigateToMyProperties = {
                         navController.navigate(Screen.MyProperties.route)
-                    }
-                },
+                    },
                 onNavigateToTenants = {
                     navController.navigate(Screen.TenantsList.route)
                 },
@@ -147,7 +147,13 @@ fun RentManagerNavGraph(
                 },
                 onBack = { navController.popBackStack() },
                 onFinanceClick = { navController.navigate(Screen.Finance.route) },
-                onNotificationsClick = { }
+                onNotificationsClick = { },
+                onHomeClick = {
+                    navController.navigate(Screen.MainScreen.route) {
+                        popUpTo(Screen.MainScreen.route) { inclusive = true }
+                    }
+                },
+                viewModel = propertiesViewModel
             )
         }
 
@@ -157,7 +163,10 @@ fun RentManagerNavGraph(
                 onBack = {
                     navController.popBackStack(Screen.RoleScreen.route, inclusive = false)
                 },
-                onCreated = { navController.popBackStack() },
+                onCreated = { name, address ->
+                    propertiesViewModel.addProperty(name, address)
+                    navController.popBackStack()
+                },
                 onPaymentSchedule = { navController.navigate(Screen.PaymentSchedule.route) }
             )
         }
@@ -171,7 +180,7 @@ fun RentManagerNavGraph(
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
                 propertyId = propertyId,
                 onBack = { navController.popBackStack() },
-                onCreated = { navController.popBackStack() }
+                onCreated = { _, _ -> navController.popBackStack() }
             )
         }
 
@@ -294,7 +303,15 @@ fun RentManagerNavGraph(
 
         // ========== Finance ==========
         composable(Screen.Finance.route) {
-            com.rentmanager.app.ui.landlord.finance.FinanceScreen(
+            FinanceScreen(
+                onBack = { navController.popBackStack() },
+                onSubscription = { navController.navigate(Screen.Subscription.route) }
+            )
+        }
+
+        // ========== Subscription ==========
+        composable(Screen.Subscription.route) {
+            SubscriptionScreen(
                 onBack = { navController.popBackStack() }
             )
         }

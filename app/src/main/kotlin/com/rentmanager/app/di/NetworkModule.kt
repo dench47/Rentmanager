@@ -4,6 +4,7 @@ import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.ChatApi
 import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.api.PropertyApi
+import com.rentmanager.app.BuildConfig
 import com.rentmanager.app.data.api.TenantApi
 import dagger.Module
 import dagger.Provides
@@ -19,7 +20,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    private const val BASE_URL = "http://10.0.2.2:8080/api/v1/"
+    private val BASE_URL = BuildConfig.API_BASE_URL
 
     @Provides
     @Singleton

@@ -69,7 +69,7 @@ private val GradientBackground = Brush.verticalGradient(
 fun CreatePropertyScreen(
     propertyId: String? = null,
     onBack: () -> Unit,
-    onCreated: () -> Unit,
+    onCreated: (name: String, address: String) -> Unit = { _, _ -> },
     onPaymentSchedule: () -> Unit = {}
 ) {
     val isEdit = propertyId != null
@@ -351,7 +351,7 @@ fun CreatePropertyScreen(
                     Box(
                         modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(100.dp))
                             .background(if (name.isNotBlank() && address.isNotBlank()) Color(0xFF212121) else Color(0xFF212121).copy(alpha = 0.5f))
-                            .clickable(enabled = name.isNotBlank() && address.isNotBlank()) { onCreated() },
+                    .clickable(enabled = name.isNotBlank() && address.isNotBlank()) { onCreated(name, address) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(if (isEdit) "Сохранить" else "Создать", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)

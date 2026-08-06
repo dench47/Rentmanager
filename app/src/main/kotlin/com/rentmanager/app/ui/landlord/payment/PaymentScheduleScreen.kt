@@ -683,8 +683,8 @@ private fun NumberTextField(
 private fun DayPickerWithDialog(
     value: String,
     onDaySelected: (String) -> Unit,
-    minDay: Int = 1,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    minDay: Int = 1
 ) {
     var showDialog by remember { mutableStateOf(false) }
     val fallback = if (minDay > 1 && value.toIntOrNull()?.let { it < minDay } == true) minDay.toString()
