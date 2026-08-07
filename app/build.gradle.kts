@@ -33,7 +33,8 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://192.168.0.152:8080/api/v1/\"")
+            val localIp = project.findProperty("local.server.ip")?.toString() ?: "192.168.0.152"
+            buildConfigField("String", "API_BASE_URL", "\"http://$localIp:8080/api/v1/\"")
         }
         release {
             signingConfig = signingConfigs.getByName("demo")
