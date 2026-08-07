@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.auth.name.EnterNameDialog
 import com.rentmanager.app.ui.components.RoleButton
@@ -103,14 +104,25 @@ fun HomeScreen(
             ) {
                 // Лево: аватар (Figma: 131-1099, 40×40 IMAGE) + «Андрей»
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_default_avatar),
-                        contentDescription = "Аватар",
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
+                    if (!uiState.avatarUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = uiState.avatarUrl,
+                            contentDescription = "Аватар",
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(R.drawable.ic_default_avatar),
+                            contentDescription = "Аватар",
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = uiState.userName,

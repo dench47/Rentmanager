@@ -192,14 +192,14 @@ fun SettingsScreen(
                 item {
                     Column(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.size(80.dp).clickable { imagePicker.launch("image/*") }) {
-                            if (uiState.avatarUrl != null) {
+                            if (!uiState.avatarUrl.isNullOrBlank()) {
                                 AsyncImage(model = uiState.avatarUrl, contentDescription = "Аватар", modifier = Modifier.size(80.dp).clip(CircleShape), contentScale = ContentScale.Crop)
                             } else {
                                 Image(painter = painterResource(R.drawable.ic_default_avatar), contentDescription = "Аватар", modifier = Modifier.size(80.dp).clip(CircleShape), contentScale = ContentScale.Crop)
-                                Box(Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFF6F6F6)).align(Alignment.BottomEnd), Alignment.Center) { Icon(Icons.Default.Edit, "Изменить", Modifier.size(16.dp), tint = Color(0xFF212121)) }
                             }
+                            Box(Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFF6F6F6)).align(Alignment.BottomEnd), Alignment.Center) { Icon(Icons.Default.Edit, "Изменить", Modifier.size(16.dp), tint = Color(0xFF212121)) }
                         }
-                        Text(if (uiState.avatarUrl == null) "Установить аватар" else "Сменить аватар", fontSize = 14.sp, color = Color(0xFF7AB66A), modifier = Modifier.clickable { imagePicker.launch("image/*") })
+                        Text(if (uiState.avatarUrl.isNullOrBlank()) "Установить аватар" else "Сменить аватар", fontSize = 14.sp, color = Color(0xFF7AB66A), modifier = Modifier.clickable { imagePicker.launch("image/*") })
                     }
                     HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
                 }
