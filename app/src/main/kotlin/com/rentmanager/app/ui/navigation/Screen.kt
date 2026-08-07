@@ -6,10 +6,7 @@ package com.rentmanager.app.ui.navigation
 sealed class Screen(val route: String) {
     // Auth flow
     data object Verify : Screen("auth/verify")
-    data object PhoneInput : Screen("auth/phone_input")
-    data object SmsConfirm : Screen("auth/sms_confirm/{phoneNumber}") {
-        fun createRoute(phoneNumber: String) = "auth/sms_confirm/$phoneNumber"
-    }
+
     // Main
     data object MainScreen : Screen("main")
 
@@ -18,9 +15,6 @@ sealed class Screen(val route: String) {
     // Payment Schedule
     data object PaymentSchedule : Screen("landlord/payment_schedule")
     data object TenantPaymentScreen : Screen("tenant/payment")
-
-    // Keyboard screen
-    data object Keyboard : Screen("auth/keyboard")
 
     // Role screen (unified landlord/tenant)
     data object RoleScreen : Screen("role/{roleType}") {

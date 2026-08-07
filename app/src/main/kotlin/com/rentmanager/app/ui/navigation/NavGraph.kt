@@ -12,7 +12,6 @@ import androidx.navigation.navArgument
 import com.rentmanager.app.ui.landlord.myproperties.MyPropertiesViewModel
 import com.rentmanager.app.ui.auth.verify.VerifyScreen
 import com.rentmanager.app.ui.home.HomeScreen
-import com.rentmanager.app.ui.keyboard.KeyboardScreen
 import com.rentmanager.app.ui.role.RoleScreen
 import com.rentmanager.app.ui.role.UserRole
 import com.rentmanager.app.ui.settings.SettingsScreen
@@ -42,16 +41,6 @@ fun RentManagerNavGraph(
                         popUpTo(0) { inclusive = true }
                     }
                 }
-            )
-        }
-
-        // ========== Keyboard Screen ==========
-        composable(Screen.Keyboard.route) {
-            KeyboardScreen(
-                onContinue = { phoneNumber ->
-                    navController.navigate(Screen.SmsConfirm.createRoute(phoneNumber))
-                },
-                onBack = { navController.popBackStack() }
             )
         }
 
@@ -309,7 +298,17 @@ fun RentManagerNavGraph(
         // ========== Settings ==========
         composable(Screen.Settings.route) {
             SettingsScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onLoggedOut = {
+                    navController.navigate(Screen.Verify.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigateToPhoneVerify = { phone ->
+                    navController.navigate(Screen.Verify.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             )
         }
 

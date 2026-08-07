@@ -3,13 +3,13 @@ package com.rentmanager.app.data.api
 import com.rentmanager.app.data.model.UserDto
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 
 data class SendCodeRequest(val phone: String)
-data class ConfirmCodeRequest(val phone: String, val code: String)
 data class SaveNameRequest(val name: String)
-data class AuthResponse(val token: String, val user: UserDto)
 
 data class LoginResponse(
     val exists: Boolean?,
@@ -31,13 +31,28 @@ data class CallCheckStatusResponse(
     val user: UserDto?
 )
 
+data class UpdateProfileRequest(
+    val name: String? = null,
+    val email: String? = null,
+    @com.google.gson.annotations.SerializedName("legal_name") val legalName: String? = null,
+    @com.google.gson.annotations.SerializedName("avatar_url") val avatarUrl: String? = null
+)
+
+data class ChangePhoneResponse(
+    val status: String,
+    @com.google.gson.annotations.SerializedName("call_phone") val callPhone: String,
+    @com.google.gson.annotations.SerializedName("call_phone_pretty") val callPhonePretty: String
+)
+
+data class ConfirmPhoneChangeResponse(
+    val changed: Boolean,
+    val token: String?,
+    val user: UserDto?
+)
+
+data class MessageResponse(val message: String)
+
 interface AuthApi {
-
-    @POST("auth/send_code")
-    suspend fun sendCode(@Body request: SendCodeRequest): Response<Unit>
-
-    @POST("auth/confirm_code")
-    suspend fun confirmCode(@Body request: ConfirmCodeRequest): Response<AuthResponse>
 
     @POST("auth/save_name")
     suspend fun saveName(@Body request: SaveNameRequest): Response<UserDto>
@@ -53,4 +68,19 @@ interface AuthApi {
 
     @GET("users/me")
     suspend fun getMe(): Response<UserDto>
+
+    @PUT("auth/profile")
+    suspend fun updateProfile(@Body request: UpdateProfileRequest): Response<UserDto>
+
+    @POST("auth/change_phone")
+    suspend fun changePhone(@Body request: SendCodeRequest): Response<ChangePhoneResponse>
+
+    @POST("auth/confirm_phone_change")
+    suspend fun confirmPhoneChange(@Body request: SendCodeRequest): Response<ConfirmPhoneChangeResponse>
+
+    @POST("auth/logout_all")
+    suspend fun logoutAll(): Response<MessageResponse>
+
+    @DELETE("auth/account")
+    suspend fun deleteAccount(): Response<MessageResponse>
 }
