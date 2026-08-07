@@ -49,7 +49,7 @@ fun HomeScreen(
     var showNameDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.userName) {
-        if (uiState.userName.isEmpty() || uiState.userName == "Пользователь") {
+        if (uiState.isProfileLoaded && uiState.userName.isEmpty()) {
             showNameDialog = true
         }
     }
@@ -146,22 +146,25 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                val hasName = uiState.userName.isNotEmpty()
                 Text(
-                    text = "Добро пожаловать,",
+                    text = if (hasName) "Добро пожаловать," else "Добро пожаловать",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.Black,
                     letterSpacing = (-0.4).sp
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = uiState.userName,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.Black,
-                    letterSpacing = (-0.4).sp,
-                    textAlign = TextAlign.Center
-                )
+                if (hasName) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = uiState.userName,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black,
+                        letterSpacing = (-0.4).sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
             // Отступ приветствие → кнопки: 3469-(3277+72)=120dp

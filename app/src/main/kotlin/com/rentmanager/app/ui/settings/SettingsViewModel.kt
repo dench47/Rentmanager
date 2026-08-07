@@ -60,7 +60,7 @@ class SettingsViewModel @Inject constructor(
                     val user = resp.body()!!
                     _uiState.update {
                         it.copy(
-                            userName = user.name.ifEmpty { "Пользователь" },
+                            userName = user.name,
                             phone = user.phone,
                             email = user.email,
                             legalName = user.legalName,
@@ -90,7 +90,7 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            userName = user.name.ifEmpty { "Пользователь" },
+                            userName = user.name,
                             email = user.email,
                             legalName = user.legalName,
                             avatarUrl = user.avatarUrl

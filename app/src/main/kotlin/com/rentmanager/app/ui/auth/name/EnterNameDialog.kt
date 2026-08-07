@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -40,7 +41,9 @@ fun EnterNameDialog(
                 text = "Как вас зовут?",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF151515)
+                color = Color(0xFF151515),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
         },
         text = {
@@ -48,7 +51,9 @@ fun EnterNameDialog(
                 Text(
                     text = "Имя будет отображаться в профиле",
                     fontSize = 14.sp,
-                    color = Color(0x993C3C43)
+                    color = Color(0x993C3C43),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(

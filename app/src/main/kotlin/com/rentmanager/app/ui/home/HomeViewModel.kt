@@ -27,7 +27,7 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        HomeUiState(userName = tokenManager.userName ?: "Пользователь")
+        HomeUiState(userName = tokenManager.userName ?: "")
     )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
@@ -40,7 +40,7 @@ class HomeViewModel @Inject constructor(
                 if (resp.isSuccessful) {
                     val user = resp.body()!!
                     _uiState.update {
-                        it.copy(userName = user.name.ifEmpty { "Пользователь" }, avatarUrl = user.avatarUrl, isProfileLoaded = true)
+                        it.copy(userName = user.name, avatarUrl = user.avatarUrl, isProfileLoaded = true)
                     }
                 }
             } catch (_: Exception) {}
