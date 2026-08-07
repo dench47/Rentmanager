@@ -17,8 +17,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.auth.name.EnterNameDialog
 import com.rentmanager.app.ui.components.RoleButton
 import com.rentmanager.app.ui.role.UserRole
 
@@ -41,6 +46,23 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showNameDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.userName) {
+        if (uiState.userName.isEmpty() || uiState.userName == "Пользователь") {
+            showNameDialog = true
+        }
+    }
+
+    if (showNameDialog) {
+        EnterNameDialog(
+            onDismiss = { showNameDialog = false },
+            onSaved = { name ->
+                viewModel.updateUserName(name)
+                showNameDialog = false
+            }
+        )
+    }
 
     Box(
         modifier = Modifier

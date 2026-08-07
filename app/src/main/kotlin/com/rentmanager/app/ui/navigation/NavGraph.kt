@@ -10,9 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.rentmanager.app.ui.landlord.myproperties.MyPropertiesViewModel
-import com.rentmanager.app.ui.auth.code.SmsCodeScreen
-import com.rentmanager.app.ui.auth.name.EnterNameScreen
-import com.rentmanager.app.ui.auth.phone.PhoneNumberScreen
+import com.rentmanager.app.ui.auth.verify.VerifyScreen
 import com.rentmanager.app.ui.home.HomeScreen
 import com.rentmanager.app.ui.keyboard.KeyboardScreen
 import com.rentmanager.app.ui.role.RoleScreen
@@ -27,7 +25,7 @@ import com.rentmanager.app.ui.finance.SubscriptionScreen
 @Composable
 fun RentManagerNavGraph(
     navController: NavHostController = rememberNavController(),
-    startDestination: String = Screen.PhoneInput.route
+        startDestination: String = Screen.Verify.route
 ) {
     val context = LocalContext.current
     val propertiesViewModel: MyPropertiesViewModel = viewModel()
@@ -36,44 +34,14 @@ fun RentManagerNavGraph(
         navController = navController,
         startDestination = startDestination
     ) {
-        // ========== Auth Flow ==========
-        composable(Screen.PhoneInput.route) {
-            PhoneNumberScreen(
-                onCodeSent = { phoneNumber ->
-                    navController.navigate(Screen.SmsConfirm.createRoute(phoneNumber))
-                },
-                onBack = {
-                    if (!navController.popBackStack()) {
-                        (context as? android.app.Activity)?.finish()
-                    }
-                }
-            )
-        }
-
-        composable(
-            route = Screen.SmsConfirm.route,
-            arguments = listOf(navArgument("phoneNumber") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val phoneNumber = backStackEntry.arguments?.getString("phoneNumber") ?: ""
-            SmsCodeScreen(
-                phoneNumber = phoneNumber,
-                onConfirmed = {
-                    navController.navigate(Screen.NameInput.route) {
-                        popUpTo(Screen.PhoneInput.route) { inclusive = true }
-                    }
-                },
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(Screen.NameInput.route) {
-            EnterNameScreen(
-                onContinue = {
+        // ========== Auth Flow (Verify) ==========
+        composable(Screen.Verify.route) {
+            VerifyScreen(
+                onVerified = {
                     navController.navigate(Screen.MainScreen.route) {
                         popUpTo(0) { inclusive = true }
                     }
-                },
-                onBack = { navController.popBackStack() }
+                }
             )
         }
 

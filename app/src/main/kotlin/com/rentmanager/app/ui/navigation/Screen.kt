@@ -5,12 +5,11 @@ package com.rentmanager.app.ui.navigation
  */
 sealed class Screen(val route: String) {
     // Auth flow
+    data object Verify : Screen("auth/verify")
     data object PhoneInput : Screen("auth/phone_input")
     data object SmsConfirm : Screen("auth/sms_confirm/{phoneNumber}") {
         fun createRoute(phoneNumber: String) = "auth/sms_confirm/$phoneNumber"
     }
-    data object NameInput : Screen("auth/name_input")
-
     // Main
     data object MainScreen : Screen("main")
 

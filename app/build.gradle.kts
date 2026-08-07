@@ -22,11 +22,21 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"http://45.11.92.171:8080/api/v1/\"")
     }
 
+    signingConfigs {
+        create("demo") {
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"http://192.168.0.152:8080/api/v1/\"")
         }
         release {
+            signingConfig = signingConfigs.getByName("demo")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

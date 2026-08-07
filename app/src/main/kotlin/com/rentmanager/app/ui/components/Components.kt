@@ -44,13 +44,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun StepProgressBar(currentStep: Int, modifier: Modifier = Modifier) {
+fun StepProgressBar(currentStep: Int, totalSteps: Int = 3, modifier: Modifier = Modifier) {
+    if (totalSteps <= 0) return
+    val segmentWidth = if (totalSteps == 2) 156.dp else if (totalSteps == 3) 116.dp else (311 / totalSteps).dp
     Row(modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.Center) {
-        repeat(3) { index ->
+        repeat(totalSteps) { index ->
             val isActive = (index + 1) <= currentStep
-            Box(modifier = Modifier.width(if (index == 1) 115.dp else 116.dp).height(2.dp)
+            Box(modifier = Modifier.width(segmentWidth).height(2.dp)
                 .clip(RoundedCornerShape(4.dp)).background(if (isActive) Color(0xFF151515) else Color(0xFFD3D3D3)))
-            if (index < 2) Spacer(modifier = Modifier.width(3.dp))
+            if (index < totalSteps - 1) Spacer(modifier = Modifier.width(3.dp))
         }
     }
 }

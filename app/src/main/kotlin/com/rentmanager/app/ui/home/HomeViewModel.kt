@@ -29,4 +29,8 @@ class HomeViewModel @Inject constructor(
     fun selectRole(role: UserRole) {
         _uiState.update { it.copy(selectedRole = role) }
     }
+
+    fun updateUserName(name: String) {
+        _uiState.update { it.copy(userName = name) }
+    }
 }
