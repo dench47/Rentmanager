@@ -200,6 +200,10 @@ fun SettingsScreen(
                             Box(Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFF6F6F6)).align(Alignment.BottomEnd), Alignment.Center) { Icon(Icons.Default.Edit, "Изменить", Modifier.size(16.dp), tint = Color(0xFF212121)) }
                         }
                         Text(if (uiState.avatarUrl.isNullOrBlank()) "Установить аватар" else "Сменить аватар", fontSize = 14.sp, color = Color(0xFF7AB66A), modifier = Modifier.clickable { imagePicker.launch("image/*") })
+                        if (!uiState.avatarUrl.isNullOrBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text("Удалить аватар", fontSize = 14.sp, color = Color(0xFFE53935), modifier = Modifier.clickable { viewModel.updateProfile(avatarUrl = "") })
+                        }
                     }
                     HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
                 }

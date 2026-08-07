@@ -31,9 +31,9 @@ class HomeViewModel @Inject constructor(
     )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    init { loadProfile() }
+    init { refreshProfile() }
 
-    private fun loadProfile() {
+    fun refreshProfile() {
         viewModelScope.launch {
             try {
                 val resp = authApi.getMe()
