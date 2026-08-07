@@ -1,12 +1,15 @@
 package com.rentmanager.app.data.api
 
 import com.rentmanager.app.data.model.UserDto
+import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 
 data class SendCodeRequest(val phone: String)
 data class SaveNameRequest(val name: String)
@@ -50,6 +53,10 @@ data class ConfirmPhoneChangeResponse(
     val user: UserDto?
 )
 
+data class UploadResponse(
+    val url: String
+)
+
 data class MessageResponse(val message: String)
 
 interface AuthApi {
@@ -83,4 +90,8 @@ interface AuthApi {
 
     @DELETE("auth/account")
     suspend fun deleteAccount(): Response<MessageResponse>
+
+    @Multipart
+    @POST("upload")
+    suspend fun uploadAvatar(@Part file: MultipartBody.Part): Response<UploadResponse>
 }

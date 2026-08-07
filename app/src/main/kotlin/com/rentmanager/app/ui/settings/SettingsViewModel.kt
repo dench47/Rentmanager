@@ -1,5 +1,8 @@
 package com.rentmanager.app.ui.settings
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
@@ -7,11 +10,15 @@ import com.rentmanager.app.data.api.SendCodeRequest
 import com.rentmanager.app.data.api.UpdateProfileRequest
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 
 data class SettingsUiState(
@@ -22,6 +29,7 @@ data class SettingsUiState(
     val avatarUrl: String? = null,
     val defaultStartScreen: String = "main",
     val isLoading: Boolean = false,
+    val isUploading: Boolean = false,
     val errorMessage: String? = null,
     // Смена телефона
     val isChangingPhone: Boolean = false,
@@ -39,12 +47,14 @@ data class SettingsUiState(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val authApi: AuthApi,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState(
         phone = tokenManager.phone ?: "",
-        defaultStartScreen = tokenManager.defaultStartScreen
+        defaultStartScreen = tokenManager.defaultStartScreen,
+        avatarUrl = tokenManager.avatarUrl
     ))
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -58,19 +68,67 @@ class SettingsViewModel @Inject constructor(
                 val resp = authApi.getMe()
                 if (resp.isSuccessful) {
                     val user = resp.body()!!
+                    val url = user.avatarUrl
                     _uiState.update {
                         it.copy(
                             userName = user.name,
                             phone = user.phone,
                             email = user.email,
                             legalName = user.legalName,
-                            avatarUrl = user.avatarUrl
+                            avatarUrl = url
                         )
                     }
                     tokenManager.userName = user.name
                     tokenManager.phone = user.phone
+                    tokenManager.avatarUrl = url
                 }
             } catch (_: Exception) { }
+        }
+    }
+
+    fun uploadAndSetAvatar(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUploading = true) }
+            try {
+                // 1. Upload file to server
+                val inputStream = context.contentResolver.openInputStream(uri)
+                    ?: throw Exception("Cannot open file")
+                val bytes = inputStream.readBytes()
+                inputStream.close()
+
+                val fileName = getFileName(uri) ?: "avatar.jpg"
+                val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
+
+                val uploadResp = authApi.uploadAvatar(part)
+                if (!uploadResp.isSuccessful) {
+                    _uiState.update { it.copy(isUploading = false, errorMessage = "Ошибка загрузки файла") }
+                    return@launch
+                }
+                val uploadedUrl = uploadResp.body()!!.url
+
+                // 2. Update profile with uploaded URL
+                val updateResp = authApi.updateProfile(UpdateProfileRequest(avatarUrl = uploadedUrl))
+                if (updateResp.isSuccessful) {
+                    val user = updateResp.body()!!
+                    val newUrl = user.avatarUrl
+                    _uiState.update {
+                        it.copy(
+                            isUploading = false,
+                            avatarUrl = newUrl,
+                            userName = user.name,
+                            email = user.email,
+                            legalName = user.legalName
+                        )
+                    }
+                    tokenManager.avatarUrl = newUrl
+                } else {
+                    _uiState.update { it.copy(isUploading = false, errorMessage = "Ошибка сохранения") }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isUploading = false, errorMessage = "Нет связи с сервером") }
+            }
         }
     }
 
@@ -87,15 +145,17 @@ class SettingsViewModel @Inject constructor(
                 val resp = authApi.updateProfile(UpdateProfileRequest(name, email, legalName, avatarUrl))
                 if (resp.isSuccessful) {
                     val user = resp.body()!!
+                    val newUrl = user.avatarUrl
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             userName = user.name,
                             email = user.email,
                             legalName = user.legalName,
-                            avatarUrl = user.avatarUrl
+                            avatarUrl = newUrl
                         )
                     }
+                    tokenManager.avatarUrl = newUrl
                     onSuccess()
                 } else {
                     _uiState.update { it.copy(isLoading = false, errorMessage = "Ошибка сохранения") }
@@ -172,5 +232,15 @@ class SettingsViewModel @Inject constructor(
 
     fun dismissDialogs() {
         _uiState.update { it.copy(showLogoutDialog = false, showDeleteDialog = false, showStartScreenDialog = false, showPhoneWarning = false, errorMessage = null) }
+    }
+
+    private fun getFileName(uri: Uri): String? {
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
+        return cursor?.use {
+            if (it.moveToFirst()) {
+                val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0) it.getString(nameIndex) else null
+            } else null
+        }
     }
 }

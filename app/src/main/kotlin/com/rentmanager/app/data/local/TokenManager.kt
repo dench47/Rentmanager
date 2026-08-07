@@ -35,6 +35,10 @@ class TokenManager @Inject constructor(
             else prefs.edit().remove("selected_role").apply()
         }
 
+    var avatarUrl: String?
+        get() = prefs.getString("avatar_url", null)
+        set(value) = prefs.edit().putString("avatar_url", value).apply()
+
     fun clear() {
         prefs.edit().clear().apply()
     }
