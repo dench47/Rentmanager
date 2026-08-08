@@ -108,8 +108,9 @@ fun SettingsScreen(
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Какой экран открывать при запуске?", fontSize = 14.sp, color = Color(0x993C3C43))
                     Spacer(Modifier.height(8.dp))
-                    TextButton(onClick = { viewModel.setDefaultStartScreen("verify") }, modifier = Modifier.fillMaxWidth()) { Text("Верификация", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = if (uiState.defaultStartScreen == "verify") Color(0xFF007AFF) else Color(0xFF212121)) }
-                    TextButton(onClick = { viewModel.setDefaultStartScreen("main") }, modifier = Modifier.fillMaxWidth()) { Text("Главный экран", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = if (uiState.defaultStartScreen == "main") Color(0xFF007AFF) else Color(0xFF212121)) }
+                    TextButton(onClick = { viewModel.setDefaultStartScreen("landlord") }, modifier = Modifier.fillMaxWidth()) { Text("Арендодатель", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = if (uiState.defaultStartScreen == "landlord") Color(0xFF007AFF) else Color(0xFF212121)) }
+                    TextButton(onClick = { viewModel.setDefaultStartScreen("tenant") }, modifier = Modifier.fillMaxWidth()) { Text("Арендатор", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = if (uiState.defaultStartScreen == "tenant") Color(0xFF007AFF) else Color(0xFF212121)) }
+                    TextButton(onClick = { viewModel.setDefaultStartScreen("") }, modifier = Modifier.fillMaxWidth()) { Text("Главный экран", fontSize = 18.sp, fontWeight = FontWeight.Medium, color = if (uiState.defaultStartScreen.isEmpty() || uiState.defaultStartScreen == "main") Color(0xFF007AFF) else Color(0xFF212121)) }
                 }
             },
             confirmButton = {}, containerColor = Color.White, shape = RoundedCornerShape(20.dp)
@@ -221,7 +222,7 @@ fun SettingsScreen(
                 item { SettingsField("Почтовый ящик", uiState.email ?: "", Icons.Default.Email, isOptional = true, onClick = { showEditEmailDialog = true; editEmail = uiState.email ?: "" }) }
                 item { SettingsField("Название юридического лица", uiState.legalName ?: "", Icons.Default.Business, isOptional = true, onClick = { showEditLegalDialog = true; editLegalName = uiState.legalName ?: "" }) }
                 item { SettingsAction("Установить пароль", Icons.Default.Lock) }
-                item { SettingsAction("Начальный экран", Icons.Default.Home, subtitle = if (uiState.defaultStartScreen == "verify") "Верификация" else "Главный экран", onClick = { viewModel.showStartScreenDialog() }) }
+                item { SettingsAction("Начальный экран", Icons.Default.Home, subtitle = when (uiState.defaultStartScreen) { "landlord" -> "Арендодатель"; "tenant" -> "Арендатор"; else -> "Главный экран" }, onClick = { viewModel.showStartScreenDialog() }) }
                 item {
                     Column(Modifier.fillMaxWidth()) {
                         Row(Modifier.fillMaxWidth().clickable { viewModel.showLogoutDialog() }.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

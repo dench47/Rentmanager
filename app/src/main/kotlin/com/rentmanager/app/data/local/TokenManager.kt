@@ -25,7 +25,7 @@ class TokenManager @Inject constructor(
         set(value) = prefs.edit().putString("phone", value).apply()
 
     var defaultStartScreen: String
-        get() = prefs.getString("default_start_screen", "verify") ?: "verify"
+        get() = prefs.getString("default_start_screen", "") ?: ""
         set(value) = prefs.edit().putString("default_start_screen", value).apply()
 
     var selectedRole: String?

@@ -1,6 +1,7 @@
 package com.rentmanager.app.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -9,6 +10,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.rentmanager.app.data.local.TokenManager
 import com.rentmanager.app.ui.landlord.myproperties.MyPropertiesViewModel
 import com.rentmanager.app.ui.auth.verify.VerifyScreen
 import com.rentmanager.app.ui.home.HomeScreen
@@ -23,11 +25,23 @@ import com.rentmanager.app.ui.finance.SubscriptionScreen
 
 @Composable
 fun RentManagerNavGraph(
-    navController: NavHostController = rememberNavController(),
-        startDestination: String = Screen.Verify.route
+    tokenManager: TokenManager,
+    navController: NavHostController = rememberNavController()
 ) {
     val context = LocalContext.current
     val propertiesViewModel: MyPropertiesViewModel = viewModel()
+
+    val startDestination = remember(tokenManager.accessToken, tokenManager.defaultStartScreen) {
+        if (tokenManager.accessToken == null) {
+            Screen.Verify.route
+        } else {
+            when (tokenManager.defaultStartScreen) {
+                "landlord" -> Screen.RoleScreen.createRoute("landlord")
+                "tenant" -> Screen.RoleScreen.createRoute("tenant")
+                else -> Screen.MainScreen.route
+            }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -88,7 +102,9 @@ fun RentManagerNavGraph(
                     navController.navigate(Screen.TenantProperties.route)
                 },
                 onBackToMain = {
-                    navController.popBackStack(Screen.MainScreen.route, inclusive = false)
+                    navController.navigate(Screen.MainScreen.route) {
+                        popUpTo(Screen.MainScreen.route) { inclusive = true }
+                    }
                 }
             )
         }

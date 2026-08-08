@@ -228,6 +228,11 @@ class SettingsViewModel @Inject constructor(
     fun setDefaultStartScreen(screen: String) {
         tokenManager.defaultStartScreen = screen
         _uiState.update { it.copy(defaultStartScreen = screen, showStartScreenDialog = false) }
+        viewModelScope.launch {
+            try {
+                authApi.updateProfile(UpdateProfileRequest(defaultStartScreen = screen))
+            } catch (_: Exception) { }
+        }
     }
 
     fun dismissDialogs() {

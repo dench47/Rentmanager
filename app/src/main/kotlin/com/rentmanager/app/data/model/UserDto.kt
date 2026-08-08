@@ -11,5 +11,6 @@ data class UserDto(
     @SerializedName("legal_name") val legalName: String? = null,
     @SerializedName("avatar_url") val avatarUrl: String? = null,
     @SerializedName("email") val email: String? = null,
-    @SerializedName("token_version") val tokenVersion: Int = 0
+    @SerializedName("token_version") val tokenVersion: Int = 0,
+    @SerializedName("default_start_screen") val defaultStartScreen: String = ""
 )

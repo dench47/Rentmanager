@@ -62,6 +62,7 @@ class VerifyViewModel @Inject constructor(
                         // Пользователь уже зарегистрирован — сохраняем токен и идём дальше
                         body.token?.let { tokenManager.accessToken = it }
                         body.user?.name?.let { tokenManager.userName = it }
+                        body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                         tokenManager.phone = phone
                         _uiState.update { it.copy(isLoading = false, isVerified = true) }
                         onSuccess(phone)
@@ -108,6 +109,7 @@ class VerifyViewModel @Inject constructor(
                         if (body?.verified == true) {
                             body.token?.let { tokenManager.accessToken = it }
                             body.user?.name?.let { tokenManager.userName = it }
+                            body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                             tokenManager.phone = phone
                             _uiState.update { it.copy(isVerified = true, isCalling = false) }
                             onSuccess(phone)

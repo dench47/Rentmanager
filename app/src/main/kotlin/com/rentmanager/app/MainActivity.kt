@@ -8,12 +8,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import com.rentmanager.app.data.local.TokenManager
 import com.rentmanager.app.ui.navigation.RentManagerNavGraph
 import com.rentmanager.app.ui.theme.RentManagerTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var tokenManager: TokenManager
 
     private val callPhonePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* granted or denied — no action needed */ }
@@ -30,7 +34,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             RentManagerTheme {
-                RentManagerNavGraph()
+                RentManagerNavGraph(tokenManager = tokenManager)
             }
         }
     }

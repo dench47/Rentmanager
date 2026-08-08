@@ -38,7 +38,8 @@ data class UpdateProfileRequest(
     val name: String? = null,
     val email: String? = null,
     @com.google.gson.annotations.SerializedName("legal_name") val legalName: String? = null,
-    @com.google.gson.annotations.SerializedName("avatar_url") val avatarUrl: String? = null
+    @com.google.gson.annotations.SerializedName("avatar_url") val avatarUrl: String? = null,
+    @com.google.gson.annotations.SerializedName("default_start_screen") val defaultStartScreen: String? = null
 )
 
 data class ChangePhoneResponse(
