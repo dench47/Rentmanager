@@ -7,8 +7,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import com.rentmanager.app.data.api.UpdateManager
+import com.rentmanager.app.data.api.UpdateResult
+import com.rentmanager.app.data.api.VersionResponse
 import com.rentmanager.app.data.local.TokenManager
+import com.rentmanager.app.ui.components.UpdateDialog
 import com.rentmanager.app.ui.navigation.RentManagerNavGraph
 import com.rentmanager.app.ui.theme.RentManagerTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -18,6 +27,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var tokenManager: TokenManager
+    @Inject lateinit var updateManager: UpdateManager
 
     private val callPhonePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* granted or denied — no action needed */ }
@@ -34,6 +44,28 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             RentManagerTheme {
+                var updateInfo by remember { mutableStateOf<VersionResponse?>(null) }
+
+                // Проверка обновлений при запуске
+                LaunchedEffect(Unit) {
+                    val result = updateManager.checkForUpdate()
+                    if (result is UpdateResult.Available) {
+                        updateInfo = result.info
+                    }
+                }
+
+                // Показываем диалог если есть обновление
+                if (updateInfo != null) {
+                    UpdateDialog(
+                        info = updateInfo!!,
+                        onDownload = {
+                            updateManager.downloadAndInstall(updateInfo!!.apkUrl)
+                            updateInfo = null
+                        },
+                        onDismiss = { updateInfo = null }
+                    )
+                }
+
                 RentManagerNavGraph(tokenManager = tokenManager)
             }
         }

@@ -6,6 +6,18 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+fun gitCommitCount(): Int {
+    val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+        .directory(rootProject.projectDir)
+        .start()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    val exit = process.waitFor()
+    return if (exit == 0) output.toIntOrNull() ?: 1 else 1
+}
+
+val autoVersionCode = gitCommitCount()
+val autoVersionName = "1.0.$autoVersionCode"
+
 android {
     namespace = "com.rentmanager.app"
     compileSdk = 35
@@ -14,8 +26,8 @@ android {
         applicationId = "com.rentmanager.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = autoVersionCode
+        versionName = autoVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

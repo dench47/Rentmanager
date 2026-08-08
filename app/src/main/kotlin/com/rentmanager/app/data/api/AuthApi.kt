@@ -95,4 +95,7 @@ interface AuthApi {
     @Multipart
     @POST("upload")
     suspend fun uploadAvatar(@Part file: MultipartBody.Part): Response<UploadResponse>
+
+    @GET("version")
+    suspend fun getVersion(): Response<VersionResponse>
 }
