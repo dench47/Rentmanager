@@ -67,7 +67,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) viewModel.updateProfile(avatarUrl = uri.toString())
+        if (uri != null) viewModel.uploadAndSetAvatar(uri)
     }
 
     // Logout dialog
