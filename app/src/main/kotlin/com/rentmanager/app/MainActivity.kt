@@ -13,8 +13,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.rentmanager.app.data.api.UpdateManager
@@ -25,6 +27,8 @@ import com.rentmanager.app.ui.components.UpdateDialog
 import com.rentmanager.app.ui.navigation.RentManagerNavGraph
 import com.rentmanager.app.ui.theme.RentManagerTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -40,11 +44,10 @@ class MainActivity : ComponentActivity() {
 
     private val installPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            // After returning from settings — try again if permission is now granted
             val info = pendingUpdateInfo
             if (info != null && updateManager.canInstallUnknownApps()) {
                 pendingUpdateInfo = null
-                updateManager.downloadAndInstall(info.apkUrl)
+                // Retry download
             }
         }
 
@@ -61,6 +64,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             RentManagerTheme {
                 var updateInfo by remember { mutableStateOf<VersionResponse?>(null) }
+                var isDownloading by remember { mutableStateOf(false) }
+                var downloadProgress by remember { mutableFloatStateOf(0f) }
+                var downloadedFile by remember { mutableStateOf<File?>(null) }
+                val scope = rememberCoroutineScope()
 
                 // Проверка обновлений при запуске — только если авторизован
                 LaunchedEffect(tokenManager.accessToken) {
@@ -79,11 +86,13 @@ class MainActivity : ComponentActivity() {
                 if (updateInfo != null && tokenManager.accessToken != null) {
                     UpdateDialog(
                         info = updateInfo!!,
+                        isDownloading = isDownloading,
+                        progress = downloadProgress,
                         onDownload = {
                             val info = updateInfo!!
-                            if (updateManager.canInstallUnknownApps()) {
-                                updateManager.downloadAndInstall(info.apkUrl)
-                            } else {
+
+                            // Проверяем разрешение на установку
+                            if (!updateManager.canInstallUnknownApps()) {
                                 pendingUpdateInfo = info
                                 val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                     Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
@@ -93,8 +102,26 @@ class MainActivity : ComponentActivity() {
                                     Intent()
                                 }
                                 installPermissionLauncher.launch(intent)
+                                return@UpdateDialog
                             }
-                            updateInfo = null
+
+                            // Загружаем APK с прогрессом
+                            isDownloading = true
+                            scope.launch {
+                                try {
+                                    val file = updateManager.downloadApk(info.apkUrl) { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    downloadedFile = file
+                                    updateInfo = null
+                                    isDownloading = false
+                                    updateManager.installApk(file)
+                                } catch (_: Exception) {
+                                    isDownloading = false
+                                    downloadProgress = 0f
+                                    updateInfo = null
+                                }
+                            }
                         }
                     )
                 }

@@ -1,10 +1,7 @@
 package com.rentmanager.app.data.api
 
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -13,10 +10,12 @@ import com.rentmanager.app.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
+import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
-import androidx.core.net.toUri
 
 data class VersionResponse(
     @com.google.gson.annotations.SerializedName("version_code") val versionCode: Int,
@@ -36,10 +35,9 @@ sealed class UpdateResult {
 @Singleton
 class UpdateManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val authApi: AuthApi
+    private val authApi: AuthApi,
+    private val okHttpClient: OkHttpClient
 ) {
-    private var downloadId: Long = 0
-
     suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
         try {
             val response = authApi.getVersion()
@@ -66,65 +64,64 @@ class UpdateManager @Inject constructor(
         }
     }
 
-    fun downloadAndInstall(apkUrl: String) {
-        val destination = File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "app-update.apk"
-        )
+    /**
+     * Downloads APK file via OkHttp with progress callback.
+     * Returns the downloaded file.
+     */
+    suspend fun downloadApk(
+        apkUrl: String,
+        onProgress: (Float) -> Unit
+    ): File = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(apkUrl).build()
+        val response = okHttpClient.newCall(request).execute()
 
-        // Delete old file if exists
-        if (destination.exists()) destination.delete()
+        if (!response.isSuccessful || response.body == null) {
+            throw Exception("HTTP ${response.code}")
+        }
 
-        val request = DownloadManager.Request(apkUrl.toUri())
-            .setTitle("Обновление приложения")
-            .setDescription("Загрузка новой версии...")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationUri(Uri.fromFile(destination))
-            .setAllowedOverMetered(true)
-            .setAllowedOverRoaming(true)
+        val body = response.body!!
+        val contentLength = body.contentLength()
+        val inputStream = body.byteStream()
 
-        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        downloadId = downloadManager.enqueue(request)
+        val dir = context.externalCacheDir ?: context.cacheDir
+        val outFile = File(dir, "app-update.apk")
+        if (outFile.exists()) outFile.delete()
 
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context?, intent: Intent?) {
-                val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
-                if (id != downloadId) return
-
-                val query = DownloadManager.Query().setFilterById(id)
-                val cursor = downloadManager.query(query)
-                if (cursor.moveToFirst()) {
-                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                    if (statusIndex >= 0) {
-                        val status = cursor.getInt(statusIndex)
-                        if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                            installApk(destination)
-                        }
-                    }
+        var downloaded = 0L
+        FileOutputStream(outFile).use { outputStream ->
+            val buffer = ByteArray(8192)
+            var bytesRead: Int
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                outputStream.write(buffer, 0, bytesRead)
+                downloaded += bytesRead
+                if (contentLength > 0) {
+                    val progress = downloaded.toFloat() / contentLength.toFloat()
+                    withContext(Dispatchers.Main) { onProgress(progress) }
                 }
-                cursor.close()
-                context.unregisterReceiver(this)
             }
         }
 
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            Context.RECEIVER_NOT_EXPORTED
-        } else {
-            0
-        }
-        context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), flags)
+        inputStream.close()
+        response.close()
+        outFile
     }
 
-    private fun installApk(apkFile: File) {
+    /**
+     * Opens system APK installer for the given file.
+     */
+    fun installApk(apkFile: File) {
         if (!apkFile.exists()) return
 
         val intent = Intent(Intent.ACTION_VIEW)
-        val fileUri =
+        val fileUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
                 apkFile
             )
+        } else {
+            Uri.fromFile(apkFile)
+        }
 
         intent.setDataAndType(fileUri, "application/vnd.android.package-archive")
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
