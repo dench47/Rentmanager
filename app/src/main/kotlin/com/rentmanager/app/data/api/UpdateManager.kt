@@ -38,7 +38,23 @@ class UpdateManager @Inject constructor(
     private val authApi: AuthApi,
     private val okHttpClient: OkHttpClient
 ) {
+    /**
+     * Returns true if the app was installed from a store (Play Store, RuStore, etc.)
+     * In that case the store handles updates and we skip our own update check.
+     */
+    fun isInstalledFromStore(): Boolean {
+        val installer = context.packageManager.getInstallerPackageName(context.packageName)
+        return when (installer) {
+            "com.android.vending" -> true   // Google Play Store
+            "com.rustore.sdk" -> true       // RuStore
+            "com.huawei.appmarket" -> true  // AppGallery
+            else -> false                   // Sideloaded APK
+        }
+    }
+
     suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
+        // Skip self-update if installed from a store — the store handles updates
+        if (isInstalledFromStore()) return@withContext UpdateResult.UpToDate
         try {
             val response = authApi.getVersion()
             if (response.isSuccessful) {
