@@ -5,7 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,14 +19,18 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -47,17 +51,26 @@ import com.rentmanager.app.ui.components.PrimaryButton
 import com.rentmanager.app.ui.components.StepProgressBar
 
 /**
- * Визуальная маска (XXX) XXX-XX-XX.
- * Реальный текст — только цифры, маска накладывается при отображении.
- * Курсор не прыгает.
+ * Универсальная визуальная маска номера телефона.
+ *
+ * @param maskPattern список длин групп цифр
+ * @param maxDigits максимум цифр (без префикса)
+ * @param prefixes разделители, вставляемые ПЕРЕД каждой группой (размер должен совпадать с maskPattern)
+ *
+ * Россия:  maskPattern=[3,3,2,2], prefixes=["(", ") ", "-", "-"] → (XXX) XXX-XX-XX
+ * Китай:   maskPattern=[3,4,4],   prefixes=["",  "-", "-"]      → XXX-XXXX-XXXX
  */
-class PhoneMaskTransformation : VisualTransformation {
+class PhoneMaskTransformation(
+    private val maskPattern: List<Int>,
+    private val maxDigits: Int,
+    private val prefixes: List<String>
+) : VisualTransformation {
+
     override fun filter(text: AnnotatedString): TransformedText {
-        val digits = text.text.filter { it.isDigit() }.take(10)
+        val digits = text.text.filter { it.isDigit() }.take(maxDigits)
         val masked = applyMask(digits)
         val offsetMapping = object : OffsetMapping {
             override fun originalToTransformed(offset: Int): Int {
-                // Offset в исходных цифрах -> offset в маскированной строке
                 if (offset <= 0) return 0
                 val limited = minOf(offset, digits.length)
                 val prefix = digits.take(limited)
@@ -65,7 +78,6 @@ class PhoneMaskTransformation : VisualTransformation {
             }
 
             override fun transformedToOriginal(offset: Int): Int {
-                // Offset в маскированной строке -> offset в исходных цифрах
                 if (offset <= 0) return 0
                 var digitCount = 0
                 var maskPos = 0
@@ -82,28 +94,62 @@ class PhoneMaskTransformation : VisualTransformation {
     private fun applyMask(digits: String): String {
         if (digits.isEmpty()) return ""
         val sb = StringBuilder()
-        val len = digits.length
-        val first = digits.take(3)
-        if (len <= 3) {
-            sb.append("($first")
-            if (len == 3) sb.append(")")
-            return sb.toString()
+        var pos = 0
+
+        for (i in maskPattern.indices) {
+            val groupLen = maskPattern[i]
+            if (pos >= digits.length) break
+
+            // Вставляем разделитель перед группой
+            if (i < prefixes.size) {
+                sb.append(prefixes[i])
+            }
+
+            val chunk = digits.substring(pos, minOf(pos + groupLen, digits.length))
+            sb.append(chunk)
+            pos += groupLen
         }
-        sb.append("($first) ")
-        val second = digits.substring(3, minOf(6, len))
-        sb.append(second)
-        if (len <= 6) return sb.toString()
-        sb.append("-")
-        val third = digits.substring(6, minOf(8, len))
-        sb.append(third)
-        if (len <= 8) return sb.toString()
-        sb.append("-")
-        val fourth = digits.substring(8, minOf(10, len))
-        sb.append(fourth)
         return sb.toString()
+    }
+
+    companion object {
+        /**
+         * Маска для России: (XXX) XXX-XX-XX (10 цифр)
+         */
+        fun russian(): PhoneMaskTransformation = PhoneMaskTransformation(
+            maskPattern = listOf(3, 3, 2, 2),
+            maxDigits = 10,
+            prefixes = listOf("(", ") ", "-", "-")
+        )
+
+        /**
+         * Маска для Китая: (XXX) XXXX-XXXX (11 цифр)
+         */
+        fun chinese(): PhoneMaskTransformation = PhoneMaskTransformation(
+            maskPattern = listOf(3, 4, 4),
+            maxDigits = 11,
+            prefixes = listOf("(", ") ", "-")
+        )
+
+        /**
+         * Фабрика по стране.
+         */
+        fun forCountry(country: CountryPhone): PhoneMaskTransformation = when (country.countryCode) {
+            "CN" -> chinese()
+            else -> russian()
+        }
+
+        /**
+         * Placeholder-строка для заданной страны.
+         */
+        fun placeholderForCountry(country: CountryPhone): String = when (country.countryCode) {
+            "CN" -> "(123) 4567-8901"
+            else -> "(900) 000-00-00"
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VerifyScreen(
     onVerified: (String) -> Unit,
@@ -111,6 +157,15 @@ fun VerifyScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var showCountryPicker by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val mask = remember(uiState.selectedCountry) {
+        PhoneMaskTransformation.forCountry(uiState.selectedCountry)
+    }
+    val placeholder = remember(uiState.selectedCountry) {
+        PhoneMaskTransformation.placeholderForCountry(uiState.selectedCountry)
+    }
 
     LaunchedEffect(uiState.isVerified) {
         if (uiState.isVerified) {
@@ -122,6 +177,19 @@ fun VerifyScreen(
         if (uiState.isCalling) {
             viewModel.startCallChecking(onSuccess = { phone -> onVerified(phone) })
         }
+    }
+
+    // Country picker bottom sheet
+    if (showCountryPicker) {
+        CountryPickerDialog(
+            sheetState = sheetState,
+            selectedCountry = uiState.selectedCountry,
+            onCountrySelected = { country ->
+                viewModel.onCountrySelected(country)
+                showCountryPicker = false
+            },
+            onDismiss = { showCountryPicker = false }
+        )
     }
 
     Column(
@@ -140,8 +208,7 @@ fun VerifyScreen(
 
         // Content card
         Card(
-            modifier = Modifier
-                .width(343.dp),
+            modifier = Modifier.width(343.dp),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -190,23 +257,35 @@ fun VerifyScreen(
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("🇷🇺", fontSize = 18.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                "+7",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF151515),
-                                letterSpacing = (-0.4).sp
-                            )
+                            // Clickable country flag + prefix
+                            Row(
+                                modifier = Modifier.clickable { showCountryPicker = true },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(uiState.selectedCountry.flagEmoji, fontSize = 18.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    uiState.selectedCountry.phonePrefix,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF151515),
+                                    letterSpacing = (-0.4).sp
+                                )
+                                // Small chevron to indicate dropdown
+                                Text(
+                                    " ▾",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF8E8E93)
+                                )
+                            }
+
                             Spacer(modifier = Modifier.width(10.dp))
                             BasicTextField(
-                                value = uiState.phone.removePrefix("+7"),
+                                value = uiState.phone.removePrefix(uiState.selectedCountry.phonePrefix),
                                 onValueChange = { raw ->
-                                    val digits = raw.filter { it.isDigit() }.take(10)
-                                    viewModel.onDigitsChange(digits)
+                                    viewModel.onDigitsChange(raw)
                                 },
-                                visualTransformation = PhoneMaskTransformation(),
+                                visualTransformation = mask,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                                 singleLine = true,
                                 textStyle = TextStyle(
@@ -217,9 +296,9 @@ fun VerifyScreen(
                                 ),
                                 modifier = Modifier.weight(1f),
                                 decorationBox = { innerTextField ->
-                                    if (uiState.phone.length <= 2) {
+                                    if (uiState.phone.length <= uiState.selectedCountry.phonePrefix.length) {
                                         Text(
-                                            "(900) 000–00–00",
+                                            placeholder,
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = Color(0xCCA6A6A6),
@@ -247,7 +326,7 @@ fun VerifyScreen(
                     PrimaryButton(
                         text = "Продолжить",
                         onClick = { viewModel.onContinue(onSuccess = { onVerified(it) }) },
-                        enabled = uiState.phone.removePrefix("+7").length == 10,
+                        enabled = uiState.phone.removePrefix(uiState.selectedCountry.phonePrefix).length == uiState.selectedCountry.maxDigits,
                         isLoading = uiState.isLoading
                     )
                 } else {

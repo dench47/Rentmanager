@@ -124,7 +124,6 @@ fun SettingsScreen(
             title = { Text("Смена номера", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
             text = { Text("Для смены номера необходимо заново его верифицировать.", fontSize = 16.sp, color = Color(0x993C3C43), textAlign = TextAlign.Center) },
             confirmButton = { TextButton(onClick = { viewModel.startPhoneVerification { onNavigateToPhoneVerify(uiState.newPhone) } }) { Text("Продолжить", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) } },
-            dismissButton = { TextButton(onClick = { viewModel.dismissPhoneWarning() }) { Text("Отмена", color = Color(0x993C3C43)) } },
             containerColor = Color.White, shape = RoundedCornerShape(20.dp)
         )
     }
@@ -151,13 +150,11 @@ fun SettingsScreen(
                     val f = editFirstName.trim()
                     val l = editLastName.trim()
                     val m = editMiddleName.trim()
-                    // Если есть фамилия — склеиваем имя+фамилия(+отчество), если нет фамилии — только имя
                     val displayFull = if (l.isNotEmpty()) listOf(f, l, m).filter { it.isNotEmpty() }.joinToString(" ") else f
                     viewModel.updateProfile(name = f, fullName = displayFull)
                     showEditNameDialog = false
                 }) { Text("Сохранить", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) }
             },
-            dismissButton = { TextButton(onClick = { showEditNameDialog = false }) { Text("Отмена", color = Color(0x993C3C43)) } },
             containerColor = Color.White, shape = RoundedCornerShape(20.dp)
         )
     }
@@ -171,7 +168,7 @@ fun SettingsScreen(
             title = { Text("Почтовый ящик", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)) },
             text = { OutlinedTextField(value = editEmail, onValueChange = { editEmail = it }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)), singleLine = true, placeholder = { Text("Введите email", color = Color(0x998E8E93), fontSize = 16.sp) }, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent)) },
             confirmButton = { TextButton(onClick = { viewModel.updateProfile(email = editEmail); showEditEmailDialog = false }) { Text("Сохранить", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) } },
-            dismissButton = { TextButton(onClick = { showEditEmailDialog = false }) { Text("Отмена", color = Color(0x993C3C43)) } },
+            dismissButton = { TextButton(onClick = { editEmail = ""; viewModel.updateProfile(email = ""); showEditEmailDialog = false }) { Text("Очистить", color = Color(0x993C3C43)) } },
             containerColor = Color.White, shape = RoundedCornerShape(20.dp)
         )
     }
@@ -185,7 +182,7 @@ fun SettingsScreen(
             title = { Text("Юридическое лицо", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)) },
             text = { OutlinedTextField(value = editLegalName, onValueChange = { editLegalName = it }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)), singleLine = true, placeholder = { Text("Название организации", color = Color(0x998E8E93), fontSize = 16.sp) }, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent)) },
             confirmButton = { TextButton(onClick = { viewModel.updateProfile(legalName = editLegalName); showEditLegalDialog = false }) { Text("Сохранить", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) } },
-            dismissButton = { TextButton(onClick = { showEditLegalDialog = false }) { Text("Отмена", color = Color(0x993C3C43)) } },
+            dismissButton = { TextButton(onClick = { editLegalName = ""; viewModel.updateProfile(legalName = ""); showEditLegalDialog = false }) { Text("Очистить", color = Color(0x993C3C43)) } },
             containerColor = Color.White, shape = RoundedCornerShape(20.dp)
         )
     }
