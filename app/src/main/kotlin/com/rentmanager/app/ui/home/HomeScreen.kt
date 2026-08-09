@@ -171,6 +171,7 @@ fun HomeScreen(
 
             // Приветствие (Figma: 127-4663, y=3277, w=253, центрирован, itemSpacing=4)
             Column(
+
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
