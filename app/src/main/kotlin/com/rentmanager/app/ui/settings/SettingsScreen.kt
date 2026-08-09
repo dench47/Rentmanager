@@ -197,22 +197,84 @@ fun SettingsScreen(
             }
             LazyColumn(Modifier.fillMaxSize()) {
                 item {
-                    Column(Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.size(80.dp).clickable { imagePicker.launch("image/*") }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Аватар
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clickable { imagePicker.launch("image/*") }
+                        ) {
                             if (!uiState.avatarUrl.isNullOrBlank()) {
-                                AsyncImage(model = uiState.avatarUrl, contentDescription = "Аватар", modifier = Modifier.size(80.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                                AsyncImage(
+                                    model = uiState.avatarUrl,
+                                    contentDescription = "Аватар",
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
                             } else {
-                                Image(painter = painterResource(R.drawable.ic_default_avatar), contentDescription = "Аватар", modifier = Modifier.size(80.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                                Image(
+                                    painter = painterResource(R.drawable.ic_default_avatar),
+                                    contentDescription = "Аватар",
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
                             }
-                            Box(Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFF6F6F6)).align(Alignment.BottomEnd), Alignment.Center) { Icon(Icons.Default.Edit, "Изменить", Modifier.size(16.dp), tint = Color(0xFF212121)) }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF6F6F6))
+                                    .align(Alignment.BottomEnd),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    "Изменить",
+                                    Modifier.size(16.dp),
+                                    tint = Color(0xFF212121)
+                                )
+                            }
                         }
-                        Text(if (uiState.avatarUrl.isNullOrBlank()) "Установить аватар" else "Сменить аватар", fontSize = 14.sp, color = Color(0xFF7AB66A), modifier = Modifier.clickable { imagePicker.launch("image/*") })
-                        if (!uiState.avatarUrl.isNullOrBlank()) {
-                            Spacer(Modifier.height(8.dp))
-                            Text("Удалить аватар", fontSize = 14.sp, color = Color(0xFFE53935), modifier = Modifier.clickable { viewModel.updateProfile(avatarUrl = "") })
+
+                        // Отступ после аватарки (всегда одинаковый)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Текст действия
+                        when {
+                            uiState.avatarUrl.isNullOrBlank() -> {
+                                Text(
+                                    text = "Установить аватар",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF007AFF),
+                                    modifier = Modifier.clickable { imagePicker.launch("image/*") }
+                                )
+                            }
+                            else -> {
+                                Text(
+                                    text = "Удалить аватар",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFFE53935),
+                                    modifier = Modifier.clickable { viewModel.updateProfile(avatarUrl = "") }
+                                )
+                            }
                         }
                     }
-                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        thickness = 1.dp,
+                        color = Color.Black.copy(alpha = 0.1f)
+                    )
                 }
                 item {
                     val displayFio = uiState.fullName.ifBlank { uiState.userName.ifEmpty { "" } }
