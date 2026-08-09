@@ -8,7 +8,6 @@ import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.rentmanager.app.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,6 +16,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.net.toUri
 
 data class VersionResponse(
     @com.google.gson.annotations.SerializedName("version_code") val versionCode: Int,
@@ -58,12 +58,15 @@ class UpdateManager @Inject constructor(
         }
     }
 
-    fun downloadAndInstall(apkUrl: String) {
-        if (!canInstallUnknownApps()) {
-            requestInstallUnknownApps()
-            return
+    fun canInstallUnknownApps(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.packageManager.canRequestPackageInstalls()
+        } else {
+            true
         }
+    }
 
+    fun downloadAndInstall(apkUrl: String) {
         val destination = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             "app-update.apk"
@@ -72,7 +75,7 @@ class UpdateManager @Inject constructor(
         // Delete old file if exists
         if (destination.exists()) destination.delete()
 
-        val request = DownloadManager.Request(Uri.parse(apkUrl))
+        val request = DownloadManager.Request(apkUrl.toUri())
             .setTitle("Обновление приложения")
             .setDescription("Загрузка новой версии...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
@@ -95,11 +98,7 @@ class UpdateManager @Inject constructor(
                     if (statusIndex >= 0) {
                         val status = cursor.getInt(statusIndex)
                         if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                            val uriIndex = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
-                            if (uriIndex >= 0) {
-                                val fileUri = cursor.getString(uriIndex)
-                                if (fileUri != null) installApk(fileUri)
-                            }
+                            installApk(destination)
                         }
                     }
                 }
@@ -108,44 +107,28 @@ class UpdateManager @Inject constructor(
             }
         }
 
-        context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_NOT_EXPORTED)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            Context.RECEIVER_NOT_EXPORTED
+        } else {
+            0
+        }
+        context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), flags)
     }
 
-    private fun installApk(uri: String) {
-        val apkFile = File(Uri.parse(uri).path ?: return)
+    private fun installApk(apkFile: File) {
         if (!apkFile.exists()) return
 
         val intent = Intent(Intent.ACTION_VIEW)
-        val fileUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        val fileUri =
             FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
                 apkFile
             )
-        } else {
-            Uri.fromFile(apkFile)
-        }
 
         intent.setDataAndType(fileUri, "application/vnd.android.package-archive")
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         context.startActivity(intent)
-    }
-
-    private fun canInstallUnknownApps(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.packageManager.canRequestPackageInstalls()
-        } else {
-            true
-        }
-    }
-
-    private fun requestInstallUnknownApps() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-            intent.data = Uri.parse("package:${context.packageName}")
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            context.startActivity(intent)
-        }
     }
 }

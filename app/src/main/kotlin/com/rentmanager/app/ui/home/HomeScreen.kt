@@ -176,8 +176,7 @@ fun HomeScreen(
             ) {
                 val hasName = uiState.userName.isNotEmpty()
                 Text(
-                    text = if (hasName) "TEST" else "TEST",
-//                    text = if (hasName) "Добро пожаловать," else "Добро пожаловать",
+                    text = if (hasName) "Добро пожаловать," else "Добро пожаловать",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.Black,
