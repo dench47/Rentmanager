@@ -137,17 +137,26 @@ fun SettingsScreen(
     if (showEditNameDialog) {
         AlertDialog(
             onDismissRequest = { showEditNameDialog = false },
-            title = { Text("ФИО", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)) },
             text = {
                 Column(Modifier.fillMaxWidth()) {
-                    OutlinedTextField(value = editFirstName, onValueChange = { editFirstName = capitalizeFirst(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Имя", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
+                    OutlinedTextField(value = editFirstName, onValueChange = { editFirstName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Имя", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
                     Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(value = editLastName, onValueChange = { editLastName = capitalizeFirst(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Фамилия", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
+                    OutlinedTextField(value = editLastName, onValueChange = { editLastName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Фамилия", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
                     Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(value = editMiddleName, onValueChange = { editMiddleName = capitalizeFirst(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Отчество", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
+                    OutlinedTextField(value = editMiddleName, onValueChange = { editMiddleName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Отчество", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
                 }
             },
-            confirmButton = { TextButton(onClick = { val fullName = listOf(editFirstName, editLastName, editMiddleName).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" "); if (fullName.isNotEmpty()) viewModel.updateProfile(name = fullName); showEditNameDialog = false }) { Text("Сохранить", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) } },
+            confirmButton = {
+                TextButton(onClick = {
+                    val f = editFirstName.trim()
+                    val l = editLastName.trim()
+                    val m = editMiddleName.trim()
+                    // Если есть фамилия — склеиваем имя+фамилия(+отчество), если нет фамилии — только имя
+                    val displayFull = if (l.isNotEmpty()) listOf(f, l, m).filter { it.isNotEmpty() }.joinToString(" ") else f
+                    viewModel.updateProfile(name = f, fullName = displayFull)
+                    showEditNameDialog = false
+                }) { Text("Сохранить", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) }
+            },
             dismissButton = { TextButton(onClick = { showEditNameDialog = false }) { Text("Отмена", color = Color(0x993C3C43)) } },
             containerColor = Color.White, shape = RoundedCornerShape(20.dp)
         )
@@ -208,7 +217,28 @@ fun SettingsScreen(
                     }
                     HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
                 }
-                item { SettingsField("ФИО", uiState.userName.ifEmpty { "Иван Иванов" }, Icons.Default.Edit, onClick = { showEditNameDialog = true; editFirstName = uiState.userName; editLastName = ""; editMiddleName = "" }) }
+                item {
+                    val displayFio = uiState.fullName.ifBlank { uiState.userName.ifEmpty { "" } }
+                    val initialFirstName = uiState.userName
+                    val full = uiState.fullName
+                    val (initLastName, initMiddleName) = if (full.isNotBlank() && initialFirstName.isNotEmpty() && full != initialFirstName) {
+                        val clean = full.trim()
+                        if (clean.startsWith(initialFirstName)) {
+                            val rest = clean.removePrefix(initialFirstName).trim().split(" ").filter { it.isNotEmpty() }
+                            when (rest.size) {
+                                2 -> rest[0] to rest[1]
+                                1 -> rest[0] to ""
+                                else -> "" to ""
+                            }
+                        } else "" to ""
+                    } else "" to ""
+                    SettingsField("ФИО", displayFio.ifEmpty { "Иван Иванов" }, Icons.Default.Edit, onClick = {
+                        showEditNameDialog = true
+                        editFirstName = initialFirstName
+                        editLastName = initLastName
+                        editMiddleName = initMiddleName
+                    })
+                }
                 item {
                     Column(Modifier.fillMaxWidth()) {
                         Row(Modifier.fillMaxWidth().clickable { viewModel.onPhoneChangeRequest(uiState.phone) }.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -242,6 +272,8 @@ fun SettingsScreen(
 }
 
 private fun capitalizeFirst(s: String): String = if (s.isEmpty()) s else s[0].uppercaseChar() + s.substring(1)
+
+private fun capitalizeEach(s: String): String = s.split(" ").joinToString(" ") { w -> if (w.isEmpty()) w else w[0].uppercaseChar() + w.substring(1) }
 
 @Composable
 private fun SettingsField(label: String, value: String, icon: ImageVector, isOptional: Boolean = false, onClick: () -> Unit = {}) {

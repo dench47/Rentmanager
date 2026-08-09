@@ -36,6 +36,7 @@ data class CallCheckStatusResponse(
 
 data class UpdateProfileRequest(
     val name: String? = null,
+    @com.google.gson.annotations.SerializedName("full_name") val fullName: String? = null,
     val email: String? = null,
     @com.google.gson.annotations.SerializedName("legal_name") val legalName: String? = null,
     @com.google.gson.annotations.SerializedName("avatar_url") val avatarUrl: String? = null,

@@ -23,6 +23,7 @@ import javax.inject.Inject
 
 data class SettingsUiState(
     val userName: String = "",
+    val fullName: String = "",
     val phone: String = "",
     val email: String? = null,
     val legalName: String? = null,
@@ -72,6 +73,7 @@ class SettingsViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             userName = user.name,
+                            fullName = user.fullName ?: "",
                             phone = user.phone,
                             email = user.email,
                             legalName = user.legalName,
@@ -134,6 +136,7 @@ class SettingsViewModel @Inject constructor(
 
     fun updateProfile(
         name: String? = null,
+        fullName: String? = null,
         email: String? = null,
         legalName: String? = null,
         avatarUrl: String? = null,
@@ -142,7 +145,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val resp = authApi.updateProfile(UpdateProfileRequest(name, email, legalName, avatarUrl))
+                val resp = authApi.updateProfile(UpdateProfileRequest(name = name, fullName = fullName, email = email, legalName = legalName, avatarUrl = avatarUrl))
                 if (resp.isSuccessful) {
                     val user = resp.body()!!
                     val newUrl = user.avatarUrl
@@ -150,12 +153,14 @@ class SettingsViewModel @Inject constructor(
                         it.copy(
                             isLoading = false,
                             userName = user.name,
+                            fullName = user.fullName ?: "",
                             email = user.email,
                             legalName = user.legalName,
                             avatarUrl = newUrl
                         )
                     }
                     tokenManager.avatarUrl = newUrl
+                    tokenManager.userName = user.name
                     onSuccess()
                 } else {
                     _uiState.update { it.copy(isLoading = false, errorMessage = "Ошибка сохранения") }

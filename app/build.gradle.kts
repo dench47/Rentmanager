@@ -45,6 +45,7 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
             val localIp = project.findProperty("local.server.ip")?.toString() ?: "192.168.0.152"
             buildConfigField("String", "API_BASE_URL", "\"http://$localIp:8080/api/v1/\"")
         }
