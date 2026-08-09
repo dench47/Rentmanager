@@ -50,7 +50,12 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     val result = updateManager.checkForUpdate()
                     if (result is UpdateResult.Available) {
-                        updateInfo = result.info
+                        val info = result.info
+                        // Показываем только если версия новее чем последняя показанная
+                        if (info.versionCode > tokenManager.lastUpdatePromptVersion) {
+                            tokenManager.lastUpdatePromptVersion = info.versionCode
+                            updateInfo = info
+                        }
                     }
                 }
 
@@ -61,8 +66,7 @@ class MainActivity : ComponentActivity() {
                         onDownload = {
                             updateManager.downloadAndInstall(updateInfo!!.apkUrl)
                             updateInfo = null
-                        },
-                        onDismiss = { updateInfo = null }
+                        }
                     )
                 }
 

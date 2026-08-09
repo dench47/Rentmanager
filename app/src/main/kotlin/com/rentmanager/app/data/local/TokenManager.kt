@@ -39,6 +39,10 @@ class TokenManager @Inject constructor(
         get() = prefs.getString("avatar_url", null)
         set(value) = prefs.edit().putString("avatar_url", value).apply()
 
+    var lastUpdatePromptVersion: Int
+        get() = prefs.getInt("last_update_prompt_version", 0)
+        set(value) = prefs.edit().putInt("last_update_prompt_version", value).apply()
+
     fun clear() {
         prefs.edit().clear().apply()
     }
