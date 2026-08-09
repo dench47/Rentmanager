@@ -7,6 +7,7 @@ import com.rentmanager.app.data.api.CallCheckAddResponse
 import com.rentmanager.app.data.api.SendCodeRequest
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +35,8 @@ class VerifyViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(VerifyUiState())
     val uiState: StateFlow<VerifyUiState> = _uiState.asStateFlow()
+
+    private var callCheckJob: Job? = null
 
     /**
      * Принимает чистые цифры (только 0-9), максимум из selectedCountry.maxDigits.
@@ -105,7 +108,8 @@ class VerifyViewModel @Inject constructor(
 
     fun startCallChecking(onSuccess: (String) -> Unit) {
         val phone = _uiState.value.phone
-        viewModelScope.launch {
+        callCheckJob?.cancel()
+        callCheckJob = viewModelScope.launch {
             var attempts = 0
             while (attempts < 30) {
                 delay(3000)
@@ -131,6 +135,8 @@ class VerifyViewModel @Inject constructor(
     }
 
     fun reset() {
+        callCheckJob?.cancel()
+        callCheckJob = null
         _uiState.value = VerifyUiState()
     }
 }

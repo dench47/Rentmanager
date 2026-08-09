@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,14 +14,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,8 +39,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.Icons
+import androidx.compose.ui.res.painterResource
+import com.rentmanager.app.R
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -204,6 +220,39 @@ fun VerifyScreen(
         // Step progress — 2 steps for verification
         StepProgressBar(currentStep = if (uiState.isCalling) 2 else 1, totalSteps = 2)
 
+        // Back arrow (outside card, only on calling screen)
+        if (uiState.isCalling) {
+            Row(
+                modifier = Modifier
+                    .width(343.dp)
+                    .padding(bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clickable { viewModel.reset() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_arrow_left),
+                            contentDescription = "Назад",
+                            tint = Color(0xFF000000),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Назад",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = Color(0xFF000000),
+                            letterSpacing = (-0.4).sp
+                        )
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(60.dp))
 
         // Content card
@@ -333,17 +382,82 @@ fun VerifyScreen(
                     // ============================================================
                     // Calling screen
                     // ============================================================
+                    var showCallInfoDialog by remember { mutableStateOf(false) }
+                    val uriHandler = LocalUriHandler.current
+
+                    // Info dialog
+                    if (showCallInfoDialog) {
+                        val infoText = buildAnnotatedString {
+                            append("Звонок для подтверждения номера абсолютно бесплатен — ")
+                            append("даже если вы находитесь в роуминге или звоните с зарубежного номера.\n\n")
+                            append("После соединения вы услышите голосовое сообщение об успешной авторизации, ")
+                            append("и звонок автоматически завершится. Звонок не тарифицируется, ")
+                            append("так как соединение не считается установленным.\n\n")
+                            append("Пожалуйста, позвоните на указанный номер в течение 5 минут.\n\n")
+                            append("Услуга предоставляется сервисом ")
+                            pushStringAnnotation("url", "https://sms.ru")
+                            withStyle(SpanStyle(color = Color(0x993C3C43), textDecoration = TextDecoration.Underline)) {
+                                append("sms.ru")
+                            }
+                            pop()
+                            append(".")
+                        }
+
+                        AlertDialog(
+                            onDismissRequest = { showCallInfoDialog = false },
+                            title = {
+                                Text(
+                                    "О звонке",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 18.sp,
+                                    color = Color(0xFF151515)
+                                )
+                            },
+                            text = {
+                                ClickableText(
+                                    text = infoText,
+                                    style = TextStyle(
+                                        fontSize = 14.sp,
+                                        color = Color(0x993C3C43),
+                                        lineHeight = 20.sp
+                                    ),
+                                    onClick = { offset ->
+                                        infoText.getStringAnnotations("url", offset, offset).firstOrNull()?.let {
+                                            uriHandler.openUri(it.item)
+                                        }
+                                    }
+                                )
+                            },
+                            confirmButton = { },
+                            dismissButton = { },
+                            containerColor = Color.White,
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                    }
+
                     Text(
                         text = "Звонок для проверки",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF151515),
-                        letterSpacing = (-0.4).sp
+                        letterSpacing = (-0.4).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+
                     Spacer(modifier = Modifier.height(4.dp))
+
                     Text(
-                        text = "Позвоните, чтобы подтвердить номер",
+                        text = "Проверьте правильность номера",
                         fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = Color(0x993C3C43),
+                        letterSpacing = (-0.4).sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = uiState.selectedCountry.phonePrefix + mask.filter(AnnotatedString(uiState.phone.removePrefix(uiState.selectedCountry.phonePrefix))).text.text,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Normal,
                         color = Color(0x993C3C43),
                         letterSpacing = (-0.4).sp,
@@ -408,7 +522,7 @@ fun VerifyScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "После звонка вернитесь в приложение\nдля автоматической проверки",
+                        text = "После звонка Вы вернетесь в приложение\nдля автоматической проверки",
                         fontSize = 12.sp,
                         color = Color(0x993C3C43),
                         letterSpacing = (-0.4).sp,
@@ -418,12 +532,31 @@ fun VerifyScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    Text(
-                        text = "Звонок бесплатный",
-                        fontSize = 11.sp,
-                        color = Color(0x663C3C43),
-                        letterSpacing = (-0.4).sp
-                    )
+                    // Free call + info icon
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Звонок бесплатный",
+                            fontSize = 11.sp,
+                            color = Color(0x663C3C43),
+                            letterSpacing = (-0.4).sp
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { showCallInfoDialog = true },
+                            modifier = Modifier.width(20.dp).height(20.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Info,
+                                contentDescription = "Информация о звонке",
+                                tint = Color(0xFF007AFF),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
                 }
             }
         }
