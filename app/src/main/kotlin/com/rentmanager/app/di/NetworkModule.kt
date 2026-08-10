@@ -44,10 +44,12 @@ object NetworkModule {
         }
 
         val authenticator = Authenticator { _, response ->
-            // Не пытаемся обновить токен для auth-эндпоинтов:
-            // 401 там означает неверные данные (wrong password, etc.), а не протухший токен
+            // Не пытаемся обновить токен для verify_password:
+            // 401 там означает неверный пароль, а не протухший токен.
+            // Для остальных /auth/ запросов (set_password, updateProfile и др.)
+            // 401 может означать протухший токен — разрешаем refresh.
             val path = response.request.url.encodedPath
-            if (path.contains("/auth/")) {
+            if (path.contains("/auth/verify_password")) {
                 return@Authenticator null
             }
 
