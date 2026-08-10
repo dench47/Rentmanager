@@ -17,6 +17,8 @@ data class SaveNameRequest(val name: String)
 data class LoginResponse(
     val exists: Boolean?,
     @com.google.gson.annotations.SerializedName("need_verify") val needVerify: Boolean?,
+    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String?,
+    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String?,
     val token: String?,
     val user: UserDto?
 )
@@ -30,6 +32,8 @@ data class CallCheckAddResponse(
 
 data class CallCheckStatusResponse(
     val verified: Boolean,
+    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String?,
+    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String?,
     val token: String?,
     val user: UserDto?
 )
@@ -51,12 +55,23 @@ data class ChangePhoneResponse(
 
 data class ConfirmPhoneChangeResponse(
     val changed: Boolean,
+    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String?,
+    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String?,
     val token: String?,
     val user: UserDto?
 )
 
 data class UploadResponse(
     val url: String
+)
+
+data class RefreshTokenRequest(
+    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String
+)
+
+data class RefreshTokenResponse(
+    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String,
+    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String
 )
 
 data class MessageResponse(val message: String)
@@ -92,6 +107,9 @@ interface AuthApi {
 
     @DELETE("auth/account")
     suspend fun deleteAccount(): Response<MessageResponse>
+
+    @POST("auth/refresh")
+    suspend fun refreshToken(@Body request: RefreshTokenRequest): Response<RefreshTokenResponse>
 
     @Multipart
     @POST("upload")

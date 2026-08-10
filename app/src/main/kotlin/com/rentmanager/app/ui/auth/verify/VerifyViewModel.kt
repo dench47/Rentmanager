@@ -71,6 +71,10 @@ class VerifyViewModel @Inject constructor(
                     val body = loginResp.body()
                     if (body?.exists == true) {
                         // Пользователь уже зарегистрирован — сохраняем токен и идём дальше
+                        // Сохраняем токены (новый формат access_token/refresh_token)
+                        body.accessToken?.let { tokenManager.accessToken = it }
+                        body.refreshToken?.let { tokenManager.refreshToken = it }
+                        // Обратная совместимость со старым форматом token
                         body.token?.let { tokenManager.accessToken = it }
                         body.user?.name?.let { tokenManager.userName = it }
                         body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
@@ -119,6 +123,8 @@ class VerifyViewModel @Inject constructor(
                     if (resp.isSuccessful) {
                         val body = resp.body()
                         if (body?.verified == true) {
+                            body.accessToken?.let { tokenManager.accessToken = it }
+                            body.refreshToken?.let { tokenManager.refreshToken = it }
                             body.token?.let { tokenManager.accessToken = it }
                             body.user?.name?.let { tokenManager.userName = it }
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }

@@ -5,13 +5,19 @@ import com.rentmanager.app.data.api.ChatApi
 import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.api.PropertyApi
 import com.rentmanager.app.BuildConfig
+import com.rentmanager.app.data.api.RefreshTokenRequest
 import com.rentmanager.app.data.api.TenantApi
 import com.rentmanager.app.data.local.TokenManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.runBlocking
+import okhttp3.Authenticator
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.Route
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -36,9 +42,49 @@ object NetworkModule {
             }
             chain.proceed(request.build())
         }
+
+        val authenticator = Authenticator { _, response ->
+            val refreshToken = tokenManager.refreshToken
+            if (refreshToken == null) {
+                response.close()
+                return@Authenticator null
+            }
+
+            // Отдельный клиент для refresh, не зависит от основного графа
+            val refreshApi = Retrofit.Builder()
+                .baseUrl(BASE_URL)
+                .client(OkHttpClient.Builder().build())
+                .addConverterFactory(GsonConverterFactory.create())
+                .build()
+                .create(AuthApi::class.java)
+
+            val refreshResp = try {
+                runBlocking { refreshApi.refreshToken(RefreshTokenRequest(refreshToken)) }
+            } catch (e: Exception) {
+                response.close()
+                return@Authenticator null
+            }
+
+            if (refreshResp.isSuccessful) {
+                val body = refreshResp.body()!!
+                tokenManager.accessToken = body.accessToken
+                tokenManager.refreshToken = body.refreshToken
+
+                val newRequest = response.request.newBuilder()
+                    .header("Authorization", "Bearer ${body.accessToken}")
+                    .build()
+                response.close()
+                return@Authenticator newRequest
+            }
+
+            response.close()
+            null
+        }
+
         return OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)
+            .authenticator(authenticator)
             .build()
     }
 

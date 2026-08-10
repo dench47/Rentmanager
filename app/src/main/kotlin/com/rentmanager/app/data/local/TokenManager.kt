@@ -16,6 +16,10 @@ class TokenManager @Inject constructor(
         get() = prefs.getString("access_token", null)
         set(value) = prefs.edit().putString("access_token", value).apply()
 
+    var refreshToken: String?
+        get() = prefs.getString("refresh_token", null)
+        set(value) = prefs.edit().putString("refresh_token", value).apply()
+
     var userName: String?
         get() = prefs.getString("user_name", null)
         set(value) = prefs.edit().putString("user_name", value).apply()
