@@ -91,10 +91,10 @@ fun SettingsScreen(
     if (uiState.showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissDialogs() },
-            title = { Text("Удалить учётную запись", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE53935), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
+            title = { Text("Удалить учётную запись", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
             text = { Text("Все ваши данные будут безвозвратно удалены.", fontSize = 16.sp, color = Color(0x993C3C43), textAlign = TextAlign.Center) },
             confirmButton = { TextButton(onClick = { viewModel.deleteAccount(onLoggedOut) }) { Text("Да, удалить", color = Color(0xFFE53935), fontWeight = FontWeight.Bold) } },
-            dismissButton = { TextButton(onClick = { viewModel.dismissDialogs() }) { Text("Отмена", color = Color(0xFF007AFF)) } },
+            dismissButton = { TextButton(onClick = { viewModel.dismissDialogs() }) { Text("Отмена", color = Color(0x993C3C43)) } },
             containerColor = Color.White, shape = RoundedCornerShape(20.dp)
         )
     }
