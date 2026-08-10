@@ -78,6 +78,7 @@ class VerifyViewModel @Inject constructor(
                         body.token?.let { tokenManager.accessToken = it }
                         body.user?.name?.let { tokenManager.userName = it }
                         body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
+                        body.user?.passwordHash?.let { tokenManager.hasPassword = it.isNotEmpty() }
                         tokenManager.phone = phone
                         _uiState.update { it.copy(isLoading = false, isVerified = true) }
                         onSuccess(phone)

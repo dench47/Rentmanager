@@ -16,6 +16,8 @@ import com.rentmanager.app.ui.auth.verify.VerifyScreen
 import com.rentmanager.app.ui.home.HomeScreen
 import com.rentmanager.app.ui.role.RoleScreen
 import com.rentmanager.app.ui.role.UserRole
+import com.rentmanager.app.ui.pin.PinEntryScreen
+import com.rentmanager.app.ui.pin.PinSetupScreen
 import com.rentmanager.app.ui.settings.SettingsScreen
 import com.rentmanager.app.ui.services.ServicesScreen
 import com.rentmanager.app.ui.tenant.properties.TenantPropertiesScreen
@@ -31,9 +33,11 @@ fun RentManagerNavGraph(
     val context = LocalContext.current
     val propertiesViewModel: MyPropertiesViewModel = viewModel()
 
-    val startDestination = remember(tokenManager.accessToken, tokenManager.defaultStartScreen) {
+    val startDestination = remember(tokenManager.accessToken, tokenManager.hasPassword, tokenManager.defaultStartScreen) {
         if (tokenManager.accessToken == null) {
             Screen.Verify.route
+        } else if (tokenManager.hasPassword) {
+            Screen.PinEntry.route
         } else {
             when (tokenManager.defaultStartScreen) {
                 "landlord" -> Screen.RoleScreen.createRoute("landlord")
@@ -311,6 +315,25 @@ fun RentManagerNavGraph(
             )
         }
 
+        // ========== Pin Setup ==========
+        composable(Screen.PinSetup.route) {
+            PinSetupScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ========== Pin Entry ==========
+        composable(Screen.PinEntry.route) {
+            PinEntryScreen(
+                tokenManager = tokenManager,
+                onPinVerified = {
+                    navController.navigate(Screen.MainScreen.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         // ========== Settings ==========
         composable(Screen.Settings.route) {
             SettingsScreen(
@@ -319,6 +342,9 @@ fun RentManagerNavGraph(
                     navController.navigate(Screen.Verify.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onPinSetupClick = {
+                    navController.navigate(Screen.PinSetup.route)
                 },
                 onNavigateToPhoneVerify = { phone ->
                     navController.navigate(Screen.Verify.route) {

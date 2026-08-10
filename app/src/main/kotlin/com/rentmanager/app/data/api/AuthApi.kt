@@ -74,6 +74,21 @@ data class RefreshTokenResponse(
     @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String
 )
 
+data class SetPasswordRequest(
+    val password: String
+)
+
+data class VerifyPasswordRequest(
+    val phone: String,
+    val password: String
+)
+
+data class RefreshTokenResponseWithUser(
+    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String,
+    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String,
+    val user: UserDto
+)
+
 data class MessageResponse(val message: String)
 
 interface AuthApi {
@@ -110,6 +125,12 @@ interface AuthApi {
 
     @POST("auth/refresh")
     suspend fun refreshToken(@Body request: RefreshTokenRequest): Response<RefreshTokenResponse>
+
+    @POST("auth/set_password")
+    suspend fun setPassword(@Body request: SetPasswordRequest): Response<MessageResponse>
+
+    @POST("auth/verify_password")
+    suspend fun verifyPassword(@Body request: VerifyPasswordRequest): Response<RefreshTokenResponseWithUser>
 
     @Multipart
     @POST("upload")

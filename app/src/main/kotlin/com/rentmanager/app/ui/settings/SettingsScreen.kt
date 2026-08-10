@@ -61,6 +61,7 @@ import com.rentmanager.app.R
 fun SettingsScreen(
     onBack: () -> Unit,
     onLoggedOut: () -> Unit,
+    onPinSetupClick: () -> Unit,
     onNavigateToPhoneVerify: (String) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -310,7 +311,7 @@ fun SettingsScreen(
                 }
                 item { SettingsField("Почтовый ящик", uiState.email ?: "", Icons.Default.Email, isOptional = true, onClick = { showEditEmailDialog = true; editEmail = uiState.email ?: "" }) }
                 item { SettingsField("Название юридического лица", uiState.legalName ?: "", Icons.Default.Business, isOptional = true, onClick = { showEditLegalDialog = true; editLegalName = uiState.legalName ?: "" }) }
-                item { SettingsAction("Установить пароль", Icons.Default.Lock) }
+                item { SettingsAction("Установить пароль", Icons.Default.Lock, onClick = onPinSetupClick) }
                 item { SettingsAction("Начальный экран", Icons.Default.Home, subtitle = when (uiState.defaultStartScreen) { "landlord" -> "Арендодатель"; "tenant" -> "Арендатор"; else -> "Главный экран" }, onClick = { viewModel.showStartScreenDialog() }) }
                 item {
                     Column(Modifier.fillMaxWidth()) {

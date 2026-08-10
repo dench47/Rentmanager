@@ -7,6 +7,10 @@ sealed class Screen(val route: String) {
     // Auth flow
     data object Verify : Screen("auth/verify")
 
+    // Pin
+    data object PinEntry : Screen("pin/entry")
+    data object PinSetup : Screen("pin/setup")
+
     // Main
     data object MainScreen : Screen("main")
 

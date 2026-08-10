@@ -44,9 +44,16 @@ object NetworkModule {
         }
 
         val authenticator = Authenticator { _, response ->
+            // Не пытаемся обновить токен для auth-эндпоинтов:
+            // 401 там означает неверные данные (wrong password, etc.), а не протухший токен
+            val path = response.request.url.encodedPath
+            if (path.contains("/auth/")) {
+                return@Authenticator null
+            }
+
             val refreshToken = tokenManager.refreshToken
             if (refreshToken == null) {
-                response.close()
+                tokenManager.clear()
                 return@Authenticator null
             }
 
@@ -61,7 +68,7 @@ object NetworkModule {
             val refreshResp = try {
                 runBlocking { refreshApi.refreshToken(RefreshTokenRequest(refreshToken)) }
             } catch (e: Exception) {
-                response.close()
+                tokenManager.clear()
                 return@Authenticator null
             }
 
@@ -77,7 +84,7 @@ object NetworkModule {
                 return@Authenticator newRequest
             }
 
-            response.close()
+            tokenManager.clear()
             null
         }
 

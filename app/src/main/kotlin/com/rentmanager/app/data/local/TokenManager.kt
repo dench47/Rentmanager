@@ -14,11 +14,15 @@ class TokenManager @Inject constructor(
 
     var accessToken: String?
         get() = prefs.getString("access_token", null)
-        set(value) = prefs.edit().putString("access_token", value).apply()
+        set(value) {
+            prefs.edit().putString("access_token", value).commit()
+        }
 
     var refreshToken: String?
         get() = prefs.getString("refresh_token", null)
-        set(value) = prefs.edit().putString("refresh_token", value).apply()
+        set(value) {
+            prefs.edit().putString("refresh_token", value).commit()
+        }
 
     var userName: String?
         get() = prefs.getString("user_name", null)
@@ -31,6 +35,10 @@ class TokenManager @Inject constructor(
     var defaultStartScreen: String
         get() = prefs.getString("default_start_screen", "") ?: ""
         set(value) = prefs.edit().putString("default_start_screen", value).apply()
+
+    var hasPassword: Boolean
+        get() = prefs.getBoolean("has_password", false)
+        set(value) = prefs.edit().putBoolean("has_password", value).apply()
 
     var selectedRole: String?
         get() = prefs.getString("selected_role", null)
