@@ -40,27 +40,35 @@ fun PinSetupScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
-        // Стрелка «назад» (кликабельная)
+        // Стрелка «назад» + заголовок в одном ряду
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { onBack() }.padding(start = 16.dp, top = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 60.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_arrow_left),
                 contentDescription = "Назад",
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(24.dp).clickable { onBack() },
                 contentScale = ContentScale.Fit
+            )
+            Text(
+                when (uiState.step) {
+                    PinSetupStep.VERIFY_CURRENT -> "Введите текущий код"
+                    PinSetupStep.CONFIRM -> "Повторите код"
+                    else -> "Придумайте новый код"
+                },
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF212121),
+                modifier = Modifier.padding(start = 16.dp)
             )
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(32.dp))
 
         when (uiState.step) {
             // Шаг: ввод текущего кода (смена)
             PinSetupStep.VERIFY_CURRENT -> {
-                Text("Введите текущий код", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121))
-                Spacer(Modifier.height(32.dp))
-
                 // Точки индикаторы
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     repeat(4) { index ->
@@ -87,14 +95,6 @@ fun PinSetupScreen(
             // Шаг: ввод нового кода или подтверждение
             PinSetupStep.ENTER, PinSetupStep.CONFIRM -> {
                 val isConfirm = uiState.step == PinSetupStep.CONFIRM
-                Text(
-                    when {
-                        isConfirm -> "Повторите код"
-                        else -> "Придумайте новый код"
-                    },
-                    fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)
-                )
-                Spacer(Modifier.height(8.dp))
                 Text(
                     when {
                         isConfirm -> "Введите код ещё раз для подтверждения"
