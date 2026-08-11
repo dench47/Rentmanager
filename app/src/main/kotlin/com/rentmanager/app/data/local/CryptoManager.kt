@@ -9,19 +9,35 @@ import javax.inject.Singleton
 
 @Singleton
 class CryptoManager @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext private val context: Context
 ) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    private val masterKey by lazy {
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
 
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "secure_pin_store",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val prefs by lazy {
+        try {
+            EncryptedSharedPreferences.create(
+                context,
+                "secure_pin_store",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            // Ключ в Keystore сломан (очистка данных, переустановка) — удаляем и пересоздаём
+            context.deleteSharedPreferences("secure_pin_store")
+            EncryptedSharedPreferences.create(
+                context,
+                "secure_pin_store",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        }
+    }
 
     fun savePin(pin: String) {
         prefs.edit().putString("user_pin", pin).apply()

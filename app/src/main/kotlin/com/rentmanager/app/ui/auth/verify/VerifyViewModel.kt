@@ -67,7 +67,7 @@ class VerifyViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // 1. Проверяем, есть ли пользователь в БД
-                val loginResp = authApi.login(SendCodeRequest(phone))
+                val loginResp = authApi.login(SendCodeRequest(phone, tokenManager.fcmToken))
                 if (loginResp.isSuccessful) {
                     val body = loginResp.body()
                     if (body?.exists == true) {
@@ -125,7 +125,7 @@ class VerifyViewModel @Inject constructor(
                 delay(3000)
                 attempts++
                 try {
-                    val resp = authApi.callCheckStatus(SendCodeRequest(phone))
+                    val resp = authApi.callCheckStatus(SendCodeRequest(phone, tokenManager.fcmToken))
                     if (resp.isSuccessful) {
                         val body = resp.body()
                         if (body?.verified == true) {

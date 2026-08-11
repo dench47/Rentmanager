@@ -68,7 +68,7 @@ class PinViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true) }
         viewModelScope.launch {
             try {
-                val resp = authApi.verifyPassword(VerifyPasswordRequest(phone, pin))
+                val resp = authApi.verifyPassword(VerifyPasswordRequest(phone, pin, tokenManager.fcmToken))
                 if (resp.isSuccessful) {
                     val body = resp.body()!!
                     tokenManager.accessToken = body.accessToken

@@ -133,3 +133,34 @@ dependencies {
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }
+
+// ======== Deployment helpers ========
+
+tasks.register("generateVersionJson") {
+    group = "deploy"
+    description = "Generates version.json for server-side version check (use after release build)"
+    doLast {
+        val apkUrl = "http://45.11.92.171:8080/downloads/app-release.apk"
+        val json = """
+            {
+              "version_code": $autoVersionCode,
+              "version_name": "$autoVersionName",
+              "min_client_version": $autoVersionCode,
+              "apk_url": "$apkUrl",
+              "force_update": false,
+              "release_notes": ""
+            }
+        """.trimIndent()
+        val outputDir = layout.buildDirectory.dir("outputs").get().asFile
+        if (!outputDir.exists()) outputDir.mkdirs()
+        val file = outputDir.resolve("version.json")
+        file.writeText(json)
+        println(">> version.json generated: ${file.absolutePath}")
+        println(">> version_code: $autoVersionCode, version_name: $autoVersionName")
+    }
+}
+
+// Хук: после сборки release APK авто-генерируем version.json
+tasks.matching { it.name.startsWith("assembleRelease") || it.name.startsWith("bundleRelease") }.configureEach {
+    finalizedBy("generateVersionJson")
+}

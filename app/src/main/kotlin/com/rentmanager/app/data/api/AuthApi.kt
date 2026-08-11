@@ -1,5 +1,6 @@
 package com.rentmanager.app.data.api
 
+import com.google.gson.annotations.SerializedName
 import com.rentmanager.app.data.model.UserDto
 import okhttp3.MultipartBody
 import retrofit2.Response
@@ -11,52 +12,52 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Part
 
-data class SendCodeRequest(val phone: String)
+data class SendCodeRequest(val phone: String, @SerializedName("fcm_token") val fcmToken: String? = null)
 data class SaveNameRequest(val name: String)
 
 data class LoginResponse(
     val exists: Boolean?,
-    @com.google.gson.annotations.SerializedName("need_verify") val needVerify: Boolean?,
-    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String?,
-    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String?,
+    @SerializedName("need_verify") val needVerify: Boolean?,
+    @SerializedName("access_token") val accessToken: String?,
+    @SerializedName("refresh_token") val refreshToken: String?,
     val token: String?,
     val user: UserDto?
 )
 
 data class CallCheckAddResponse(
     val status: String,
-    @com.google.gson.annotations.SerializedName("check_id") val checkId: String,
-    @com.google.gson.annotations.SerializedName("call_phone") val callPhone: String,
-    @com.google.gson.annotations.SerializedName("call_phone_pretty") val callPhonePretty: String
+    @SerializedName("check_id") val checkId: String,
+    @SerializedName("call_phone") val callPhone: String,
+    @SerializedName("call_phone_pretty") val callPhonePretty: String
 )
 
 data class CallCheckStatusResponse(
     val verified: Boolean,
-    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String?,
-    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String?,
+    @SerializedName("access_token") val accessToken: String?,
+    @SerializedName("refresh_token") val refreshToken: String?,
     val token: String?,
     val user: UserDto?
 )
 
 data class UpdateProfileRequest(
     val name: String? = null,
-    @com.google.gson.annotations.SerializedName("full_name") val fullName: String? = null,
+    @SerializedName("full_name") val fullName: String? = null,
     val email: String? = null,
-    @com.google.gson.annotations.SerializedName("legal_name") val legalName: String? = null,
-    @com.google.gson.annotations.SerializedName("avatar_url") val avatarUrl: String? = null,
-    @com.google.gson.annotations.SerializedName("default_start_screen") val defaultStartScreen: String? = null
+    @SerializedName("legal_name") val legalName: String? = null,
+    @SerializedName("avatar_url") val avatarUrl: String? = null,
+    @SerializedName("default_start_screen") val defaultStartScreen: String? = null
 )
 
 data class ChangePhoneResponse(
     val status: String,
-    @com.google.gson.annotations.SerializedName("call_phone") val callPhone: String,
-    @com.google.gson.annotations.SerializedName("call_phone_pretty") val callPhonePretty: String
+    @SerializedName("call_phone") val callPhone: String,
+    @SerializedName("call_phone_pretty") val callPhonePretty: String
 )
 
 data class ConfirmPhoneChangeResponse(
     val changed: Boolean,
-    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String?,
-    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String?,
+    @SerializedName("access_token") val accessToken: String?,
+    @SerializedName("refresh_token") val refreshToken: String?,
     val token: String?,
     val user: UserDto?
 )
@@ -66,12 +67,12 @@ data class UploadResponse(
 )
 
 data class RefreshTokenRequest(
-    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String
+    @SerializedName("refresh_token") val refreshToken: String
 )
 
 data class RefreshTokenResponse(
-    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String,
-    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String
+    @SerializedName("access_token") val accessToken: String,
+    @SerializedName("refresh_token") val refreshToken: String
 )
 
 data class SetPasswordRequest(
@@ -80,12 +81,13 @@ data class SetPasswordRequest(
 
 data class VerifyPasswordRequest(
     val phone: String,
-    val password: String
+    val password: String,
+    @SerializedName("fcm_token") val fcmToken: String? = null
 )
 
 data class RefreshTokenResponseWithUser(
-    @com.google.gson.annotations.SerializedName("access_token") val accessToken: String,
-    @com.google.gson.annotations.SerializedName("refresh_token") val refreshToken: String,
+    @SerializedName("access_token") val accessToken: String,
+    @SerializedName("refresh_token") val refreshToken: String,
     val user: UserDto
 )
 
