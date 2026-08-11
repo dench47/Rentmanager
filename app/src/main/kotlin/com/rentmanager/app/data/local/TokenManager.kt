@@ -55,6 +55,10 @@ class TokenManager @Inject constructor(
         get() = prefs.getInt("last_update_prompt_version", 0)
         set(value) = prefs.edit().putInt("last_update_prompt_version", value).apply()
 
+    var useBiometric: Boolean
+        get() = prefs.getBoolean("use_biometric", false)
+        set(value) = prefs.edit().putBoolean("use_biometric", value).apply()
+
     fun clear() {
         prefs.edit().clear().apply()
     }

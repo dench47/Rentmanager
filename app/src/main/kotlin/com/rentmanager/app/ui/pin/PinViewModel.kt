@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.VerifyPasswordRequest
+import com.rentmanager.app.data.local.CryptoManager
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +25,8 @@ data class PinUiState(
 @HiltViewModel
 class PinViewModel @Inject constructor(
     private val authApi: AuthApi,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val cryptoManager: CryptoManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PinUiState())
@@ -62,6 +64,8 @@ class PinViewModel @Inject constructor(
                     val body = resp.body()!!
                     tokenManager.accessToken = body.accessToken
                     tokenManager.refreshToken = body.refreshToken
+                    // Сохраняем PIN в зашифрованное хранилище для входа по отпечатку
+                    cryptoManager.savePin(pin)
                     _uiState.update { it.copy(isLoading = false, isVerified = true) }
                 } else {
                     val remaining = _uiState.value.attemptsLeft - 1
@@ -81,6 +85,13 @@ class PinViewModel @Inject constructor(
 
     fun logout(onLoggedOut: () -> Unit) {
         tokenManager.clear()
+        cryptoManager.clearPin()
         onLoggedOut()
+    }
+
+    fun onBiometricSuccess(pin: String) {
+        // Биометрия подтверждена — имитируем ввод PIN через клавиатуру
+        _uiState.update { it.copy(pin = pin, isLoading = true, errorMessage = null) }
+        verifyPin(pin)
     }
 }

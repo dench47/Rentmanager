@@ -32,6 +32,8 @@ data class SettingsUiState(
     val isLoading: Boolean = false,
     val isUploading: Boolean = false,
     val errorMessage: String? = null,
+    // Биометрия
+    val useBiometric: Boolean = false,
     // Смена телефона
     val isChangingPhone: Boolean = false,
     val newPhone: String = "",
@@ -55,7 +57,8 @@ class SettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SettingsUiState(
         phone = tokenManager.phone ?: "",
         defaultStartScreen = tokenManager.defaultStartScreen,
-        avatarUrl = tokenManager.avatarUrl
+        avatarUrl = tokenManager.avatarUrl,
+        useBiometric = tokenManager.useBiometric
     ))
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -238,6 +241,11 @@ class SettingsViewModel @Inject constructor(
                 authApi.updateProfile(UpdateProfileRequest(defaultStartScreen = screen))
             } catch (_: Exception) { }
         }
+    }
+
+    fun toggleBiometric(enabled: Boolean) {
+        tokenManager.useBiometric = enabled
+        _uiState.update { it.copy(useBiometric = enabled) }
     }
 
     fun dismissDialogs() {
