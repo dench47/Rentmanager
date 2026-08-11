@@ -51,9 +51,35 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+    companion object {
+        private const val BACKGROUND_TIMEOUT_MS = 30_000L
+    }
+
+    override fun onPause() {
+        super.onPause()
+        tokenManager.lastPauseTimestamp = System.currentTimeMillis()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (tokenManager.hasPassword && tokenManager.accessToken != null) {
+            val now = System.currentTimeMillis()
+            val elapsed = now - tokenManager.lastPauseTimestamp
+            if (tokenManager.lastPauseTimestamp > 0L && elapsed > BACKGROUND_TIMEOUT_MS) {
+                tokenManager.requirePin = true
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Холодный старт — сбрасываем состояние фона
+        if (savedInstanceState == null) {
+            tokenManager.lastRoute = null
+            tokenManager.requirePin = false
+        }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED

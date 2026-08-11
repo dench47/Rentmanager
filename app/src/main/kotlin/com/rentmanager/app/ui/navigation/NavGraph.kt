@@ -1,6 +1,9 @@
 package com.rentmanager.app.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -33,10 +36,11 @@ fun RentManagerNavGraph(
     val context = LocalContext.current
     val propertiesViewModel: MyPropertiesViewModel = viewModel()
 
-    val startDestination = remember(tokenManager.accessToken, tokenManager.hasPassword, tokenManager.defaultStartScreen) {
+    val requirePin by tokenManager.requirePinFlow.collectAsState()
+    val startDestination = remember(tokenManager.accessToken, tokenManager.hasPassword, tokenManager.defaultStartScreen, requirePin) {
         if (tokenManager.accessToken == null) {
             Screen.Verify.route
-        } else if (tokenManager.hasPassword) {
+        } else if (requirePin || tokenManager.hasPassword) {
             Screen.PinEntry.route
         } else {
             when (tokenManager.defaultStartScreen) {
@@ -44,6 +48,23 @@ fun RentManagerNavGraph(
                 "tenant" -> Screen.RoleScreen.createRoute("tenant")
                 else -> Screen.MainScreen.route
             }
+        }
+    }
+
+    // Сохраняем текущий маршрут для возврата после PIN
+    LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { entry ->
+            val route = entry.destination.route
+            if (route != null && route != Screen.PinEntry.route && route != Screen.Verify.route) {
+                tokenManager.lastRoute = route
+            }
+        }
+    }
+
+    // Принудительная навигация на PIN при возврате из фона
+    LaunchedEffect(requirePin) {
+        if (requirePin) {
+            navController.navigate(Screen.PinEntry.route)
         }
     }
 
@@ -318,7 +339,9 @@ fun RentManagerNavGraph(
         // ========== Pin Setup ==========
         composable(Screen.PinSetup.route) {
             PinSetupScreen(
-                onBack = { navController.popBackStack() }
+                onBack = {
+                    navController.navigate(Screen.Settings.route)
+                }
             )
         }
 
@@ -327,7 +350,11 @@ fun RentManagerNavGraph(
             PinEntryScreen(
                 tokenManager = tokenManager,
                 onPinVerified = {
-                    navController.navigate(Screen.MainScreen.route) {
+                    tokenManager.requirePin = false
+                    val returnRoute = tokenManager.lastRoute
+                    tokenManager.lastRoute = null
+                    val destination = returnRoute ?: Screen.MainScreen.route
+                    navController.navigate(destination) {
                         popUpTo(0) { inclusive = true }
                     }
                 }
@@ -337,7 +364,11 @@ fun RentManagerNavGraph(
         // ========== Settings ==========
         composable(Screen.Settings.route) {
             SettingsScreen(
-                onBack = { navController.popBackStack() },
+                onBack = {
+                    navController.navigate(Screen.MainScreen.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
                 onLoggedOut = {
                     navController.navigate(Screen.Verify.route) {
                         popUpTo(0) { inclusive = true }
