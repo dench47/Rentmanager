@@ -1,6 +1,7 @@
 package com.rentmanager.app.data.fcm
 
 import android.util.Log
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.rentmanager.app.data.api.AuthApi
@@ -21,19 +22,30 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
     @Inject
     lateinit var authApi: AuthApi
 
+    override fun onCreate() {
+        super.onCreate()
+        // Принудительно запрашиваем токен — Firebase кеширует и не дёргает onNewToken при повторных запусках
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                onNewToken(task.result)
+            } else {
+                Log.e("FCM", "Failed to get token: ${task.exception?.message}")
+            }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("FCM", "New token: $token")
         tokenManager.fcmToken = token
 
-        // Отправляем токен на сервер
-        if (tokenManager.accessToken != null) {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    authApi.registerDevice(RegisterDeviceRequest(token))
-                } catch (e: Exception) {
-                    Log.e("FCM", "Failed to register device: ${e.message}")
-                }
+        // Отправляем токен на сервер (если не залогинен — 401, токен останется в prefs и уйдёт при логине)
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                authApi.registerDevice(RegisterDeviceRequest(token))
+            } catch (e: Exception) {
+                Log.e("FCM", "Failed to register device: ${e.message}")
             }
         }
     }

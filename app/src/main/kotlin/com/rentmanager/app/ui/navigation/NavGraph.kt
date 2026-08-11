@@ -69,6 +69,15 @@ fun RentManagerNavGraph(
         }
     }
 
+    // Принудительный разлогин — FCM push стёр токен → мгновенный переход на Verify
+    LaunchedEffect(accessToken) {
+        if (accessToken == null) {
+            navController.navigate(Screen.Verify.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startDestination

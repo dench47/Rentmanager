@@ -3,7 +3,9 @@ package com.rentmanager.app.ui.pin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
+import android.util.Log
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.VerifyPasswordRequest
 import com.rentmanager.app.data.local.CryptoManager
 import com.rentmanager.app.data.local.TokenManager
@@ -73,6 +75,10 @@ class PinViewModel @Inject constructor(
                     tokenManager.refreshToken = body.refreshToken
                     // Сохраняем PIN в зашифрованное хранилище для входа по отпечатку
                     cryptoManager.savePin(pin)
+                    // Регистрируем FCM-токен, если сохранён ранее
+                    tokenManager.fcmToken?.let { fcm ->
+                        launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                    }
                     _uiState.update { it.copy(isLoading = false, isVerified = true, attemptsLeft = 5) }
                 } else {
                     // Парсим attemptsLeft из тела ошибки

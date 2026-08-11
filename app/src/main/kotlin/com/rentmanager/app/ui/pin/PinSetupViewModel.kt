@@ -3,6 +3,7 @@ package com.rentmanager.app.ui.pin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.SetPasswordRequest
 import com.rentmanager.app.data.api.VerifyPasswordRequest
 import com.rentmanager.app.data.local.TokenManager
@@ -84,6 +85,10 @@ class PinSetupViewModel @Inject constructor(
                 val body = resp.body()!!
                 tokenManager.accessToken = body.accessToken
                 tokenManager.refreshToken = body.refreshToken
+                // Регистрируем FCM-токен
+                tokenManager.fcmToken?.let { fcm ->
+                    launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                }
                 _uiState.update { it.copy(isLoading = false, step = PinSetupStep.ENTER, pin = "", currentPin = "", errorMessage = null) }
                 } else {
                     val remaining = _uiState.value.attemptsLeft - 1

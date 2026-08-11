@@ -42,6 +42,10 @@ class MainActivity : FragmentActivity() {
     private val callPhonePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* granted or denied — no action needed */ }
 
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* granted or denied */ }
+
+
     private val installPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             val info = pendingUpdateInfo
@@ -85,6 +89,24 @@ class MainActivity : FragmentActivity() {
             != PackageManager.PERMISSION_GRANTED
         ) {
             callPhonePermissionLauncher.launch(Manifest.permission.CALL_PHONE)
+        }
+
+        // Запрашиваем разрешение на уведомления (Android 13+), чтобы пользователю не пришлось лезть в настройки
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        // Запрашиваем разрешение на уведомления (Android 13+), чтобы пользователю не пришлось лезть в настройки
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
 
         setContent {

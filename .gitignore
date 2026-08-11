@@ -3,3 +3,7 @@
 /app/build/
 /app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
 /build/
+
+# Firebase (contains SHA-1 signatures, shouldn't be committed)
+app/google-services.json
+app/src/debug/google-services.json

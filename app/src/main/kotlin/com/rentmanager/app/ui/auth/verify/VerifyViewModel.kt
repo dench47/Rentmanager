@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.CallCheckAddResponse
+import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.SendCodeRequest
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -80,6 +81,10 @@ class VerifyViewModel @Inject constructor(
                         body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                         body.user?.passwordHash?.let { tokenManager.hasPassword = it.isNotEmpty() }
                         tokenManager.phone = phone
+                        // Регистрируем FCM-токен
+                        tokenManager.fcmToken?.let { fcm ->
+                            launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                        }
                         _uiState.update { it.copy(isLoading = false, isVerified = true) }
                         onSuccess(phone)
                         return@launch
@@ -130,6 +135,10 @@ class VerifyViewModel @Inject constructor(
                             body.user?.name?.let { tokenManager.userName = it }
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                             tokenManager.phone = phone
+                            // Регистрируем FCM-токен
+                            tokenManager.fcmToken?.let { fcm ->
+                                launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                            }
                             _uiState.update { it.copy(isVerified = true, isCalling = false) }
                             onSuccess(phone)
                             return@launch

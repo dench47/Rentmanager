@@ -90,8 +90,12 @@ class TokenManager @Inject constructor(
         set(value) = prefs.edit().putString("fcm_token", value).apply()
 
     fun clear() {
+        val savedFcmToken = fcmToken // сохраняем FCM-токен, чтобы не потерять при логауте
         _accessToken.value = null
         _requirePin.value = false
         prefs.edit().clear().apply()
+        if (savedFcmToken != null) {
+            prefs.edit().putString("fcm_token", savedFcmToken).apply()
+        }
     }
 }
