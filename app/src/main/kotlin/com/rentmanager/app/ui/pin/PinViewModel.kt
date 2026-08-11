@@ -2,6 +2,7 @@ package com.rentmanager.app.ui.pin
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.VerifyPasswordRequest
 import com.rentmanager.app.data.local.CryptoManager
@@ -20,6 +21,12 @@ data class PinUiState(
     val isLoading: Boolean = false,
     val isVerified: Boolean = false,
     val attemptsLeft: Int = 5
+)
+
+data class VerifyPasswordErrorResponse(
+    val error: String? = null,
+    @com.google.gson.annotations.SerializedName("attempts_left")
+    val attemptsLeft: Int? = null
 )
 
 @HiltViewModel
@@ -66,13 +73,24 @@ class PinViewModel @Inject constructor(
                     tokenManager.refreshToken = body.refreshToken
                     // Сохраняем PIN в зашифрованное хранилище для входа по отпечатку
                     cryptoManager.savePin(pin)
-                    _uiState.update { it.copy(isLoading = false, isVerified = true) }
+                    _uiState.update { it.copy(isLoading = false, isVerified = true, attemptsLeft = 5) }
                 } else {
-                    val remaining = _uiState.value.attemptsLeft - 1
+                    // Парсим attemptsLeft из тела ошибки
+                    var serverAttemptsLeft: Int? = null
+                    try {
+                        val errorBody = resp.errorBody()?.string()
+                        val errorResp = Gson().fromJson(errorBody, VerifyPasswordErrorResponse::class.java)
+                        serverAttemptsLeft = errorResp.attemptsLeft
+                    } catch (_: Exception) {}
+
+                    val remaining = serverAttemptsLeft ?: (_uiState.value.attemptsLeft - 1)
                     if (remaining <= 0) {
-                        // Логаут после 5 неверных попыток
+                        // Полный разлогин на всех устройствах + сброс PIN
+                        try { authApi.logoutAll() } catch (_: Exception) {}
                         tokenManager.clear()
-                        _uiState.update { it.copy(pin = "", isLoading = false, errorMessage = "Превышен лимит попыток", attemptsLeft = remaining) }
+                        cryptoManager.clearPin()
+                        tokenManager.hasPassword = false
+                        _uiState.update { it.copy(pin = "", isLoading = false, isVerified = true, attemptsLeft = 0, errorMessage = null) }
                     } else {
                         _uiState.update { it.copy(pin = "", isLoading = false, errorMessage = "Неверный код. Осталось попыток: $remaining", attemptsLeft = remaining) }
                     }

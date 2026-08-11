@@ -36,9 +36,10 @@ fun RentManagerNavGraph(
     val context = LocalContext.current
     val propertiesViewModel: MyPropertiesViewModel = viewModel()
 
+    val accessToken by tokenManager.accessTokenFlow.collectAsState()
     val requirePin by tokenManager.requirePinFlow.collectAsState()
-    val startDestination = remember(tokenManager.accessToken, tokenManager.hasPassword, tokenManager.defaultStartScreen, requirePin) {
-        if (tokenManager.accessToken == null) {
+    val startDestination = remember(accessToken, tokenManager.hasPassword, tokenManager.defaultStartScreen, requirePin) {
+        if (accessToken == null) {
             Screen.Verify.route
         } else if (requirePin || tokenManager.hasPassword) {
             Screen.PinEntry.route
@@ -351,11 +352,19 @@ fun RentManagerNavGraph(
                 tokenManager = tokenManager,
                 onPinVerified = {
                     tokenManager.requirePin = false
-                    val returnRoute = tokenManager.lastRoute
-                    tokenManager.lastRoute = null
-                    val destination = returnRoute ?: Screen.MainScreen.route
-                    navController.navigate(destination) {
-                        popUpTo(0) { inclusive = true }
+                    if (tokenManager.accessToken == null) {
+                        // Принудительный разлогин — на верификацию
+                        navController.navigate(Screen.Verify.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    } else {
+                        // Обычный вход — возврат на предыдущий экран
+                        val returnRoute = tokenManager.lastRoute
+                        tokenManager.lastRoute = null
+                        val destination = returnRoute ?: Screen.MainScreen.route
+                        navController.navigate(destination) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 }
             )

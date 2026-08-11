@@ -15,10 +15,15 @@ class TokenManager @Inject constructor(
 ) {
     private val prefs: SharedPreferences = context.getSharedPreferences("auth", Context.MODE_PRIVATE)
 
+    private val _accessToken = MutableStateFlow(prefs.getString("access_token", null))
+    val accessTokenFlow: StateFlow<String?> = _accessToken.asStateFlow()
+
     var accessToken: String?
-        get() = prefs.getString("access_token", null)
+        get() = _accessToken.value
         set(value) {
-            prefs.edit().putString("access_token", value).commit()
+            _accessToken.value = value
+            if (value != null) prefs.edit().putString("access_token", value).commit()
+            else prefs.edit().remove("access_token").commit()
         }
 
     var refreshToken: String?
@@ -80,7 +85,13 @@ class TokenManager @Inject constructor(
         get() = prefs.getString("last_route", null)
         set(value) = prefs.edit().putString("last_route", value).apply()
 
+    var fcmToken: String?
+        get() = prefs.getString("fcm_token", null)
+        set(value) = prefs.edit().putString("fcm_token", value).apply()
+
     fun clear() {
+        _accessToken.value = null
+        _requirePin.value = false
         prefs.edit().clear().apply()
     }
 }

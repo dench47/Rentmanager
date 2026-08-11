@@ -89,6 +89,10 @@ data class RefreshTokenResponseWithUser(
     val user: UserDto
 )
 
+data class RegisterDeviceRequest(
+    val token: String
+)
+
 data class MessageResponse(val message: String)
 
 interface AuthApi {
@@ -119,6 +123,9 @@ interface AuthApi {
 
     @POST("auth/logout_all")
     suspend fun logoutAll(): Response<MessageResponse>
+
+    @POST("auth/register_device")
+    suspend fun registerDevice(@Body request: RegisterDeviceRequest): Response<MessageResponse>
 
     @DELETE("auth/account")
     suspend fun deleteAccount(): Response<MessageResponse>
