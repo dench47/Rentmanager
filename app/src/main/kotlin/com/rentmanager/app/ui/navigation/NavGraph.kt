@@ -366,11 +366,13 @@ fun RentManagerNavGraph(
                         navController.navigate(Screen.Verify.route) {
                             popUpTo(0) { inclusive = true }
                         }
+                    } else if (navController.previousBackStackEntry != null) {
+                        // PIN был показан поверх другого экрана (таймер/фон) — просто возврат
+                        navController.popBackStack()
                     } else {
-                        // Обычный вход — возврат на предыдущий экран
-                        val returnRoute = tokenManager.lastRoute
+                        // PIN — стартовый экран (холодный запуск) — навигация вперёд
+                        val destination = tokenManager.lastRoute ?: Screen.MainScreen.route
                         tokenManager.lastRoute = null
-                        val destination = returnRoute ?: Screen.MainScreen.route
                         navController.navigate(destination) {
                             popUpTo(0) { inclusive = true }
                         }

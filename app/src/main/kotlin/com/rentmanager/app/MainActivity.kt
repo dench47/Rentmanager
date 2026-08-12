@@ -100,15 +100,6 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-        // Запрашиваем разрешение на уведомления (Android 13+), чтобы пользователю не пришлось лезть в настройки
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
         setContent {
             RentManagerTheme {
                 var updateInfo by remember { mutableStateOf<VersionResponse?>(null) }
