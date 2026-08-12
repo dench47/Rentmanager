@@ -33,7 +33,10 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(tokenManager: TokenManager): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (com.rentmanager.app.BuildConfig.DEBUG)
+                HttpLoggingInterceptor.Level.BODY
+            else
+                HttpLoggingInterceptor.Level.NONE
         }
         val authInterceptor = okhttp3.Interceptor { chain ->
             val request = chain.request().newBuilder()

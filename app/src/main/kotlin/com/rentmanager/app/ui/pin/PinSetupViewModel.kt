@@ -24,7 +24,7 @@ data class PinSetupUiState(
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
     val isPasswordSet: Boolean = false,
-    val attemptsLeft: Int = 5
+    val attemptsLeft: Int? = null  // null = ещё грузим с сервера
 )
 
 @HiltViewModel
@@ -38,6 +38,24 @@ class PinSetupViewModel @Inject constructor(
 
     init {
         checkPasswordStatus()
+        fetchAttempts()
+    }
+
+    private fun fetchAttempts() {
+        val phone = tokenManager.phone ?: return
+        viewModelScope.launch {
+            try {
+                val resp = authApi.getPinAttempts(phone)
+                if (resp.isSuccessful) {
+                    val left = resp.body()?.attemptsLeft ?: 5
+                    _uiState.update { it.copy(attemptsLeft = left) }
+                } else {
+                    _uiState.update { it.copy(attemptsLeft = 5) }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(attemptsLeft = 5) }
+            }
+        }
     }
 
     private fun checkPasswordStatus() {
@@ -91,7 +109,7 @@ class PinSetupViewModel @Inject constructor(
                 }
                 _uiState.update { it.copy(isLoading = false, step = PinSetupStep.ENTER, pin = "", currentPin = "", errorMessage = null) }
                 } else {
-                    val remaining = _uiState.value.attemptsLeft - 1
+                    val remaining = (_uiState.value.attemptsLeft ?: 5) - 1
                     if (remaining <= 0) {
                         tokenManager.clear()
                         _uiState.update { it.copy(currentPin = "", isLoading = false, errorMessage = "Превышен лимит попыток. Выход из аккаунта.", attemptsLeft = remaining) }

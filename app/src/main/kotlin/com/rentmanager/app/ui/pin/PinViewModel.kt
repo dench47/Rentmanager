@@ -22,7 +22,7 @@ data class PinUiState(
     val errorMessage: String? = null,
     val isLoading: Boolean = false,
     val isVerified: Boolean = false,
-    val attemptsLeft: Int = 5
+    val attemptsLeft: Int? = null  // null = ещё загружаем с сервера
 )
 
 data class VerifyPasswordErrorResponse(
@@ -40,6 +40,27 @@ class PinViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(PinUiState())
     val uiState: StateFlow<PinUiState> = _uiState.asStateFlow()
+
+    init {
+        fetchAttempts()
+    }
+
+    private fun fetchAttempts() {
+        val phone = tokenManager.phone ?: return
+        viewModelScope.launch {
+            try {
+                val resp = authApi.getPinAttempts(phone)
+                if (resp.isSuccessful) {
+                    val left = resp.body()?.attemptsLeft ?: 5
+                    _uiState.update { it.copy(attemptsLeft = left) }
+                } else {
+                    _uiState.update { it.copy(attemptsLeft = 5) }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(attemptsLeft = 5) }
+            }
+        }
+    }
 
     fun onDigitEntered(digit: String) {
         val current = _uiState.value.pin
@@ -89,7 +110,7 @@ class PinViewModel @Inject constructor(
                         serverAttemptsLeft = errorResp.attemptsLeft
                     } catch (_: Exception) {}
 
-                    val remaining = serverAttemptsLeft ?: (_uiState.value.attemptsLeft - 1)
+                    val remaining = serverAttemptsLeft ?: ((_uiState.value.attemptsLeft ?: 5) - 1)
                     if (remaining <= 0) {
                         // Полный разлогин на всех устройствах + сброс PIN
                         try { authApi.logoutAll() } catch (_: Exception) {}

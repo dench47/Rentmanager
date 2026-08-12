@@ -97,10 +97,17 @@ data class RegisterDeviceRequest(
 
 data class MessageResponse(val message: String)
 
+data class PinAttemptsResponse(
+    @com.google.gson.annotations.SerializedName("attempts_left") val attemptsLeft: Int
+)
+
 interface AuthApi {
 
     @POST("auth/save_name")
     suspend fun saveName(@Body request: SaveNameRequest): Response<UserDto>
+
+    @GET("auth/pin_attempts")
+    suspend fun getPinAttempts(@retrofit2.http.Query("phone") phone: String): Response<PinAttemptsResponse>
 
     @POST("auth/login")
     suspend fun login(@Body request: SendCodeRequest): Response<LoginResponse>
