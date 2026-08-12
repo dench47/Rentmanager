@@ -1,13 +1,12 @@
 package com.rentmanager.app.data.fcm
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import android.Manifest
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.os.Build
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -43,17 +42,15 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "new_login_v2",
-                "Входы в аккаунт",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Уведомления о новых входах в ваш аккаунт"
-            }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            "new_login_v2",
+            "Входы в аккаунт",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Уведомления о новых входах в ваш аккаунт"
         }
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
     }
 
     private fun showNotification(title: String, body: String) {
