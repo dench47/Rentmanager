@@ -12,9 +12,12 @@ data class PropertyDto(
     @SerializedName("name") val name: String,
     @SerializedName("address") val address: String,
     @SerializedName("area") val area: Double? = null,
-    @SerializedName("photos") val photos: List<PhotoDto> = emptyList(),
+    @SerializedName("photos") val photos: List<PhotoDto>? = null,
     @SerializedName("tenant_info") val tenantInfo: String? = null,
     @SerializedName("service_info") val serviceInfo: String? = null,
+    @SerializedName("phone") val phone: String? = null,
+    @SerializedName("wifi_password") val wifiPassword: String? = null,
+    @SerializedName("house_rules") val houseRules: String? = null,
     @SerializedName("status") val status: String? = null, // "free" / "occupied"
     @SerializedName("rent_amount") val rentAmount: Double? = null,
     @SerializedName("rent_end_date") val rentEndDate: String? = null,

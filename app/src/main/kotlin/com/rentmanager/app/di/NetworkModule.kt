@@ -13,6 +13,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.Authenticator
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -28,6 +30,7 @@ import javax.inject.Singleton
 object NetworkModule {
 
     private val BASE_URL = BuildConfig.API_BASE_URL
+    private val refreshMutex = Mutex()
 
     @Provides
     @Singleton
@@ -49,48 +52,63 @@ object NetworkModule {
         val authenticator = Authenticator { _, response ->
             // Не пытаемся обновить токен для verify_password:
             // 401 там означает неверный пароль, а не протухший токен.
-            // Для остальных /auth/ запросов (set_password, updateProfile и др.)
-            // 401 может означать протухший токен — разрешаем refresh.
             val path = response.request.url.encodedPath
             if (path.contains("/auth/verify_password")) {
                 return@Authenticator null
             }
 
-            val refreshToken = tokenManager.refreshToken
-            if (refreshToken == null) {
+            val oldRefreshToken = tokenManager.refreshToken
+            if (oldRefreshToken == null) {
                 tokenManager.clear()
                 return@Authenticator null
             }
 
-            // Отдельный клиент для refresh, не зависит от основного графа
-            val refreshApi = Retrofit.Builder()
-                .baseUrl(BASE_URL)
-                .client(OkHttpClient.Builder().build())
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(AuthApi::class.java)
+            // Single-flight refresh: обновляет только один поток,
+            // остальные ждут и переиспользуют уже обновлённый токен.
+            val refreshed = runBlocking {
+                refreshMutex.withLock {
+                    // Повторно читаем — возможно, токен уже обновил другой поток
+                    val currentRefreshToken = tokenManager.refreshToken
+                    if (currentRefreshToken != oldRefreshToken) {
+                        true // токен уже обновлён
+                    } else {
+                        // Отдельный клиент для refresh, не зависит от основного графа
+                        val refreshApi = Retrofit.Builder()
+                            .baseUrl(BASE_URL)
+                            .client(OkHttpClient.Builder().build())
+                            .addConverterFactory(GsonConverterFactory.create())
+                            .build()
+                            .create(AuthApi::class.java)
 
-            val refreshResp = try {
-                runBlocking { refreshApi.refreshToken(RefreshTokenRequest(refreshToken)) }
-            } catch (e: Exception) {
-                tokenManager.clear()
-                return@Authenticator null
+                        val refreshResp = try {
+                            refreshApi.refreshToken(RefreshTokenRequest(currentRefreshToken))
+                        } catch (e: Exception) {
+                            tokenManager.clear()
+                            return@withLock false
+                        }
+
+                        if (refreshResp.isSuccessful) {
+                            val body = refreshResp.body()!!
+                            tokenManager.accessToken = body.accessToken
+                            tokenManager.refreshToken = body.refreshToken
+                            true
+                        } else {
+                            tokenManager.clear()
+                            false
+                        }
+                    }
+                }
             }
 
-            if (refreshResp.isSuccessful) {
-                val body = refreshResp.body()!!
-                tokenManager.accessToken = body.accessToken
-                tokenManager.refreshToken = body.refreshToken
-
+            if (refreshed) {
                 val newRequest = response.request.newBuilder()
-                    .header("Authorization", "Bearer ${body.accessToken}")
+                    .header("Authorization", "Bearer ${tokenManager.accessToken}")
                     .build()
                 response.close()
-                return@Authenticator newRequest
+                newRequest
+            } else {
+                null
             }
-
-            tokenManager.clear()
-            null
         }
 
         return OkHttpClient.Builder()

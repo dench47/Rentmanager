@@ -40,6 +40,9 @@ class CreatePropertyViewModel @Inject constructor(
         area: String?,
         photoUris: List<String>,
         serviceInfo: String?,
+        phone: String?,
+        wifiPassword: String?,
+        houseRules: String?,
         onSuccess: () -> Unit
     ) {
         viewModelScope.launch {
@@ -54,7 +57,10 @@ class CreatePropertyViewModel @Inject constructor(
                     address = address,
                     area = area?.toDoubleOrNull(),
                     photos = photoUrls.map { PhotoDto(url = it) },
-                    serviceInfo = serviceInfo
+                    serviceInfo = serviceInfo,
+                    phone = phone,
+                    wifiPassword = wifiPassword,
+                    houseRules = houseRules
                 )
                 val resp = propertyRepository.createProperty(dto)
                 if (resp.isSuccessful) {

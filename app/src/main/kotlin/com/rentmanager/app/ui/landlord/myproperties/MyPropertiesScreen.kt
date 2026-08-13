@@ -1,16 +1,17 @@
 package com.rentmanager.app.ui.landlord.myproperties
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,9 +19,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -41,10 +43,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +78,25 @@ private val CellFullStroke = Color(0xFF66A256)
 private val CellExpiredStroke = Color(0xFFFF4249)
 private val CellFreeBg = Color(0xFFEFEFEF)
 private val CellFreeStroke = Color(0xFF727272)
+
+// Стили подписей ячеек (для отрисовки через TextMeasurer)
+private val MonthCellLabelStyle = TextStyle(
+    fontSize = 11.sp,
+    fontWeight = FontWeight.Medium,
+    letterSpacing = (-0.4).sp
+)
+private val DayCellLabelStyle = TextStyle(
+    fontSize = 14.sp,
+    lineHeight = 15.sp,
+    fontWeight = FontWeight.Medium,
+    letterSpacing = (-0.4).sp
+)
+private val DayCellTopLabelStyle = TextStyle(
+    fontSize = 9.sp,
+    lineHeight = 10.sp,
+    fontWeight = FontWeight.Medium,
+    letterSpacing = (-0.4).sp
+)
 
 // Названия месяцев (полные)
 private val MonthNames = listOf(
@@ -100,9 +129,11 @@ fun MyPropertiesScreen(
     val properties by viewModel.properties.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     var pickerPropertyId by remember { mutableStateOf<String?>(null) }
+    val textMeasurer = rememberTextMeasurer(cacheSize = 128)
 
     Scaffold(
         containerColor = White,
+        contentWindowInsets = WindowInsets.systemBars,
         bottomBar = {
             BottomTabBar(
                 onFinanceClick = onFinanceClick,
@@ -124,15 +155,18 @@ fun MyPropertiesScreen(
                 onModeChange = { viewModel.setViewMode(it) }
             )
 
-            // Список объектов
+            // Список объектов (скроллится, остальное — статично)
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 items(properties, key = { it.id }) { property ->
                     PropertyCard(
                         property = property,
                         viewMode = viewMode,
+                        textMeasurer = textMeasurer,
                         onClick = { onPropertyClick(property.id) },
                         onPeriodClick = { pickerPropertyId = property.id }
                     )
@@ -299,6 +333,7 @@ private fun RowScope.ToggleSegment(
 private fun PropertyCard(
     property: MyPropertyItem,
     viewMode: ViewMode,
+    textMeasurer: TextMeasurer,
     onClick: () -> Unit,
     onPeriodClick: () -> Unit
 ) {
@@ -375,54 +410,113 @@ private fun PropertyCard(
             schedule = property.schedule,
             viewMode = viewMode,
             year = property.year,
-            month = property.month
+            month = property.month,
+            textMeasurer = textMeasurer
         )
     }
 }
+
+private val MonthsLabels = listOf("СЕН", "ОКТ", "НОЯ", "ДЕК", "ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮНЬ", "ИЮЛЬ", "АВГ")
 
 @Composable
 private fun ScheduleRow(
     schedule: List<String>,
     viewMode: ViewMode,
     year: Int,
-    month: Int
+    month: Int,
+    textMeasurer: TextMeasurer
 ) {
-    val monthsLabels = listOf("СЕН", "ОКТ", "НОЯ", "ДЕК", "ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮНЬ", "ИЮЛЬ", "АВГ")
-
-    val labels: List<String>
-    val topLabels: List<String?>
-    val states: List<String>
-    when (viewMode) {
-        ViewMode.MONTHS -> {
-            labels = monthsLabels
-            topLabels = List(monthsLabels.size) { null }
-            states = schedule
-        }
-        ViewMode.DAYS -> {
-            val daysInMonth = YearMonth.of(year, month).lengthOfMonth()
-            labels = (1..daysInMonth).map { it.toString() }
-            topLabels = (1..daysInMonth).map { day ->
-                weekdayAbbr(LocalDate.of(year, month, day).dayOfWeek)
+    val (labels, topLabels, states) = remember(viewMode, year, month, schedule) {
+        when (viewMode) {
+            ViewMode.MONTHS -> Triple(
+                MonthsLabels,
+                List<String?>(MonthsLabels.size) { null },
+                schedule
+            )
+            ViewMode.DAYS -> {
+                val daysInMonth = YearMonth.of(year, month).lengthOfMonth()
+                Triple(
+                    (1..daysInMonth).map { it.toString() },
+                    (1..daysInMonth).map { day ->
+                        weekdayAbbr(LocalDate.of(year, month, day).dayOfWeek)
+                    },
+                    daySchedule(daysInMonth)
+                )
             }
-            states = daySchedule(daysInMonth)
         }
     }
 
-    val scrollState = rememberScrollState()
+    val labelStyle = if (viewMode == ViewMode.DAYS) DayCellLabelStyle else MonthCellLabelStyle
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState),
+    val labelLayouts = remember(labels, labelStyle, states, textMeasurer) {
+        labels.indices.map { index ->
+            val (_, _, textColor) = cellColors(states[index])
+            textMeasurer.measure(labels[index], style = labelStyle.copy(color = textColor))
+        }
+    }
+    val topLabelLayouts = remember(labels, states, textMeasurer) {
+        labels.indices.map { index ->
+            val (_, _, textColor) = cellColors(states[index])
+            topLabels[index]?.let { t ->
+                textMeasurer.measure(t, style = DayCellTopLabelStyle.copy(color = textColor))
+            }
+        }
+    }
+
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        labels.take(states.size).forEachIndexed { index, label ->
-            ScheduleCell(
-                label = label,
-                state = states[index],
-                topLabel = topLabels[index]
-            )
+        items(labels.size) { index ->
+            val (bg, stroke, _) = cellColors(states[index])
+            val labelLayout = labelLayouts[index]
+            val topLayout = topLabelLayouts[index]
+
+            Canvas(modifier = Modifier.size(44.dp, 39.dp)) {
+                val corner = CornerRadius(4.dp.toPx())
+                val cellW = size.width
+                val cellH = size.height
+
+                drawRoundRect(
+                    color = bg,
+                    topLeft = Offset.Zero,
+                    size = Size(cellW, cellH),
+                    cornerRadius = corner
+                )
+                drawRoundRect(
+                    color = stroke,
+                    topLeft = Offset.Zero,
+                    size = Size(cellW, cellH),
+                    cornerRadius = corner,
+                    style = Stroke(width = 1.dp.toPx())
+                )
+
+                if (topLayout != null) {
+                    val overlap = 2.dp.toPx()
+                    val totalTextH = topLayout.size.height + labelLayout.size.height - overlap
+                    val startY = (cellH - totalTextH) / 2f
+                    drawText(
+                        textLayoutResult = topLayout,
+                        topLeft = Offset((cellW - topLayout.size.width) / 2f, startY)
+                    )
+                    drawText(
+                        textLayoutResult = labelLayout,
+                        topLeft = Offset(
+                            (cellW - labelLayout.size.width) / 2f,
+                            startY + topLayout.size.height - overlap
+                        )
+                    )
+                } else {
+                    drawText(
+                        textLayoutResult = labelLayout,
+                        topLeft = Offset(
+                            (cellW - labelLayout.size.width) / 2f,
+                            (cellH - labelLayout.size.height) / 2f
+                        )
+                    )
+                }
+            }
         }
     }
 }
@@ -435,70 +529,10 @@ private fun daySchedule(days: Int): List<String> = (1..days).map { day ->
     }
 }
 
-@Composable
-private fun ScheduleCell(label: String, state: String, topLabel: String? = null) {
-    val bg: Color
-    val stroke: Color
-    val textColor: Color
-    when (state) {
-        "expired" -> {
-            bg = CellFullBg
-            stroke = CellExpiredStroke
-            textColor = CellExpiredStroke
-        }
-        "free" -> {
-            bg = CellFreeBg
-            stroke = CellFreeStroke
-            textColor = CellFreeStroke
-        }
-        else -> {
-            bg = CellFullBg
-            stroke = CellFullStroke
-            textColor = TextPrimary
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .size(width = 44.dp, height = 39.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(bg)
-            .border(1.dp, stroke, RoundedCornerShape(4.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        if (topLabel != null) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy((-2).dp)
-            ) {
-                Text(
-                    topLabel,
-                    fontSize = 9.sp,
-                    lineHeight = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = (-0.4).sp,
-                    color = textColor
-                )
-                Text(
-                    label,
-                    fontSize = 14.sp,
-                    lineHeight = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = (-0.4).sp,
-                    color = textColor
-                )
-            }
-        } else {
-            Text(
-                label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = (-0.4).sp,
-                color = textColor,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
+private fun cellColors(state: String): Triple<Color, Color, Color> = when (state) {
+    "expired" -> Triple(CellFullBg, CellExpiredStroke, CellExpiredStroke)
+    "free" -> Triple(CellFreeBg, CellFreeStroke, CellFreeStroke)
+    else -> Triple(CellFullBg, CellFullStroke, TextPrimary)
 }
 @Composable
 private fun BottomTabBar(

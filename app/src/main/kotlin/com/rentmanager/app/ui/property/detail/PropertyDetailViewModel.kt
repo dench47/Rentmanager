@@ -15,8 +15,12 @@ data class PropertyDetailUiState(
     val propertyName: String = "",
     val address: String = "",
     val area: String = "",
-    val photoUrl: String? = null,
+    val rentPrice: String = "",
+    val photos: List<String> = emptyList(),
     val serviceInfo: String = "",
+    val phone: String = "",
+    val wifiPassword: String = "",
+    val houseRules: String = "",
     val errorMessage: String? = null
 )
 
@@ -40,8 +44,12 @@ class PropertyDetailViewModel @Inject constructor(
                         propertyName = p.name,
                         address = p.address,
                         area = formatArea(p.area),
-                        photoUrl = p.photos.firstOrNull()?.url,
-                        serviceInfo = p.serviceInfo ?: ""
+                        rentPrice = formatPrice(p.rentAmount),
+                        photos = p.photos?.map { it.url } ?: emptyList(),
+                        serviceInfo = p.serviceInfo ?: "",
+                        phone = p.phone ?: "",
+                        wifiPassword = p.wifiPassword ?: "",
+                        houseRules = p.houseRules ?: ""
                     )
                 } else {
                     _uiState.value = PropertyDetailUiState(isLoading = false, errorMessage = "Объект не найден")
@@ -55,5 +63,12 @@ class PropertyDetailViewModel @Inject constructor(
     private fun formatArea(area: Double?): String {
         if (area == null) return ""
         return if (area == area.toLong().toDouble()) "${area.toLong()} м²" else "$area м²"
+    }
+
+    private fun formatPrice(amount: Double?): String {
+        if (amount == null) return ""
+        val whole = amount.toLong()
+        val withSpaces = whole.toString().reversed().chunked(3).joinToString(" ").reversed()
+        return "$withSpaces ₽"
     }
 }

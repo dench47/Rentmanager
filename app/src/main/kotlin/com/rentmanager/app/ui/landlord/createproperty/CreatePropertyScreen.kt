@@ -142,7 +142,7 @@ fun CreatePropertyScreen(
                         )
                         Spacer(Modifier.size(12.dp))
                         Text(
-                            if (isEdit) "Редактирование" else "Новый объект",
+                            if (isEdit) "Изменить объект" else "Новый объект",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1D1D1F),
@@ -348,12 +348,14 @@ fun CreatePropertyScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    BlackButtonWithIcon(
-                        text = "Добавить счетчики",
-                        iconRes = R.drawable.ic_plus_circle,
-                        onClick = { },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (!isEdit) {
+                        BlackButtonWithIcon(
+                            text = "Добавить счетчики",
+                            iconRes = R.drawable.ic_plus_circle,
+                            onClick = { },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
                     BlackButtonWithIcon(
                         text = "График платежей и реквизиты",
@@ -376,6 +378,9 @@ fun CreatePropertyScreen(
                                 area = area,
                                 photoUris = photoUris,
                                 serviceInfo = serviceInfo,
+                                phone = phoneNumber,
+                                wifiPassword = wifiPassword,
+                                houseRules = rulesText,
                                 onSuccess = onCreated
                             )
                         }

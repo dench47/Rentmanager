@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.landlord.myproperties
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.model.PropertyDto
@@ -12,6 +13,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
+@Immutable
 data class MyPropertyItem(
     val id: String,
     val name: String,
@@ -87,5 +89,5 @@ private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
     id = id,
     name = name,
     address = address,
-    photoUrl = photos.firstOrNull()?.url
+    photoUrl = photos?.firstOrNull()?.url
 )

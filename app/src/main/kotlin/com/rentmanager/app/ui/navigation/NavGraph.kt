@@ -231,6 +231,9 @@ fun RentManagerNavGraph(
                 },
                 onAttachTenant = {
                     navController.navigate(Screen.AttachTenant.createRoute(propertyId))
+                },
+                onEdit = {
+                    navController.navigate(Screen.EditProperty.createRoute(propertyId))
                 }
             )
         }
