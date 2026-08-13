@@ -155,12 +155,7 @@ fun RentManagerNavGraph(
                 },
                 onBack = { navController.popBackStack() },
                 onFinanceClick = { navController.navigate(Screen.Finance.route) },
-                onNotificationsClick = { },
-                onHomeClick = {
-                    navController.navigate(Screen.MainScreen.route) {
-                        popUpTo(Screen.MainScreen.route) { inclusive = true }
-                    }
-                },
+                onWriteClick = { navController.navigate(Screen.Messages.route) },
                 viewModel = propertiesViewModel
             )
         }
@@ -168,9 +163,7 @@ fun RentManagerNavGraph(
         // ========== Create Property ==========
         composable(Screen.CreateProperty.route) {
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
-                onBack = {
-                    navController.popBackStack(Screen.RoleScreen.route, inclusive = false)
-                },
+                onBack = { navController.popBackStack() },
                 onCreated = { name, address ->
                     propertiesViewModel.addProperty(name, address)
                     navController.popBackStack()

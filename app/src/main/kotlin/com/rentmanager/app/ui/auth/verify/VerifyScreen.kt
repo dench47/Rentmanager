@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -44,12 +43,13 @@ import androidx.compose.ui.res.painterResource
 import com.rentmanager.app.R
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -383,7 +383,6 @@ fun VerifyScreen(
                     // Calling screen
                     // ============================================================
                     var showCallInfoDialog by remember { mutableStateOf(false) }
-                    val uriHandler = LocalUriHandler.current
 
                     // Info dialog
                     if (showCallInfoDialog) {
@@ -395,11 +394,19 @@ fun VerifyScreen(
                             append("так как соединение не считается установленным.\n\n")
                             append("Пожалуйста, позвоните на указанный номер в течение 5 минут.\n\n")
                             append("Услуга предоставляется сервисом ")
-                            pushStringAnnotation("url", "https://sms.ru")
-                            withStyle(SpanStyle(color = Color(0x993C3C43), textDecoration = TextDecoration.Underline)) {
+                            withLink(
+                                LinkAnnotation.Url(
+                                    url = "https://sms.ru",
+                                    styles = TextLinkStyles(
+                                        style = SpanStyle(
+                                            color = Color(0x993C3C43),
+                                            textDecoration = TextDecoration.Underline
+                                        )
+                                    )
+                                )
+                            ) {
                                 append("sms.ru")
                             }
-                            pop()
                             append(".")
                         }
 
@@ -414,18 +421,13 @@ fun VerifyScreen(
                                 )
                             },
                             text = {
-                                ClickableText(
+                                Text(
                                     text = infoText,
                                     style = TextStyle(
                                         fontSize = 14.sp,
                                         color = Color(0x993C3C43),
                                         lineHeight = 20.sp
-                                    ),
-                                    onClick = { offset ->
-                                        infoText.getStringAnnotations("url", offset, offset).firstOrNull()?.let {
-                                            uriHandler.openUri(it.item)
-                                        }
-                                    }
+                                    )
                                 )
                             },
                             confirmButton = { },

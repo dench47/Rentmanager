@@ -43,7 +43,12 @@ class UpdateManager @Inject constructor(
      * In that case the store handles updates and we skip our own update check.
      */
     fun isInstalledFromStore(): Boolean {
-        val installer = context.packageManager.getInstallerPackageName(context.packageName)
+        val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            context.packageManager.getInstallSourceInfo(context.packageName).installingPackageName
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getInstallerPackageName(context.packageName)
+        }
         return when (installer) {
             "com.android.vending" -> true   // Google Play Store
             "com.rustore.sdk" -> true       // RuStore

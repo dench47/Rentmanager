@@ -2,6 +2,7 @@ package com.rentmanager.app.ui.landlord
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,7 +23,7 @@ private val tabs = listOf(
     LandlordTab("Арендаторы", Icons.Default.People),
     LandlordTab("Объекты", Icons.Default.HolidayVillage),
     LandlordTab("Финансы", Icons.Default.AccountBalance),
-    LandlordTab("Сообщения", Icons.Default.Chat, hasIndicator = true)
+    LandlordTab("Сообщения", Icons.AutoMirrored.Filled.Chat, hasIndicator = true)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
