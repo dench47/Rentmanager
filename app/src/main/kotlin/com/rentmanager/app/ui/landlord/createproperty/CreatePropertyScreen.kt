@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.landlord.createproperty
 
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -39,6 +40,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +63,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.BlackButtonWithIcon
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 
 private val GradientBackground = Brush.verticalGradient(
     colors = listOf(Color.White, Color(0xFFF5F7FA))
@@ -69,8 +74,9 @@ private val GradientBackground = Brush.verticalGradient(
 fun CreatePropertyScreen(
     propertyId: String? = null,
     onBack: () -> Unit,
-    onCreated: (name: String, address: String) -> Unit = { _, _ -> },
-    onPaymentSchedule: () -> Unit = {}
+    onCreated: () -> Unit = {},
+    onPaymentSchedule: () -> Unit = {},
+    viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
     val isEdit = propertyId != null
     var name by remember { mutableStateOf("") }
@@ -95,6 +101,15 @@ fun CreatePropertyScreen(
 
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
+
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.clearError()
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent
@@ -347,14 +362,37 @@ fun CreatePropertyScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Сохранить
+                    // Сохранить / Создать
                     Box(
                         modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(100.dp))
                             .background(if (name.isNotBlank() && address.isNotBlank()) Color(0xFF212121) else Color(0xFF212121).copy(alpha = 0.5f))
-                    .clickable(enabled = name.isNotBlank() && address.isNotBlank()) { onCreated(name, address) },
+                    .clickable(enabled = name.isNotBlank() && address.isNotBlank() && !uiState.isCreating) {
+                        if (isEdit) {
+                            onCreated()
+                        } else {
+                            viewModel.createProperty(
+                                name = name,
+                                address = address,
+                                area = area,
+                                photoUris = photoUris,
+                                serviceInfo = serviceInfo,
+                                onSuccess = onCreated
+                            )
+                        }
+                    },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(if (isEdit) "Сохранить" else "Создать", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
+                        Text(
+                            when {
+                                uiState.isCreating -> "Загрузка..."
+                                isEdit -> "Сохранить"
+                                else -> "Создать"
+                            },
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = (-0.4).sp
+                        )
                     }
 
                     Spacer(Modifier.height(8.dp))

@@ -11,6 +11,7 @@ import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Part
+import retrofit2.http.Query
 
 data class SendCodeRequest(val phone: String, @SerializedName("fcm_token") val fcmToken: String? = null)
 data class SaveNameRequest(val name: String)
@@ -151,6 +152,13 @@ interface AuthApi {
     @Multipart
     @POST("upload")
     suspend fun uploadAvatar(@Part file: MultipartBody.Part): Response<UploadResponse>
+
+    @Multipart
+    @POST("upload")
+    suspend fun uploadPhoto(
+        @Part file: MultipartBody.Part,
+        @Query("folder") folder: String = "photos"
+    ): Response<UploadResponse>
 
     @GET("version")
     suspend fun getVersion(): Response<VersionResponse>

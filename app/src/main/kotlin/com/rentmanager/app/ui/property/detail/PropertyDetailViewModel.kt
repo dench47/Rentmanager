@@ -1,39 +1,59 @@
 package com.rentmanager.app.ui.property.detail
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.rentmanager.app.data.repository.PropertyRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-data class MeterInfo(
-    val id: String,
-    val name: String,
-    val number: String,
-    val currentValue: String,
-    val unit: String
-)
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class PropertyDetailUiState(
-    val propertyName: String = "БЦ Легенда",
-    val address: String = "пр. Космонавтов, 1",
-    val area: String = "120 м²",
-    val rentPrice: String = "25 000 ₽",
-    val debtAmount: String = "150 000 ₽",
-    val tenantName: String = "ИП Петров В.А.",
-    val contractEndDate: String = "24.07.2027",
-    val contractNumber: String = "№45 от 14.02.2025",
-    val meters: List<MeterInfo> = listOf(
-        MeterInfo("1", "Электроэнергия", "7485912545", "456", "кВт"),
-        MeterInfo("2", "Холодная вода", "85451546", "9.5", "м³"),
-        MeterInfo("3", "Горячая вода", "8446565656", "6.86", "м³"),
-        MeterInfo("4", "Отопление", "8446565656", "11", "Гкал")
-    ),
-    val wifiPassword: String = "ABC12345",
-    val houseRules: String = "Без животных, без шума после 23:00",
-    val phoneNumber: String = "+7 (999) 123-45-67"
+    val isLoading: Boolean = true,
+    val propertyName: String = "",
+    val address: String = "",
+    val area: String = "",
+    val photoUrl: String? = null,
+    val serviceInfo: String = "",
+    val errorMessage: String? = null
 )
 
-class PropertyDetailViewModel : ViewModel() {
+@HiltViewModel
+class PropertyDetailViewModel @Inject constructor(
+    private val propertyRepository: PropertyRepository
+) : ViewModel() {
+
     private val _uiState = MutableStateFlow(PropertyDetailUiState())
     val uiState: StateFlow<PropertyDetailUiState> = _uiState.asStateFlow()
+
+    fun load(propertyId: String) {
+        viewModelScope.launch {
+            _uiState.value = PropertyDetailUiState(isLoading = true)
+            try {
+                val resp = propertyRepository.getProperty(propertyId)
+                if (resp.isSuccessful) {
+                    val p = resp.body()!!
+                    _uiState.value = PropertyDetailUiState(
+                        isLoading = false,
+                        propertyName = p.name,
+                        address = p.address,
+                        area = formatArea(p.area),
+                        photoUrl = p.photos.firstOrNull()?.url,
+                        serviceInfo = p.serviceInfo ?: ""
+                    )
+                } else {
+                    _uiState.value = PropertyDetailUiState(isLoading = false, errorMessage = "Объект не найден")
+                }
+            } catch (e: Exception) {
+                _uiState.value = PropertyDetailUiState(isLoading = false, errorMessage = e.message ?: "Ошибка")
+            }
+        }
+    }
+
+    private fun formatArea(area: Double?): String {
+        if (area == null) return ""
+        return if (area == area.toLong().toDouble()) "${area.toLong()} м²" else "$area м²"
+    }
 }

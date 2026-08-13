@@ -1,6 +1,7 @@
 package com.rentmanager.app.ui.property.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,29 +13,42 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.rentmanager.app.R
+
+// Цвета из макета (node 73:915), стиль «Моя недвижимость»
+private val TextPrimary = Color(0xFF212121)
+private val SubtitleGray = Color(0xFF3C3C43)
+private val CardGray = Color(0xFFF3F3F3)
+private val LightYellowSection = Color(0xFFFFFFDA)
+private val PremiumYellow = Color(0xFFFEFFBB)
+private val OutlineGray = Color(0xFF8A8A8E)
 
 @Composable
 fun PropertyDetailScreen(
@@ -43,363 +57,340 @@ fun PropertyDetailScreen(
     onAddMeter: () -> Unit,
     onCall: () -> Unit,
     onWrite: () -> Unit,
-    viewModel: PropertyDetailViewModel = viewModel()
+    onAttachTenant: () -> Unit,
+    viewModel: PropertyDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    LaunchedEffect(propertyId) { viewModel.load(propertyId) }
 
-    Scaffold(
-        containerColor = Color.White
-    ) { paddingValues ->
-        LazyColumn(
+    Scaffold(containerColor = Color.White) { paddingValues ->
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(Color.White)
         ) {
-            // Hero image placeholder
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFFBDBDBD)),
-                    contentAlignment = Alignment.TopEnd
-                ) {
-                    Text(
-                        text = "📷",
-                        fontSize = 48.sp,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                    // Area badge
-                    Box(
+            DetailHeader(
+                propertyName = uiState.propertyName,
+                address = uiState.address,
+                onBack = onBack
+            )
+
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item { PhotoSection(photoUrl = uiState.photoUrl, area = uiState.area) }
+
+                item {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        DarkPillButton(
+                            text = "Добавить арендатора",
+                            iconRes = R.drawable.ic_plus_circle,
+                            onClick = onAttachTenant
+                        )
+                        InfoCard(text = "Информация об объекте")
+                        InfoCard(text = "Служебная информация")
+                        DarkPillButton(
+                            text = "График платежей и реквизиты",
+                            iconRes = R.drawable.ic_calendar_edit,
+                            onClick = { }
+                        )
+                        OutlinedPillButton(text = "Расходы", onClick = { })
+                    }
+                }
+
+                item {
+                    Column(
                         modifier = Modifier
-                            .padding(12.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White.copy(alpha = 0.85f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .fillMaxWidth()
+                            .background(LightYellowSection)
+                            .padding(horizontal = 20.dp, vertical = 16.dp)
                     ) {
-                        Text(
-                            text = uiState.area,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.Black
+                        DarkPillButton(
+                            text = "Добавить счетчики",
+                            iconRes = R.drawable.ic_plus_circle,
+                            onClick = onAddMeter
                         )
                     }
                 }
             }
-
-            // Navigation bar
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = uiState.propertyName,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = uiState.address,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = Color.Gray
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "Арендная плата",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                        Text(
-                            text = uiState.rentPrice,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Black
-                        )
-                    }
-                }
-            }
-
-            // Debt button
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 4.dp)
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(Color(0xFFF4A259), Color(0xFFE53935))
-                            )
-                        )
-                        .clickable { },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Долг: ${uiState.debtAmount}",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
-                    )
-                }
-            }
-
-            // Yellow counters section
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFFFFFFDA))
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Счётчики",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Black
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF212121))
-                                .clickable { onAddMeter() }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.Add,
-                                    contentDescription = "Добавить",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = " Добавить",
-                                    fontSize = 14.sp,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    uiState.meters.forEach { meter ->
-                        MeterRow(meter = meter)
-                    }
-                }
-            }
-
-            // Tenant info
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Арендатор",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.Gray
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = uiState.tenantName,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "до ${uiState.contractEndDate}",
-                            fontSize = 14.sp,
-                            color = Color.Gray
-                        )
-                        Text(
-                            text = "Договор ${uiState.contractNumber}",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                    }
-                }
-            }
-
-            // Action buttons: График платежей и реквизиты, Расходы
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ActionChip(text = "График платежей и реквизиты", modifier = Modifier.weight(1f))
-                    ActionChip(text = "Расходы", modifier = Modifier.weight(1f))
-                }
-            }
-
-            // Property info card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        InfoRow(label = "Телефон", value = uiState.phoneNumber)
-                        HorizontalDivider(color = Color(0xFFEEEEEE))
-                        InfoRow(label = "Wi-Fi пароль", value = uiState.wifiPassword)
-                        HorizontalDivider(color = Color(0xFFEEEEEE))
-                        InfoRow(label = "Правила", value = uiState.houseRules)
-                    }
-                }
-            }
-
-            // Service info section
-            item {
-                Text(
-                    text = "Сервисная информация",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.Black,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+        }
+    }
+}
+@Composable
+private fun DetailHeader(
+    propertyName: String,
+    address: String,
+    onBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .padding(horizontal = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_arrow_left),
+                    contentDescription = "Назад",
+                    modifier = Modifier.size(24.dp),
+                    tint = TextPrimary
                 )
             }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    propertyName,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    letterSpacing = (-0.4).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    address,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = SubtitleGray,
+                    letterSpacing = (-0.4).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
 
-            // Bottom tab bar
-            item {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clickable { /* TODO: редактирование */ },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "Редактировать",
+                modifier = Modifier.size(24.dp),
+                tint = TextPrimary
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhotoSection(photoUrl: String?, area: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp)
+            .background(Color(0xFFBDBDBD))
+    ) {
+        if (photoUrl != null) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Text(
+                text = "📷",
+                fontSize = 48.sp,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+
+        // Стрелка влево
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 12.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.3f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = Color.White
+            )
+        }
+
+        // Стрелка вправо
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 12.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.3f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = Color.White
+            )
+        }
+
+        // Точки-индикаторы карусели
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 20.dp, height = 8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White)
+            )
+            repeat(3) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(95.dp)
-                        .padding(top = 33.dp)
-                        .background(Color(0xFFF3F3F3)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        TabAction(icon = "💰", label = "Финансовый отчет", onClick = { })
-                        TabAction(icon = "📞", label = "Позвонить", onClick = onCall)
-                        TabAction(icon = "💬", label = "Написать", onClick = onWrite)
-                    }
-                }
+                        .size(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.White.copy(alpha = 0.6f))
+                )
+            }
+        }
+
+        // Бейдж «Площадь»
+        if (area.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(PremiumYellow)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    "Площадь",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.Black
+                )
+                Text(
+                    area,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF656565)
+                )
             }
         }
     }
 }
-
 @Composable
-private fun MeterRow(meter: MeterInfo) {
+private fun DarkPillButton(
+    text: String,
+    iconRes: Int? = null,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .height(48.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .background(TextPrimary)
+            .clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = meter.name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.Black
+        if (iconRes != null) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = Color.White
             )
-            Text(
-                text = "№${meter.number}",
-                fontSize = 12.sp,
-                color = Color.Gray
-            )
+            Spacer(Modifier.width(8.dp))
         }
         Text(
-            text = "${meter.currentValue} ${meter.unit}",
+            text,
             fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.Black
-        )
-    }
-}
-
-@Composable
-private fun ActionChip(text: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .height(44.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFF0F0F0))
-            .clickable { }
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
-            color = Color.Black,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            color = Color.White,
+            letterSpacing = (-0.4).sp
         )
     }
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
+private fun OutlinedPillButton(text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 10.dp),
+            .height(48.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .border(1.dp, OutlineGray, RoundedCornerShape(100.dp))
+            .clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.ReceiptLong,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = OutlineGray
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color.Black,
+            letterSpacing = (-0.4).sp
+        )
+    }
+}
+
+@Composable
+private fun InfoCard(text: String, onClick: () -> Unit = {}) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardGray)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = label,
+            text,
             fontSize = 14.sp,
-            fontWeight = FontWeight.Normal,
-            color = Color.Gray
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF151515),
+            letterSpacing = (-0.4).sp,
+            modifier = Modifier.weight(1f)
         )
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Black,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false)
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = Color(0xFF151515)
         )
     }
 }
 
-@Composable
-private fun TabAction(icon: String, label: String, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable { onClick() }
-            .padding(8.dp)
-    ) {
-        Text(text = icon, fontSize = 20.sp)
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Black
-        )
-    }
-}
+

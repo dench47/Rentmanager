@@ -6,7 +6,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -34,7 +34,7 @@ fun RentManagerNavGraph(
     navController: NavHostController = rememberNavController()
 ) {
     val context = LocalContext.current
-    val propertiesViewModel: MyPropertiesViewModel = viewModel()
+    val propertiesViewModel: MyPropertiesViewModel = hiltViewModel()
 
     val accessToken by tokenManager.accessTokenFlow.collectAsState()
     val requirePin by tokenManager.requirePinFlow.collectAsState()
@@ -164,8 +164,8 @@ fun RentManagerNavGraph(
         composable(Screen.CreateProperty.route) {
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
                 onBack = { navController.popBackStack() },
-                onCreated = { name, address ->
-                    propertiesViewModel.addProperty(name, address)
+                onCreated = {
+                    propertiesViewModel.refresh()
                     navController.popBackStack()
                 },
                 onPaymentSchedule = { navController.navigate(Screen.PaymentSchedule.route) }
@@ -181,7 +181,7 @@ fun RentManagerNavGraph(
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
                 propertyId = propertyId,
                 onBack = { navController.popBackStack() },
-                onCreated = { _, _ -> navController.popBackStack() }
+                onCreated = { navController.popBackStack() }
             )
         }
 
@@ -228,6 +228,9 @@ fun RentManagerNavGraph(
                 onCall = { },
                 onWrite = {
                     navController.navigate(Screen.Chat.createRoute("landlord"))
+                },
+                onAttachTenant = {
+                    navController.navigate(Screen.AttachTenant.createRoute(propertyId))
                 }
             )
         }

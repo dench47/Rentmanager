@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -320,15 +321,26 @@ private fun PropertyCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Аватар 40×40 с borderRadius 8
-                Image(
-                    painter = painterResource(R.drawable.mock_avatar_legend),
-                    contentDescription = property.name,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
+                // Фото 40×40 с borderRadius 8
+                if (property.photoUrl != null) {
+                    AsyncImage(
+                        model = property.photoUrl,
+                        contentDescription = property.name,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(R.drawable.mock_avatar_legend),
+                        contentDescription = property.name,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
 
                 // Название + адрес
                 Column {
@@ -455,17 +467,22 @@ private fun ScheduleCell(label: String, state: String, topLabel: String? = null)
         contentAlignment = Alignment.Center
     ) {
         if (topLabel != null) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy((-2).dp)
+            ) {
                 Text(
                     topLabel,
                     fontSize = 9.sp,
+                    lineHeight = 10.sp,
                     fontWeight = FontWeight.Medium,
                     letterSpacing = (-0.4).sp,
                     color = textColor
                 )
                 Text(
                     label,
-                    fontSize = 11.sp,
+                    fontSize = 14.sp,
+                    lineHeight = 15.sp,
                     fontWeight = FontWeight.Medium,
                     letterSpacing = (-0.4).sp,
                     color = textColor

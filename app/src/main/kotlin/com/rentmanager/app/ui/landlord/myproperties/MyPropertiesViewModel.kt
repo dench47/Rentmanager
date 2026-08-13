@@ -1,15 +1,22 @@
 package com.rentmanager.app.ui.landlord.myproperties
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.rentmanager.app.data.model.PropertyDto
+import com.rentmanager.app.data.repository.PropertyRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.time.LocalDate
+import javax.inject.Inject
 
 data class MyPropertyItem(
     val id: String,
     val name: String,
     val address: String,
+    val photoUrl: String? = null,
     val schedule: List<String> = listOf(
         "fullness", "fullness", "fullness", "fullness", "fullness",
         "expired",
@@ -39,18 +46,30 @@ private val figmaProperties = listOf(
 
 enum class ViewMode { MONTHS, DAYS }
 
-class MyPropertiesViewModel : ViewModel() {
+@HiltViewModel
+class MyPropertiesViewModel @Inject constructor(
+    private val propertyRepository: PropertyRepository
+) : ViewModel() {
     private val _properties = MutableStateFlow(figmaProperties.toMutableList())
     val properties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
 
     private val _viewMode = MutableStateFlow(ViewMode.MONTHS)
     val viewMode: StateFlow<ViewMode> = _viewMode.asStateFlow()
 
-    fun addProperty(name: String, address: String) {
-        val newId = "${_properties.value.size + 1}"
-        val list = _properties.value.toMutableList()
-        list.add(0, MyPropertyItem(newId, name, address))
-        _properties.value = list
+    init {
+        refresh()
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            try {
+                val resp = propertyRepository.getProperties()
+                if (resp.isSuccessful) {
+                    val apiItems = resp.body()!!.map { it.toMyPropertyItem() }
+                    _properties.value = (figmaProperties + apiItems).toMutableList()
+                }
+            } catch (_: Exception) { }
+        }
     }
 
     fun setViewMode(mode: ViewMode) {
@@ -63,3 +82,10 @@ class MyPropertiesViewModel : ViewModel() {
         }.toMutableList()
     }
 }
+
+private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
+    id = id,
+    name = name,
+    address = address,
+    photoUrl = photos.firstOrNull()?.url
+)
