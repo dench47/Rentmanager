@@ -44,12 +44,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
@@ -64,6 +61,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -85,25 +83,6 @@ private val CellFullStroke = Color(0xFF66A256)
 private val CellExpiredStroke = Color(0xFFFF4249)
 private val CellFreeBg = Color(0xFFEFEFEF)
 private val CellFreeStroke = Color(0xFF727272)
-
-// Стили подписей ячеек
-private val MonthCellLabelStyle = TextStyle(
-    fontSize = 11.sp,
-    fontWeight = FontWeight.Medium,
-    letterSpacing = (-0.4).sp
-)
-private val DayCellLabelStyle = TextStyle(
-    fontSize = 14.sp,
-    lineHeight = 15.sp,
-    fontWeight = FontWeight.Medium,
-    letterSpacing = (-0.4).sp
-)
-private val DayCellTopLabelStyle = TextStyle(
-    fontSize = 9.sp,
-    lineHeight = 10.sp,
-    fontWeight = FontWeight.Medium,
-    letterSpacing = (-0.4).sp
-)
 
 private val NameTextStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
 private val AddressTextStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, letterSpacing = (-0.4).sp)
@@ -142,16 +121,8 @@ fun MyPropertiesScreen(
     val viewMode by viewModel.viewMode.collectAsState()
     var pickerPropertyId by remember { mutableStateOf<String?>(null) }
 
-    // Общий кэш раскладки текста ячеек: мерим уникальные подписи один раз,
-    // чтобы при скролле карточки не платили за холодную раскладку текста.
+    // Общий кэш раскладки текста шапки: мерим уникальные подписи один раз.
     val textMeasurer = rememberTextMeasurer(cacheSize = 256)
-    val cellLayoutCache = remember(textMeasurer) {
-        CellLayoutCache(
-            month = MonthAbbrevLabels.associate { it to textMeasurer.measure(it, MonthCellLabelStyle) },
-            day = (1..31).associate { it.toString() to textMeasurer.measure(it.toString(), DayCellLabelStyle) },
-            weekday = WeekdayLabels.associate { it to textMeasurer.measure(it, DayCellTopLabelStyle) }
-        )
-    }
 
     val cameraPainter = rememberVectorPainter(Icons.Outlined.PhotoCamera)
     val headerLayoutCache = remember(properties, textMeasurer) {
@@ -202,7 +173,6 @@ fun MyPropertiesScreen(
                     PropertyCard(
                         property = property,
                         viewMode = viewMode,
-                        cellLayoutCache = cellLayoutCache,
                         cameraPainter = cameraPainter,
                         headerLayoutCache = headerLayoutCache,
                         onClick = { onPropertyClick(property.id) },
@@ -371,7 +341,6 @@ private fun RowScope.ToggleSegment(
 private fun PropertyCard(
     property: MyPropertyItem,
     viewMode: ViewMode,
-    cellLayoutCache: CellLayoutCache,
     cameraPainter: Painter,
     headerLayoutCache: HeaderLayoutCache,
     onClick: () -> Unit,
@@ -463,21 +432,12 @@ private fun PropertyCard(
             schedule = property.schedule,
             viewMode = viewMode,
             year = property.year,
-            month = property.month,
-            cellLayoutCache = cellLayoutCache
+            month = property.month
         )
     }
 }
 
 private val MonthAbbrevLabels = listOf("ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮН", "ИЮЛ", "АВГ", "СЕН", "ОКТ", "НОЯ", "ДЕК")
-
-private val WeekdayLabels = listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС")
-
-private class CellLayoutCache(
-    val month: Map<String, TextLayoutResult>,
-    val day: Map<String, TextLayoutResult>,
-    val weekday: Map<String, TextLayoutResult>
-)
 
 private class HeaderLayoutCache(
     val nameAddress: Map<String, Pair<TextLayoutResult, TextLayoutResult>>,
@@ -490,8 +450,7 @@ private fun ScheduleRow(
     schedule: List<String>,
     viewMode: ViewMode,
     year: Int,
-    month: Int,
-    cellLayoutCache: CellLayoutCache
+    month: Int
 ) {
     val (labels, topLabels, states) = remember(viewMode, year, month, schedule) {
         buildCells(viewMode, year, month, schedule)
@@ -503,70 +462,13 @@ private fun ScheduleRow(
             .height(39.dp)
             .horizontalScroll(rememberScrollState())
             .logMeasure("ScheduleRow"),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        labels.indices.forEach { index ->
-            val (bg, stroke, textColor) = cellColors(states[index])
-            val labelLayout = if (viewMode == ViewMode.DAYS) {
-                cellLayoutCache.day[labels[index]]
-            } else {
-                cellLayoutCache.month[labels[index]]
-            }
-            val topLayout = if (viewMode == ViewMode.DAYS) {
-                topLabels[index]?.let { cellLayoutCache.weekday[it] }
-            } else null
-
-            Canvas(modifier = Modifier.size(44.dp, 39.dp)) {
-                val corner = CornerRadius(4.dp.toPx())
-                val cellW = size.width
-                val cellH = size.height
-
-                drawRoundRect(
-                    color = bg,
-                    topLeft = Offset.Zero,
-                    size = Size(cellW, cellH),
-                    cornerRadius = corner
-                )
-                drawRoundRect(
-                    color = stroke,
-                    topLeft = Offset.Zero,
-                    size = Size(cellW, cellH),
-                    cornerRadius = corner,
-                    style = Stroke(width = 1.dp.toPx())
-                )
-
-                if (labelLayout != null) {
-                    if (topLayout != null) {
-                        val overlap = 2.dp.toPx()
-                        val totalTextH = topLayout.size.height + labelLayout.size.height - overlap
-                        val startY = (cellH - totalTextH) / 2f
-                        drawText(
-                            textLayoutResult = topLayout,
-                            color = textColor,
-                            topLeft = Offset((cellW - topLayout.size.width) / 2f, startY)
-                        )
-                        drawText(
-                            textLayoutResult = labelLayout,
-                            color = textColor,
-                            topLeft = Offset(
-                                (cellW - labelLayout.size.width) / 2f,
-                                startY + topLayout.size.height - overlap
-                            )
-                        )
-                    } else {
-                        drawText(
-                            textLayoutResult = labelLayout,
-                            color = textColor,
-                            topLeft = Offset(
-                                (cellW - labelLayout.size.width) / 2f,
-                                (cellH - labelLayout.size.height) / 2f
-                            )
-                        )
-                    }
-                }
-            }
-        }
+        AndroidView(
+            factory = { context -> ScheduleGridView(context) },
+            modifier = Modifier.height(39.dp),
+            update = { view -> view.setData(labels, topLabels, states, viewMode == ViewMode.DAYS) }
+        )
     }
 }
 
