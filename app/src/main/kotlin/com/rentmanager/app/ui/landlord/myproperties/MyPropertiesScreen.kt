@@ -36,6 +36,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.imageLoader
 import coil.request.ImageRequest
 import com.rentmanager.app.R
 import java.time.DayOfWeek
@@ -125,6 +127,25 @@ fun MyPropertiesScreen(
     val textMeasurer = rememberTextMeasurer(cacheSize = 256)
 
     val cameraPainter = rememberVectorPainter(Icons.Outlined.PhotoCamera)
+
+    // Прогрев кэша фото: грузим превью заранее, чтобы при скролле карточки не мигали пустым квадратом.
+    val prefetchContext = LocalContext.current
+    val prefetchDensity = LocalDensity.current
+    LaunchedEffect(properties) {
+        val photoSizePx = with(prefetchDensity) { 40.dp.roundToPx() }
+        val loader = prefetchContext.imageLoader
+        properties.forEach { property ->
+            property.photoUrl?.let { url ->
+                loader.enqueue(
+                    ImageRequest.Builder(prefetchContext)
+                        .data(url)
+                        .size(photoSizePx)
+                        .build()
+                )
+            }
+        }
+    }
+
     val headerLayoutCache = remember(properties, textMeasurer) {
         val currentYear = LocalDate.now().year
         HeaderLayoutCache(
@@ -374,6 +395,13 @@ private fun PropertyCard(
                         .background(Color(0xFFF2F2F7)),
                     contentAlignment = Alignment.Center
                 ) {
+                    // Заглушка видна всегда: пока фото грузится, при ошибке или если фото нет.
+                    Icon(
+                        painter = cameraPainter,
+                        contentDescription = null,
+                        tint = Color(0xFF8E8E93),
+                        modifier = Modifier.size(20.dp)
+                    )
                     if (property.photoUrl != null) {
                         val context = LocalContext.current
                         val density = LocalDensity.current
@@ -382,6 +410,7 @@ private fun PropertyCard(
                             ImageRequest.Builder(context)
                                 .data(property.photoUrl)
                                 .size(photoSizePx)
+                                .crossfade(true)
                                 .build()
                         }
                         AsyncImage(
@@ -389,13 +418,6 @@ private fun PropertyCard(
                             contentDescription = property.name,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(
-                            painter = cameraPainter,
-                            contentDescription = null,
-                            tint = Color(0xFF8E8E93),
-                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
