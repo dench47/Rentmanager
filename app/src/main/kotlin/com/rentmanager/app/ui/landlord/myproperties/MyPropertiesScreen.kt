@@ -1,10 +1,10 @@
 package com.rentmanager.app.ui.landlord.myproperties
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,12 +21,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -47,10 +48,15 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.rentmanager.app.R
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -79,7 +86,7 @@ private val CellExpiredStroke = Color(0xFFFF4249)
 private val CellFreeBg = Color(0xFFEFEFEF)
 private val CellFreeStroke = Color(0xFF727272)
 
-// Стили подписей ячеек (для отрисовки через TextMeasurer)
+// Стили подписей ячеек
 private val MonthCellLabelStyle = TextStyle(
     fontSize = 11.sp,
     fontWeight = FontWeight.Medium,
@@ -97,6 +104,11 @@ private val DayCellTopLabelStyle = TextStyle(
     fontWeight = FontWeight.Medium,
     letterSpacing = (-0.4).sp
 )
+
+private val NameTextStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
+private val AddressTextStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, letterSpacing = (-0.4).sp)
+private val PeriodMonthTextStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
+private val PeriodYearTextStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
 
 // Названия месяцев (полные)
 private val MonthNames = listOf(
@@ -129,7 +141,31 @@ fun MyPropertiesScreen(
     val properties by viewModel.properties.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     var pickerPropertyId by remember { mutableStateOf<String?>(null) }
-    val textMeasurer = rememberTextMeasurer(cacheSize = 128)
+
+    // Общий кэш раскладки текста ячеек: мерим уникальные подписи один раз,
+    // чтобы при скролле карточки не платили за холодную раскладку текста.
+    val textMeasurer = rememberTextMeasurer(cacheSize = 256)
+    val cellLayoutCache = remember(textMeasurer) {
+        CellLayoutCache(
+            month = MonthAbbrevLabels.associate { it to textMeasurer.measure(it, MonthCellLabelStyle) },
+            day = (1..31).associate { it.toString() to textMeasurer.measure(it.toString(), DayCellLabelStyle) },
+            weekday = WeekdayLabels.associate { it to textMeasurer.measure(it, DayCellTopLabelStyle) }
+        )
+    }
+
+    val cameraPainter = rememberVectorPainter(Icons.Outlined.PhotoCamera)
+    val headerLayoutCache = remember(properties, textMeasurer) {
+        val currentYear = LocalDate.now().year
+        HeaderLayoutCache(
+            nameAddress = properties.associate {
+                it.id to (textMeasurer.measure(it.name, NameTextStyle) to textMeasurer.measure(it.address, AddressTextStyle))
+            },
+            monthNames = MonthNames.associate { it to textMeasurer.measure(it, PeriodMonthTextStyle) },
+            years = (currentYear..(currentYear + 20)).associate {
+                it.toString() to textMeasurer.measure(it.toString(), PeriodYearTextStyle)
+            }
+        )
+    }
 
     Scaffold(
         containerColor = White,
@@ -166,7 +202,9 @@ fun MyPropertiesScreen(
                     PropertyCard(
                         property = property,
                         viewMode = viewMode,
-                        textMeasurer = textMeasurer,
+                        cellLayoutCache = cellLayoutCache,
+                        cameraPainter = cameraPainter,
+                        headerLayoutCache = headerLayoutCache,
                         onClick = { onPropertyClick(property.id) },
                         onPeriodClick = { pickerPropertyId = property.id }
                     )
@@ -333,14 +371,17 @@ private fun RowScope.ToggleSegment(
 private fun PropertyCard(
     property: MyPropertyItem,
     viewMode: ViewMode,
-    textMeasurer: TextMeasurer,
+    cellLayoutCache: CellLayoutCache,
+    cameraPainter: Painter,
+    headerLayoutCache: HeaderLayoutCache,
     onClick: () -> Unit,
     onPeriodClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp)
+            .logMeasure("PropertyCard"),
         verticalArrangement = Arrangement.spacedBy(15.dp)
     ) {
         // Шапка карточки
@@ -356,43 +397,54 @@ private fun PropertyCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Фото 40×40 с borderRadius 8
-                if (property.photoUrl != null) {
-                    AsyncImage(
-                        model = property.photoUrl,
-                        contentDescription = property.name,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Image(
-                        painter = painterResource(R.drawable.mock_avatar_legend),
-                        contentDescription = property.name,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
+                // Фото 40×40 с borderRadius 8 (нет фото — заглушка-фотоаппарат)
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF2F2F7)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (property.photoUrl != null) {
+                        val context = LocalContext.current
+                        val density = LocalDensity.current
+                        val photoSizePx = with(density) { 40.dp.roundToPx() }
+                        val imageRequest = remember(property.photoUrl, photoSizePx) {
+                            ImageRequest.Builder(context)
+                                .data(property.photoUrl)
+                                .size(photoSizePx)
+                                .build()
+                        }
+                        AsyncImage(
+                            model = imageRequest,
+                            contentDescription = property.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            painter = cameraPainter,
+                            contentDescription = null,
+                            tint = Color(0xFF8E8E93),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
-                // Название + адрес
-                Column {
-                    Text(
-                        property.name,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextPrimary,
-                        letterSpacing = (-0.4).sp
-                    )
-                    Text(
-                        property.address,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = TextGray,
-                        letterSpacing = (-0.4).sp
-                    )
+                // Название + адрес (рисуем из кэша раскладки)
+                val nameAddress = headerLayoutCache.nameAddress[property.id]
+                if (nameAddress != null) {
+                    val (nameLayout, addressLayout) = nameAddress
+                    val density = LocalDensity.current
+                    Canvas(
+                        modifier = Modifier.size(
+                            width = with(density) { maxOf(nameLayout.size.width, addressLayout.size.width).toDp() },
+                            height = with(density) { (nameLayout.size.height + addressLayout.size.height).toDp() }
+                        )
+                    ) {
+                        drawText(nameLayout, color = TextPrimary, topLeft = Offset(0f, 0f))
+                        drawText(addressLayout, color = TextGray, topLeft = Offset(0f, nameLayout.size.height.toFloat()))
+                    }
                 }
             }
 
@@ -401,6 +453,7 @@ private fun PropertyCard(
                 viewMode = viewMode,
                 selectedYear = property.year,
                 selectedMonth = property.month,
+                headerLayoutCache = headerLayoutCache,
                 onClick = onPeriodClick
             )
         }
@@ -411,12 +464,26 @@ private fun PropertyCard(
             viewMode = viewMode,
             year = property.year,
             month = property.month,
-            textMeasurer = textMeasurer
+            cellLayoutCache = cellLayoutCache
         )
     }
 }
 
-private val MonthsLabels = listOf("СЕН", "ОКТ", "НОЯ", "ДЕК", "ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮНЬ", "ИЮЛЬ", "АВГ")
+private val MonthAbbrevLabels = listOf("ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮН", "ИЮЛ", "АВГ", "СЕН", "ОКТ", "НОЯ", "ДЕК")
+
+private val WeekdayLabels = listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС")
+
+private class CellLayoutCache(
+    val month: Map<String, TextLayoutResult>,
+    val day: Map<String, TextLayoutResult>,
+    val weekday: Map<String, TextLayoutResult>
+)
+
+private class HeaderLayoutCache(
+    val nameAddress: Map<String, Pair<TextLayoutResult, TextLayoutResult>>,
+    val monthNames: Map<String, TextLayoutResult>,
+    val years: Map<String, TextLayoutResult>
+)
 
 @Composable
 private fun ScheduleRow(
@@ -424,54 +491,31 @@ private fun ScheduleRow(
     viewMode: ViewMode,
     year: Int,
     month: Int,
-    textMeasurer: TextMeasurer
+    cellLayoutCache: CellLayoutCache
 ) {
     val (labels, topLabels, states) = remember(viewMode, year, month, schedule) {
-        when (viewMode) {
-            ViewMode.MONTHS -> Triple(
-                MonthsLabels,
-                List<String?>(MonthsLabels.size) { null },
-                schedule
-            )
-            ViewMode.DAYS -> {
-                val daysInMonth = YearMonth.of(year, month).lengthOfMonth()
-                Triple(
-                    (1..daysInMonth).map { it.toString() },
-                    (1..daysInMonth).map { day ->
-                        weekdayAbbr(LocalDate.of(year, month, day).dayOfWeek)
-                    },
-                    daySchedule(daysInMonth)
-                )
-            }
-        }
+        buildCells(viewMode, year, month, schedule)
     }
 
-    val labelStyle = if (viewMode == ViewMode.DAYS) DayCellLabelStyle else MonthCellLabelStyle
-
-    val labelLayouts = remember(labels, labelStyle, states, textMeasurer) {
-        labels.indices.map { index ->
-            val (_, _, textColor) = cellColors(states[index])
-            textMeasurer.measure(labels[index], style = labelStyle.copy(color = textColor))
-        }
-    }
-    val topLabelLayouts = remember(labels, states, textMeasurer) {
-        labels.indices.map { index ->
-            val (_, _, textColor) = cellColors(states[index])
-            topLabels[index]?.let { t ->
-                textMeasurer.measure(t, style = DayCellTopLabelStyle.copy(color = textColor))
-            }
-        }
-    }
-
-    LazyRow(
-        modifier = Modifier.fillMaxWidth(),
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(39.dp)
+            .horizontalScroll(rememberScrollState())
+            .logMeasure("ScheduleRow"),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        items(labels.size) { index ->
-            val (bg, stroke, _) = cellColors(states[index])
-            val labelLayout = labelLayouts[index]
-            val topLayout = topLabelLayouts[index]
+        labels.indices.forEach { index ->
+            val (bg, stroke, textColor) = cellColors(states[index])
+            val labelLayout = if (viewMode == ViewMode.DAYS) {
+                cellLayoutCache.day[labels[index]]
+            } else {
+                cellLayoutCache.month[labels[index]]
+            }
+            val topLayout = if (viewMode == ViewMode.DAYS) {
+                topLabels[index]?.let { cellLayoutCache.weekday[it] }
+            } else null
 
             Canvas(modifier = Modifier.size(44.dp, 39.dp)) {
                 val corner = CornerRadius(4.dp.toPx())
@@ -492,29 +536,34 @@ private fun ScheduleRow(
                     style = Stroke(width = 1.dp.toPx())
                 )
 
-                if (topLayout != null) {
-                    val overlap = 2.dp.toPx()
-                    val totalTextH = topLayout.size.height + labelLayout.size.height - overlap
-                    val startY = (cellH - totalTextH) / 2f
-                    drawText(
-                        textLayoutResult = topLayout,
-                        topLeft = Offset((cellW - topLayout.size.width) / 2f, startY)
-                    )
-                    drawText(
-                        textLayoutResult = labelLayout,
-                        topLeft = Offset(
-                            (cellW - labelLayout.size.width) / 2f,
-                            startY + topLayout.size.height - overlap
+                if (labelLayout != null) {
+                    if (topLayout != null) {
+                        val overlap = 2.dp.toPx()
+                        val totalTextH = topLayout.size.height + labelLayout.size.height - overlap
+                        val startY = (cellH - totalTextH) / 2f
+                        drawText(
+                            textLayoutResult = topLayout,
+                            color = textColor,
+                            topLeft = Offset((cellW - topLayout.size.width) / 2f, startY)
                         )
-                    )
-                } else {
-                    drawText(
-                        textLayoutResult = labelLayout,
-                        topLeft = Offset(
-                            (cellW - labelLayout.size.width) / 2f,
-                            (cellH - labelLayout.size.height) / 2f
+                        drawText(
+                            textLayoutResult = labelLayout,
+                            color = textColor,
+                            topLeft = Offset(
+                                (cellW - labelLayout.size.width) / 2f,
+                                startY + topLayout.size.height - overlap
+                            )
                         )
-                    )
+                    } else {
+                        drawText(
+                            textLayoutResult = labelLayout,
+                            color = textColor,
+                            topLeft = Offset(
+                                (cellW - labelLayout.size.width) / 2f,
+                                (cellH - labelLayout.size.height) / 2f
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -534,6 +583,50 @@ private fun cellColors(state: String): Triple<Color, Color, Color> = when (state
     "free" -> Triple(CellFreeBg, CellFreeStroke, CellFreeStroke)
     else -> Triple(CellFullBg, CellFullStroke, TextPrimary)
 }
+
+// TEMP: диагностика времени measure (удалить после профилирования)
+private fun Modifier.logMeasure(tag: String): Modifier = layout { measurable, constraints ->
+    val start = System.nanoTime()
+    val placeable = measurable.measure(constraints)
+    val ms = (System.nanoTime() - start) / 1_000_000.0
+    if (ms > 0.5) android.util.Log.d("Bench", "$tag measure = $ms ms")
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+}
+
+private fun buildCells(
+    viewMode: ViewMode,
+    year: Int,
+    month: Int,
+    schedule: List<String>
+): Triple<List<String>, List<String?>, List<String>> {
+    val today = LocalDate.now()
+    return when (viewMode) {
+        ViewMode.MONTHS -> {
+            // Календарный год: текущий год — с текущего месяца по декабрь,
+            // будущие годы — полный ЯНВ..ДЕК.
+            val startMonth = if (year == today.year) today.monthValue else 1
+            val months = (startMonth..12).toList()
+            Triple(
+                months.map { MonthAbbrevLabels[it - 1] },
+                List(months.size) { null },
+                schedule.take(months.size)
+            )
+        }
+        ViewMode.DAYS -> {
+            // С текущего дня (в текущем месяце), прошлых дней нет.
+            val daysInMonth = YearMonth.of(year, month).lengthOfMonth()
+            val startDay =
+                if (year == today.year && month == today.monthValue) today.dayOfMonth else 1
+            val days = (startDay..daysInMonth).toList()
+            Triple(
+                days.map { it.toString() },
+                days.map { day -> weekdayAbbr(LocalDate.of(year, month, day).dayOfWeek) },
+                daySchedule(daysInMonth).subList(startDay - 1, daysInMonth)
+            )
+        }
+    }
+}
+
 @Composable
 private fun BottomTabBar(
     onFinanceClick: () -> Unit,
@@ -629,40 +722,49 @@ private fun PeriodSelector(
     viewMode: ViewMode,
     selectedYear: Int,
     selectedMonth: Int,
+    headerLayoutCache: HeaderLayoutCache,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.clickable { onClick() },
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val density = LocalDensity.current
         if (viewMode == ViewMode.DAYS) {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(1.dp)
-            ) {
-                Text(
-                    monthName(selectedMonth),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextPrimary,
-                    letterSpacing = (-0.4).sp
+            val monthLayout = headerLayoutCache.monthNames.getValue(monthName(selectedMonth))
+            val yearLayout = headerLayoutCache.years.getValue(selectedYear.toString())
+            val widthPx = maxOf(monthLayout.size.width, yearLayout.size.width)
+            val gapPx = with(density) { 1.dp.roundToPx() }
+            Canvas(
+                modifier = Modifier.size(
+                    width = with(density) { widthPx.toDp() },
+                    height = with(density) { (monthLayout.size.height + gapPx + yearLayout.size.height).toDp() }
                 )
-                Text(
-                    selectedYear.toString(),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+            ) {
+                drawText(
+                    monthLayout,
                     color = TextPrimary,
-                    letterSpacing = (-0.4).sp
+                    topLeft = Offset((widthPx - monthLayout.size.width).toFloat(), 0f)
+                )
+                drawText(
+                    yearLayout,
+                    color = TextPrimary,
+                    topLeft = Offset(
+                        (widthPx - yearLayout.size.width).toFloat(),
+                        (monthLayout.size.height + gapPx).toFloat()
+                    )
                 )
             }
         } else {
-            Text(
-                selectedYear.toString(),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextPrimary,
-                letterSpacing = (-0.4).sp
-            )
+            val yearLayout = headerLayoutCache.years.getValue(selectedYear.toString())
+            Canvas(
+                modifier = Modifier.size(
+                    width = with(density) { yearLayout.size.width.toDp() },
+                    height = with(density) { yearLayout.size.height.toDp() }
+                )
+            ) {
+                drawText(yearLayout, color = TextPrimary, topLeft = Offset(0f, 0f))
+            }
         }
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
