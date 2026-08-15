@@ -13,6 +13,13 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
+/** Диапазон брони. source: app / avito / cian / manual. */
+data class BookingRange(
+    val start: LocalDate,
+    val end: LocalDate,
+    val source: String = "manual"
+)
+
 @Immutable
 data class MyPropertyItem(
     val id: String,
@@ -25,9 +32,22 @@ data class MyPropertyItem(
         "free", "free",
         "fullness", "fullness", "fullness", "fullness"
     ),
+    val bookings: List<BookingRange> = emptyList(),
+    val overdue: Boolean = false,
     val year: Int = LocalDate.now().year,
     val month: Int = LocalDate.now().monthValue // 1..12
 )
+
+/**
+ * Статус занятости на дату: по умолчанию свободно,
+ * попадание в диапазон брони — занято, просрочка — expired.
+ */
+fun MyPropertyItem.statusAt(date: LocalDate): String {
+    if (bookings.any { !date.isBefore(it.start) && !date.isAfter(it.end) }) return "fullness"
+    val today = LocalDate.now()
+    if (overdue && date.year == today.year && date.monthValue == today.monthValue) return "expired"
+    return "free"
+}
 
 /**
  * Данные из Figma (node-id=2183:9531):
@@ -41,12 +61,25 @@ data class MyPropertyItem(
  *   свободно — fill #EFEFEF / stroke #727272 (МАР, АПР)
  */
 private val figmaProperties = listOf(
-    MyPropertyItem("1", "БЦ Пять морей", "пер. Серебряного бора"),
-    MyPropertyItem("2", "БЦ Легенда", "пр. Космонавтов, 1"),
-    MyPropertyItem("3", "Квартира 12", "ул. Ленина")
+    MyPropertyItem(
+        "1", "БЦ Пять морей", "пер. Серебряного бора",
+        bookings = listOf(
+            BookingRange(LocalDate.now().plusDays(15), LocalDate.now().plusDays(40)),
+            BookingRange(LocalDate.now().plusMonths(4).withDayOfMonth(1), LocalDate.now().plusMonths(4).withDayOfMonth(25))
+        )
+    ),
+    MyPropertyItem("2", "БЦ Легенда", "пр. Космонавтов, 1", overdue = true),
+    MyPropertyItem(
+        "3", "Квартира 12", "ул. Ленина",
+        bookings = listOf(
+            BookingRange(LocalDate.now().plusMonths(1).withDayOfMonth(5), LocalDate.now().plusMonths(1).withDayOfMonth(18))
+        )
+    )
 )
 
 enum class ViewMode { MONTHS, DAYS }
+
+enum class DisplayMode { CARDS, TABLE }
 
 @HiltViewModel
 class MyPropertiesViewModel @Inject constructor(
@@ -57,6 +90,9 @@ class MyPropertiesViewModel @Inject constructor(
 
     private val _viewMode = MutableStateFlow(ViewMode.MONTHS)
     val viewMode: StateFlow<ViewMode> = _viewMode.asStateFlow()
+
+    private val _displayMode = MutableStateFlow(DisplayMode.CARDS)
+    val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
 
     init {
         refresh()
@@ -76,6 +112,10 @@ class MyPropertiesViewModel @Inject constructor(
 
     fun setViewMode(mode: ViewMode) {
         _viewMode.value = mode
+    }
+
+    fun setDisplayMode(mode: DisplayMode) {
+        _displayMode.value = mode
     }
 
     fun selectPeriod(propertyId: String, year: Int, month: Int) {

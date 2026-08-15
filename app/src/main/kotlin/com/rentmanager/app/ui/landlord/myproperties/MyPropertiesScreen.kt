@@ -121,6 +121,7 @@ fun MyPropertiesScreen(
 ) {
     val properties by viewModel.properties.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
+    val displayMode by viewModel.displayMode.collectAsState()
     var pickerPropertyId by remember { mutableStateOf<String?>(null) }
 
     // Общий кэш раскладки текста шапки: мерим уникальные подписи один раз.
@@ -183,23 +184,37 @@ fun MyPropertiesScreen(
                 onModeChange = { viewModel.setViewMode(it) }
             )
 
-            // Список объектов (скроллится, остальное — статично)
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                items(properties, key = { it.id }) { property ->
-                    PropertyCard(
-                        property = property,
-                        viewMode = viewMode,
-                        cameraPainter = cameraPainter,
-                        headerLayoutCache = headerLayoutCache,
-                        onClick = { onPropertyClick(property.id) },
-                        onPeriodClick = { pickerPropertyId = property.id }
-                    )
+            DisplayModeToggle(
+                currentMode = displayMode,
+                onModeChange = { viewModel.setDisplayMode(it) }
+            )
+
+            // Отображение: карточки (независимая шахматка) или общая таблица
+            when (displayMode) {
+                DisplayMode.CARDS -> LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    items(properties, key = { it.id }) { property ->
+                        PropertyCard(
+                            property = property,
+                            viewMode = viewMode,
+                            cameraPainter = cameraPainter,
+                            headerLayoutCache = headerLayoutCache,
+                            onClick = { onPropertyClick(property.id) },
+                            onPeriodClick = { pickerPropertyId = property.id }
+                        )
+                    }
                 }
+                DisplayMode.TABLE -> ScheduleTable(
+                    properties = properties,
+                    viewMode = viewMode,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                )
             }
         }
     }
@@ -326,6 +341,43 @@ private fun ViewModeToggle(
                 label = "Сутки",
                 active = currentMode == ViewMode.DAYS,
                 onClick = { onModeChange(ViewMode.DAYS) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DisplayModeToggle(
+    currentMode: DisplayMode,
+    onModeChange: (DisplayMode) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(100.dp))
+                .background(ToggleBg)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ToggleSegment(
+                label = "Карточки",
+                active = currentMode == DisplayMode.CARDS,
+                onClick = { onModeChange(DisplayMode.CARDS) }
+            )
+            ToggleSegment(
+                label = "Таблица",
+                active = currentMode == DisplayMode.TABLE,
+                onClick = { onModeChange(DisplayMode.TABLE) }
             )
         }
     }
