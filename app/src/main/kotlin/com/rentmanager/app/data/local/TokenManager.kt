@@ -59,9 +59,9 @@ class TokenManager @Inject constructor(
         get() = prefs.getString("avatar_url", null)
         set(value) = prefs.edit().putString("avatar_url", value).apply()
 
-    var lastUpdatePromptVersion: Int
-        get() = prefs.getInt("last_update_prompt_version", 0)
-        set(value) = prefs.edit().putInt("last_update_prompt_version", value).apply()
+    // В памяти (не в SharedPreferences): сбрасывается при смерти процесса,
+    // поэтому «Позже» забывается после свайпа и снова показывается на холодном старте.
+    var lastUpdatePromptVersion: Int = 0
 
     var useBiometric: Boolean
         get() = prefs.getBoolean("use_biometric", false)

@@ -77,6 +77,9 @@ class UpdateManager @Inject constructor(
         }
     }
 
+    fun isForced(info: VersionResponse): Boolean =
+        info.forceUpdate || BuildConfig.VERSION_CODE < info.minClientVersion
+
     fun canInstallUnknownApps(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.packageManager.canRequestPackageInstalls()

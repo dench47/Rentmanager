@@ -28,8 +28,13 @@ import com.rentmanager.app.ui.navigation.RentManagerNavGraph
 import com.rentmanager.app.ui.theme.RentManagerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.rentmanager.app.ui.components.ForcedUpdateScreen
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -37,7 +42,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var tokenManager: TokenManager
     @Inject lateinit var updateManager: UpdateManager
 
-    private var pendingUpdateInfo: VersionResponse? = null
+    private val retryDownloadSignal = mutableIntStateOf(0)
 
     private val callPhonePermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* granted or denied — no action needed */ }
@@ -48,10 +53,8 @@ class MainActivity : FragmentActivity() {
 
     private val installPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            val info = pendingUpdateInfo
-            if (info != null && updateManager.canInstallUnknownApps()) {
-                pendingUpdateInfo = null
-                // Retry download
+            if (updateManager.canInstallUnknownApps()) {
+                retryDownloadSignal.intValue += 1
             }
         }
 
@@ -104,66 +107,107 @@ class MainActivity : FragmentActivity() {
         setContent {
             RentManagerTheme {
                 var updateInfo by remember { mutableStateOf<VersionResponse?>(null) }
+                var updateForced by remember { mutableStateOf(false) }
                 var isDownloading by remember { mutableStateOf(false) }
                 var downloadProgress by remember { mutableFloatStateOf(0f) }
-                var downloadedFile by remember { mutableStateOf<File?>(null) }
+                var updateError by remember { mutableStateOf<String?>(null) }
                 val scope = rememberCoroutineScope()
 
-                // Проверка обновлений при запуске — только если авторизован
-                LaunchedEffect(tokenManager.accessToken) {
-                    if (tokenManager.accessToken == null) return@LaunchedEffect
-                    val result = updateManager.checkForUpdate()
-                    if (result is UpdateResult.Available) {
-                        val info = result.info
-                        if (info.versionCode > tokenManager.lastUpdatePromptVersion) {
-                            tokenManager.lastUpdatePromptVersion = info.versionCode
+                fun checkUpdate() {
+                    if (isDownloading || updateInfo != null) return
+                    scope.launch {
+                        val result = updateManager.checkForUpdate()
+                        if (result is UpdateResult.Available) {
+                            val info = result.info
+                            val forced = updateManager.isForced(info)
+                            if (!forced && info.versionCode <= tokenManager.lastUpdatePromptVersion) {
+                                return@launch
+                            }
                             updateInfo = info
+                            updateForced = forced
+                            updateError = null
                         }
                     }
                 }
 
-                // Показываем диалог если есть обновление и пользователь авторизован
-                if (updateInfo != null && tokenManager.accessToken != null) {
-                    UpdateDialog(
-                        info = updateInfo!!,
-                        isDownloading = isDownloading,
-                        progress = downloadProgress,
-                        onDownload = {
-                            val info = updateInfo!!
-
-                            // Проверяем разрешение на установку
-                            if (!updateManager.canInstallUnknownApps()) {
-                                pendingUpdateInfo = info
-                                val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                                        data = Uri.parse("package:$packageName")
-                                    }
-                                } else {
-                                    Intent()
-                                }
-                                installPermissionLauncher.launch(intent)
-                                return@UpdateDialog
+                fun startDownload() {
+                    val info = updateInfo ?: return
+                    if (!updateManager.canInstallUnknownApps()) {
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                data = Uri.parse("package:$packageName")
                             }
-
-                            // Загружаем APK с прогрессом
-                            isDownloading = true
-                            scope.launch {
-                                try {
-                                    val file = updateManager.downloadApk(info.apkUrl) { progress ->
-                                        downloadProgress = progress
-                                    }
-                                    downloadedFile = file
-                                    updateInfo = null
-                                    isDownloading = false
-                                    updateManager.installApk(file)
-                                } catch (_: Exception) {
-                                    isDownloading = false
-                                    downloadProgress = 0f
-                                    updateInfo = null
-                                }
-                            }
+                        } else {
+                            Intent()
                         }
-                    )
+                        installPermissionLauncher.launch(intent)
+                        return
+                    }
+                    isDownloading = true
+                    updateError = null
+                    scope.launch {
+                        try {
+                            val file = updateManager.downloadApk(info.apkUrl) { progress ->
+                                downloadProgress = progress
+                            }
+                            updateInfo = null
+                            updateForced = false
+                            isDownloading = false
+                            updateManager.installApk(file)
+                        } catch (_: Exception) {
+                            isDownloading = false
+                            downloadProgress = 0f
+                            updateError = "Не удалось загрузить обновление. Проверьте интернет и нажмите «Повторить»."
+                        }
+                    }
+                }
+
+                fun dismissRecommended() {
+                    val info = updateInfo ?: return
+                    tokenManager.lastUpdatePromptVersion = info.versionCode
+                    updateInfo = null
+                    updateError = null
+                }
+
+                // Проверка при холодном старте
+                LaunchedEffect(Unit) { checkUpdate() }
+
+                // Проверка при возврате из фона
+                val lifecycleOwner = LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) checkUpdate()
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
+
+                // Ретрай загрузки после выдачи разрешения на установку
+                LaunchedEffect(retryDownloadSignal.intValue) {
+                    if (retryDownloadSignal.intValue > 0) startDownload()
+                }
+
+                if (updateInfo != null) {
+                    if (updateForced) {
+                        ForcedUpdateScreen(
+                            info = updateInfo!!,
+                            isDownloading = isDownloading,
+                            progress = downloadProgress,
+                            errorMessage = updateError,
+                            onDownload = { startDownload() },
+                            onRetry = { startDownload() }
+                        )
+                    } else {
+                        UpdateDialog(
+                            info = updateInfo!!,
+                            isDownloading = isDownloading,
+                            progress = downloadProgress,
+                            errorMessage = updateError,
+                            onDownload = { startDownload() },
+                            onLater = { dismissRecommended() },
+                            onRetry = { startDownload() }
+                        )
+                    }
                 }
 
                 RentManagerNavGraph(tokenManager = tokenManager)

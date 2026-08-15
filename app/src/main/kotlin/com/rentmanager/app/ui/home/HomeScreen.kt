@@ -53,7 +53,7 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showNameDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(uiState.userName) {
+    LaunchedEffect(uiState.isProfileLoaded) {
         if (uiState.isProfileLoaded && uiState.userName.isEmpty()) {
             showNameDialog = true
         }
