@@ -39,9 +39,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rentmanager.app.ui.theme.InterFontFamily
 
 @Composable
 fun StepProgressBar(currentStep: Int, totalSteps: Int = 3, modifier: Modifier = Modifier) {
@@ -93,17 +93,17 @@ fun RoleButton(text: String, isSelected: Boolean, onClick: () -> Unit, modifier:
 }
 
 @Composable
-fun DashboardCard(@DrawableRes iconRes: Int, title: String, showBadge: Boolean = false, twoLines: Boolean = false, onClick: () -> Unit, @SuppressLint("ModifierParameter") modifier: Modifier = Modifier) {
-    Box(modifier = modifier.width(174.dp).height(120.dp).clip(RoundedCornerShape(30.dp)).background(Color(0xFFEFEFEF)).clickable { onClick() }
-        .padding(horizontal = 12.dp, vertical = if (twoLines) 10.dp else 20.dp), contentAlignment = Alignment.Center
+fun DashboardCard(@DrawableRes iconRes: Int, title: String, showBadge: Boolean = false, onClick: () -> Unit, @SuppressLint("ModifierParameter") modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxWidth().height(124.dp).clip(RoundedCornerShape(30.dp)).background(Color(0xFFEFEFEF)).clickable { onClick() }
+        .padding(horizontal = 20.dp, vertical = 15.dp), contentAlignment = Alignment.TopCenter
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(50.dp), Alignment.Center) {
                 Image(painter = painterResource(iconRes), contentDescription = title, modifier = Modifier.size(50.dp), contentScale = ContentScale.Fit)
                 if (showBadge) Box(Modifier.size(12.dp).clip(CircleShape).background(Color(0xFF9ED091)).align(Alignment.TopEnd))
             }
-            Spacer(Modifier.height(if (twoLines) 6.dp else 8.dp))
-            Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xE5151515), letterSpacing = (-0.4).sp, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(8.dp))
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = InterFontFamily, color = Color(0xFF000000), letterSpacing = (-0.4).sp, textAlign = TextAlign.Center, maxLines = 2)
         }
     }
 }

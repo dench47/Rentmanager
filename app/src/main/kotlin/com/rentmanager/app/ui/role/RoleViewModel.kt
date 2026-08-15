@@ -13,7 +13,6 @@ data class RoleCard(
     val id: String,
     val title: String,
     @DrawableRes val iconRes: Int,
-    val twoLines: Boolean = false,
     val showBadge: Boolean = false
 )
 
@@ -52,7 +51,7 @@ class RoleViewModel : ViewModel() {
                     nextPaymentAmount = "130 000 ₽",
                     monthlyIncome = "1 700 000 ₽/мес",
                     cards = listOf(
-                        RoleCard("1", "Моя недвижимость", R.drawable.ic_card_my_properties),
+                        RoleCard("1", "Моя\nнедвижимость", R.drawable.ic_card_my_properties),
                         RoleCard("2", "Арендаторы", R.drawable.ic_card_tenants),
                         RoleCard("3", "Другие объекты", R.drawable.ic_card_other),
                         RoleCard("4", "Финансы", R.drawable.ic_card_finance),
@@ -70,9 +69,9 @@ class RoleViewModel : ViewModel() {
                     nextPaymentDate = "10.02.2026",
                     nextPaymentAmount = "130 000 ₽",
                     cards = listOf(
-                        RoleCard("1", "Недвижимость\nв пользовании", R.drawable.ic_card_my_properties, twoLines = true),
+                        RoleCard("1", "Недвижимость\nв пользовании", R.drawable.ic_card_my_properties),
                         RoleCard("2", "Арендодатели", R.drawable.ic_card_tenants),
-                        RoleCard("3", "Другие объекты\nв пользовании", R.drawable.ic_card_other, twoLines = true),
+                        RoleCard("3", "Другие объекты\nв пользовании", R.drawable.ic_card_other),
                         RoleCard("4", "Финансы", R.drawable.ic_card_finance),
                         RoleCard("5", "Сообщения", R.drawable.ic_card_messages_no_badge),
                         RoleCard("6", "Заказать услугу", R.drawable.ic_card_service)
