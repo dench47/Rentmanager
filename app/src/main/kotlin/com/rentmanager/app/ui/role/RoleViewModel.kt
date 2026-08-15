@@ -20,12 +20,11 @@ data class RoleCard(
 data class RoleUiState(
     val role: UserRole,
     val title: String,
-    val hasProperties: Boolean,
+    val hasDeals: Boolean,
+    val hasDebt: Boolean = false,
     val nextPaymentDate: String = "",
     val nextPaymentAmount: String = "",
     val monthlyIncome: String = "",
-    val isPaid: Boolean = true,
-    val hasPaymentButton: Boolean = false,
     val hasUnreadMessages: Boolean = true,
     val cards: List<RoleCard> = emptyList()
 )
@@ -36,22 +35,22 @@ class RoleViewModel : ViewModel() {
         RoleUiState(
             role = UserRole.LANDLORD,
             title = "",
-            hasProperties = false
+            hasDeals = false
         )
     )
     val uiState: StateFlow<RoleUiState> = _uiState.asStateFlow()
 
-    fun setRole(role: UserRole) {
+    fun setRole(role: UserRole, hasDeals: Boolean = true, hasDebt: Boolean = false) {
         when (role) {
             UserRole.LANDLORD -> {
                 _uiState.value = RoleUiState(
                     role = UserRole.LANDLORD,
                     title = "Арендодатель",
-                    hasProperties = true,
+                    hasDeals = hasDeals,
+                    hasDebt = hasDebt,
                     nextPaymentDate = "10.02.2026",
                     nextPaymentAmount = "130 000 ₽",
                     monthlyIncome = "1 700 000 ₽/мес",
-                    isPaid = true,
                     cards = listOf(
                         RoleCard("1", "Моя недвижимость", R.drawable.ic_card_my_properties),
                         RoleCard("2", "Арендаторы", R.drawable.ic_card_tenants),
@@ -66,10 +65,10 @@ class RoleViewModel : ViewModel() {
                 _uiState.value = RoleUiState(
                     role = UserRole.TENANT,
                     title = "Арендатор",
-                    hasProperties = false,
+                    hasDeals = hasDeals,
+                    hasDebt = hasDebt,
                     nextPaymentDate = "10.02.2026",
                     nextPaymentAmount = "130 000 ₽",
-                    isPaid = true,
                     cards = listOf(
                         RoleCard("1", "Недвижимость\nв пользовании", R.drawable.ic_card_my_properties, twoLines = true),
                         RoleCard("2", "Арендодатели", R.drawable.ic_card_tenants),

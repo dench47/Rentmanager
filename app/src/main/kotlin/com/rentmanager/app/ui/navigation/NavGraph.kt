@@ -61,7 +61,9 @@ fun RentManagerNavGraph(
     // Принудительная навигация на PIN при возврате из фона
     LaunchedEffect(requirePin) {
         if (requirePin) {
-            navController.navigate(Screen.PinEntry.route)
+            navController.navigate(Screen.PinEntry.route) {
+                launchSingleTop = true
+            }
         }
     }
 

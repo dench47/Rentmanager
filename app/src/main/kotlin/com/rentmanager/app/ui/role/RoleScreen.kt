@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +51,7 @@ fun RoleScreen(
     onNavigateToLandlordsList: () -> Unit = {},
     onNavigateToTenantProperties: () -> Unit = {},
     onBackToMain: () -> Unit = {},
+    onPay: () -> Unit = {},
     viewModel: RoleViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -91,17 +93,18 @@ fun RoleScreen(
                 // Reduced gap between title and stats (Figma: itemSpacing=28 → 12dp saves space)
                 Spacer(Modifier.height(12.dp))
 
-                // Stats section — only if hasProperties
-                if (uiState.hasProperties) {
-                    when (uiState.role) {
-                        UserRole.LANDLORD -> LandlordStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.monthlyIncome, uiState.isPaid)
-                        UserRole.TENANT -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.isPaid)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                } else {
-                    // Reserve space equal to landlord stats height to keep banner position stable
-                    Spacer(Modifier.height(118.dp))
+                // Секция статистики: 3 состояния — нет сделок / всё хорошо / задолженность
+                when {
+                    !uiState.hasDeals -> EmptyStateBlock(
+                        role = uiState.role,
+                        onAction = {
+                            if (uiState.role == UserRole.LANDLORD) onNavigateToMyProperties() else onNavigateToOtherProperties()
+                        }
+                    )
+                    uiState.role == UserRole.LANDLORD -> LandlordStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.monthlyIncome, uiState.hasDebt)
+                    else -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.hasDebt, onPay)
                 }
+                Spacer(Modifier.height(8.dp))
 
                 // Cards grid
                 LazyVerticalGrid(
@@ -152,41 +155,107 @@ private fun handleCardClick(
 }
 
 @Composable
-private fun LandlordStatsSection(paymentDate: String, paymentAmount: String, monthlyIncome: String, isPaid: Boolean) {
+private fun LandlordStatsSection(paymentDate: String, paymentAmount: String, monthlyIncome: String, hasDebt: Boolean) {
     Column(modifier = Modifier.width(353.dp)) {
         Row(modifier = Modifier.width(353.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(modifier = Modifier.width(163.dp)) {
-                Text("Ближайшее поступление $paymentDate", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color(0x99151515), letterSpacing = (-0.4).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("Ближайшее поступление $paymentDate", fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Color(0x99151515), letterSpacing = (-0.4).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
-                Text(paymentAmount, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
+                Text(paymentAmount, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
             }
             Column(modifier = Modifier.width(122.dp)) {
-                Text("Доход \nпо всем объектам", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color(0x99151515), letterSpacing = (-0.4).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("Доход \nпо всем объектам", fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Color(0x99151515), letterSpacing = (-0.4).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
-                Text(monthlyIncome, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
+                Text(monthlyIncome, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
             }
         }
         Spacer(Modifier.height(12.dp))
         Box(modifier = Modifier.width(353.dp).height(48.dp).clip(RoundedCornerShape(100.dp)).background(Color.Transparent), contentAlignment = Alignment.Center) {
-            Text(if (isPaid) "Просрочек нет" else "Просрочено", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF7AB66A), letterSpacing = (-0.4).sp)
+            Text(
+                if (hasDebt) "Есть задолженность" else "Просрочек нет",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (hasDebt) Color(0xFFFF4249) else Color(0xFF66A256),
+                letterSpacing = (-0.4).sp
+            )
         }
     }
 }
 
 @Composable
-private fun TenantStatsSection(paymentDate: String, paymentAmount: String, isPaid: Boolean) {
+private fun TenantStatsSection(paymentDate: String, paymentAmount: String, hasDebt: Boolean, onPay: () -> Unit) {
     Column(modifier = Modifier.width(353.dp)) {
-        Text("Ближайший платеж до $paymentDate", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color(0x99151515), letterSpacing = (-0.4).sp)
+        Text("Ближайший платеж до $paymentDate", fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Color(0x99151515), letterSpacing = (-0.4).sp)
         Spacer(Modifier.height(4.dp))
-        Text(paymentAmount, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
+        Text(paymentAmount, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
         Spacer(Modifier.height(12.dp))
-        Box(modifier = Modifier.width(353.dp).height(48.dp), contentAlignment = Alignment.Center) {
-            Text(if (isPaid) "Просрочек нет" else "Просрочено", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF7AB66A), letterSpacing = (-0.4).sp)
+        Row(
+            modifier = Modifier.width(353.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (hasDebt) "Есть задолженность" else "Просрочек нет",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (hasDebt) Color(0xFFFF4249) else Color(0xFF66A256),
+                letterSpacing = (-0.4).sp
+            )
+            Box(
+                modifier = Modifier
+                    .width(183.dp)
+                    .height(49.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color(0xFF212121))
+                    .clickable { onPay() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Оплатить", fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color.White, letterSpacing = (-0.4).sp)
+            }
         }
     }
 }
 
-@Preview(showBackground = true, name = "Арендодатель")
+@Composable
+private fun EmptyStateBlock(role: UserRole, onAction: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(353.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFFF5F5F5))
+            .padding(horizontal = 24.dp, vertical = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            if (role == UserRole.LANDLORD) "Добавьте первый объект" else "Найдите объект",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFF212121),
+            letterSpacing = (-0.4).sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(16.dp))
+        Box(
+            modifier = Modifier
+                .width(183.dp)
+                .height(49.dp)
+                .clip(RoundedCornerShape(100.dp))
+                .background(Color(0xFF212121))
+                .clickable { onAction() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                if (role == UserRole.LANDLORD) "Добавить" else "Найти",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White,
+                letterSpacing = (-0.4).sp
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true, name = "Арендодатель — всё хорошо")
 @Composable
 private fun PreviewRoleScreenLandlord() {
     RentManagerTheme {
@@ -196,12 +265,22 @@ private fun PreviewRoleScreenLandlord() {
     }
 }
 
-@Preview(showBackground = true, name = "Арендатор")
+@Preview(showBackground = true, name = "Арендатор — задолженность")
 @Composable
 private fun PreviewRoleScreenTenant() {
     RentManagerTheme {
         val vm = RoleViewModel()
-        vm.setRole(UserRole.TENANT)
+        vm.setRole(UserRole.TENANT, hasDebt = true)
         RoleScreen(role = UserRole.TENANT, viewModel = vm)
+    }
+}
+
+@Preview(showBackground = true, name = "Нет сделок")
+@Composable
+private fun PreviewRoleScreenEmpty() {
+    RentManagerTheme {
+        val vm = RoleViewModel()
+        vm.setRole(UserRole.LANDLORD, hasDeals = false)
+        RoleScreen(role = UserRole.LANDLORD, viewModel = vm)
     }
 }

@@ -79,10 +79,11 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Холодный старт — сбрасываем состояние фона
+        // Холодный старт — сбрасываем состояние фона, чтобы не требовать PIN повторно после обновления
         if (savedInstanceState == null) {
             tokenManager.lastRoute = null
             tokenManager.requirePin = false
+            tokenManager.lastPauseTimestamp = 0L
         }
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
