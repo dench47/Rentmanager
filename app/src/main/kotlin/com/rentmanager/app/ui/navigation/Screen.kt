@@ -9,7 +9,9 @@ sealed class Screen(val route: String) {
 
     // Pin
     data object PinEntry : Screen("pin/entry")
-    data object PinSetup : Screen("pin/setup")
+    data object PinSetup : Screen("pin/setup?onboarding={onboarding}") {
+        fun createRoute(onboarding: Boolean = false) = "pin/setup?onboarding=$onboarding"
+    }
 
     // Main
     data object MainScreen : Screen("main")

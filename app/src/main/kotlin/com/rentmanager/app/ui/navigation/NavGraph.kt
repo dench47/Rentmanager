@@ -44,11 +44,7 @@ fun RentManagerNavGraph(
         } else if (requirePin || tokenManager.hasPassword) {
             Screen.PinEntry.route
         } else {
-            when (tokenManager.defaultStartScreen) {
-                "landlord" -> Screen.RoleScreen.createRoute("landlord")
-                "tenant" -> Screen.RoleScreen.createRoute("tenant")
-                else -> Screen.MainScreen.route
-            }
+            tokenManager.startRoute()
         }
     }
 
@@ -85,9 +81,15 @@ fun RentManagerNavGraph(
         // ========== Auth Flow (Verify) ==========
         composable(Screen.Verify.route) {
             VerifyScreen(
-                onVerified = {
-                    navController.navigate(Screen.MainScreen.route) {
-                        popUpTo(0) { inclusive = true }
+                onVerified = { isNewUser ->
+                    if (isNewUser) {
+                        navController.navigate(Screen.PinSetup.createRoute(onboarding = true)) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate(Screen.MainScreen.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
                     }
                 }
             )
@@ -346,10 +348,21 @@ fun RentManagerNavGraph(
         }
 
         // ========== Pin Setup ==========
-        composable(Screen.PinSetup.route) {
+        composable(
+            route = Screen.PinSetup.route,
+            arguments = listOf(navArgument("onboarding") { type = NavType.BoolType; defaultValue = false })
+        ) { backStackEntry ->
+            val onboarding = backStackEntry.arguments?.getBoolean("onboarding") ?: false
             PinSetupScreen(
+                isOnboarding = onboarding,
                 onBack = {
-                    navController.navigate(Screen.Settings.route)
+                    if (onboarding) {
+                        navController.navigate(Screen.MainScreen.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate(Screen.Settings.route)
+                    }
                 }
             )
         }
@@ -370,7 +383,7 @@ fun RentManagerNavGraph(
                         navController.popBackStack()
                     } else {
                         // PIN — стартовый экран (холодный запуск) — навигация вперёд
-                        val destination = tokenManager.lastRoute ?: Screen.MainScreen.route
+                        val destination = tokenManager.lastRoute ?: tokenManager.startRoute()
                         tokenManager.lastRoute = null
                         navController.navigate(destination) {
                             popUpTo(0) { inclusive = true }
@@ -394,7 +407,7 @@ fun RentManagerNavGraph(
                     }
                 },
                 onPinSetupClick = {
-                    navController.navigate(Screen.PinSetup.route)
+                    navController.navigate(Screen.PinSetup.createRoute())
                 },
                 onNavigateToPhoneVerify = { phone ->
                     navController.navigate(Screen.Verify.route) {
@@ -411,4 +424,10 @@ fun RentManagerNavGraph(
             )
         }
     }
+}
+
+private fun TokenManager.startRoute(): String = when (defaultStartScreen) {
+    "landlord" -> Screen.RoleScreen.createRoute("landlord")
+    "tenant" -> Screen.RoleScreen.createRoute("tenant")
+    else -> Screen.MainScreen.route
 }

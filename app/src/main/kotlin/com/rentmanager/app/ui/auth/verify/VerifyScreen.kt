@@ -168,7 +168,7 @@ class PhoneMaskTransformation(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VerifyScreen(
-    onVerified: (String) -> Unit,
+    onVerified: (Boolean) -> Unit,
     viewModel: VerifyViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -185,13 +185,13 @@ fun VerifyScreen(
 
     LaunchedEffect(uiState.isVerified) {
         if (uiState.isVerified) {
-            onVerified(uiState.phone)
+            onVerified(uiState.isNewUser)
         }
     }
 
     LaunchedEffect(uiState.isCalling) {
         if (uiState.isCalling) {
-            viewModel.startCallChecking(onSuccess = { phone -> onVerified(phone) })
+            viewModel.startCallChecking(onSuccess = { })
         }
     }
 
@@ -374,7 +374,7 @@ fun VerifyScreen(
 
                     PrimaryButton(
                         text = "Продолжить",
-                        onClick = { viewModel.onContinue(onSuccess = { onVerified(it) }) },
+                        onClick = { viewModel.onContinue(onSuccess = { }) },
                         enabled = uiState.phone.removePrefix(uiState.selectedCountry.phonePrefix).length == uiState.selectedCountry.maxDigits,
                         isLoading = uiState.isLoading
                     )

@@ -25,6 +25,7 @@ data class VerifyUiState(
     val callPhone: String = "",
     val callPhonePretty: String = "",
     val isVerified: Boolean = false,
+    val isNewUser: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -85,7 +86,7 @@ class VerifyViewModel @Inject constructor(
                         tokenManager.fcmToken?.let { fcm ->
                             launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
                         }
-                        _uiState.update { it.copy(isLoading = false, isVerified = true) }
+                        _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false) }
                         onSuccess(phone)
                         return@launch
                     }
@@ -139,7 +140,7 @@ class VerifyViewModel @Inject constructor(
                             tokenManager.fcmToken?.let { fcm ->
                                 launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
                             }
-                            _uiState.update { it.copy(isVerified = true, isCalling = false) }
+                            _uiState.update { it.copy(isVerified = true, isCalling = false, isNewUser = true) }
                             onSuccess(phone)
                             return@launch
                         }

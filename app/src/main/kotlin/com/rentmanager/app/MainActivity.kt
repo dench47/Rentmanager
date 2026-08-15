@@ -56,7 +56,7 @@ class MainActivity : FragmentActivity() {
         }
 
     companion object {
-        private const val BACKGROUND_TIMEOUT_MS = 30_000L
+        private const val BACKGROUND_TIMEOUT_MS = 60_000L
     }
 
     override fun onPause() {
