@@ -25,6 +25,11 @@ class ScheduleGridView(context: Context) : View(context) {
         style = Paint.Style.STROKE
         strokeWidth = 1f * density
     }
+    private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2f * density
+        color = 0xFF007AFF.toInt()
+    }
     private val monthPaint = textPaint(11f)
     private val dayPaint = textPaint(14f)
     private val weekdayPaint = textPaint(9f)
@@ -33,6 +38,9 @@ class ScheduleGridView(context: Context) : View(context) {
     private var topLabels: List<String?> = emptyList()
     private var states: List<String> = emptyList()
     private var twoLine = false
+
+    private var selectionStart: Int? = null
+    private var selectionEnd: Int? = null
 
     private fun textPaint(sp: Float): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = sp * scaledDensity
@@ -54,6 +62,12 @@ class ScheduleGridView(context: Context) : View(context) {
         invalidate()
     }
 
+    fun setSelection(start: Int?, end: Int?) {
+        selectionStart = start
+        selectionEnd = end
+        invalidate()
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val count = labels.size
         val w = (count * cellW + (count - 1).coerceAtLeast(0) * gap).toInt()
@@ -62,6 +76,8 @@ class ScheduleGridView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        val selLo = selectionStart?.let { s -> selectionEnd?.let { e -> minOf(s, e) } ?: s }
+        val selHi = selectionStart?.let { s -> selectionEnd?.let { e -> maxOf(s, e) } ?: s }
         var x = 0f
         for (i in labels.indices) {
             val (bg, stroke, text) = colorsFor(states.getOrElse(i) { "" })
@@ -70,6 +86,10 @@ class ScheduleGridView(context: Context) : View(context) {
             strokePaint.color = stroke
             canvas.drawRoundRect(rect, radius, radius, bgPaint)
             canvas.drawRoundRect(rect, radius, radius, strokePaint)
+
+            if (selLo != null && selHi != null && i in selLo..selHi) {
+                canvas.drawRoundRect(rect, radius, radius, highlightPaint)
+            }
 
             val top = topLabels.getOrNull(i)
             if (twoLine && top != null) {

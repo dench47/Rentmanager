@@ -238,6 +238,9 @@ fun RentManagerNavGraph(
                 },
                 onEdit = {
                     navController.navigate(Screen.EditProperty.createRoute(propertyId))
+                },
+                onPaymentSchedule = {
+                    navController.navigate(Screen.PaymentSchedule.route)
                 }
             )
         }

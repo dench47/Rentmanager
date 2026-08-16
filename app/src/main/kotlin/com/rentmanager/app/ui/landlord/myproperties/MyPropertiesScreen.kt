@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +53,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -204,7 +207,8 @@ fun MyPropertiesScreen(
                             cameraPainter = cameraPainter,
                             headerLayoutCache = headerLayoutCache,
                             onClick = { onPropertyClick(property.id) },
-                            onPeriodClick = { pickerPropertyId = property.id }
+                            onPeriodClick = { pickerPropertyId = property.id },
+                            onRangeSelected = { start, end -> viewModel.saveBooking(property.id, start, end) }
                         )
                     }
                 }
@@ -417,7 +421,8 @@ private fun PropertyCard(
     cameraPainter: Painter,
     headerLayoutCache: HeaderLayoutCache,
     onClick: () -> Unit,
-    onPeriodClick: () -> Unit
+    onPeriodClick: () -> Unit,
+    onRangeSelected: (LocalDate, LocalDate) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -506,7 +511,8 @@ private fun PropertyCard(
             property = property,
             viewMode = viewMode,
             year = property.year,
-            month = property.month
+            month = property.month,
+            onRangeSelected = onRangeSelected
         )
     }
 }
@@ -524,11 +530,16 @@ private fun ScheduleRow(
     property: MyPropertyItem,
     viewMode: ViewMode,
     year: Int,
-    month: Int
+    month: Int,
+    onRangeSelected: (LocalDate, LocalDate) -> Unit
 ) {
-    val (labels, topLabels, states) = remember(viewMode, year, month, property) {
+    val cells = remember(viewMode, year, month, property) {
         buildCells(viewMode, year, month, property)
     }
+    var selectionStart by remember { mutableStateOf<Int?>(null) }
+    var selectionEnd by remember { mutableStateOf<Int?>(null) }
+    val currentOnRangeSelected by rememberUpdatedState(onRangeSelected)
+    val cellPitchPx = with(LocalDensity.current) { (44.dp + 4.dp).toPx() }
 
     Row(
         modifier = Modifier
@@ -538,11 +549,44 @@ private fun ScheduleRow(
             .logMeasure("ScheduleRow"),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AndroidView(
-            factory = { context -> ScheduleGridView(context) },
-            modifier = Modifier.height(39.dp),
-            update = { view -> view.setData(labels, topLabels, states, viewMode == ViewMode.DAYS) }
-        )
+        Box(
+            modifier = Modifier
+                .height(39.dp)
+                .pointerInput(cells) {
+                    detectTapGestures(
+                        onLongPress = { offset ->
+                            if (cells.dates.isNotEmpty()) {
+                                val index = (offset.x / cellPitchPx).toInt()
+                                    .coerceIn(0, cells.dates.lastIndex)
+                                val start = selectionStart
+                                if (start == null) {
+                                    selectionStart = index
+                                    selectionEnd = index
+                                } else {
+                                    val lo = minOf(start, index)
+                                    val hi = maxOf(start, index)
+                                    val startDate = cells.dates.getOrNull(lo)
+                                    val endDate = cells.dates.getOrNull(hi)
+                                    if (startDate != null && endDate != null) {
+                                        currentOnRangeSelected(startDate, endDate)
+                                    }
+                                    selectionStart = null
+                                    selectionEnd = null
+                                }
+                            }
+                        }
+                    )
+                }
+        ) {
+            AndroidView(
+                factory = { context -> ScheduleGridView(context) },
+                modifier = Modifier.height(39.dp),
+                update = { view ->
+                    view.setData(cells.labels, cells.topLabels, cells.states, viewMode == ViewMode.DAYS)
+                    view.setSelection(selectionStart, selectionEnd)
+                }
+            )
+        }
     }
 }
 
@@ -561,12 +605,19 @@ private fun Modifier.logMeasure(tag: String): Modifier = layout { measurable, co
     layout(placeable.width, placeable.height) { placeable.place(0, 0) }
 }
 
+private data class ScheduleCells(
+    val labels: List<String>,
+    val topLabels: List<String?>,
+    val states: List<String>,
+    val dates: List<LocalDate>
+)
+
 private fun buildCells(
     viewMode: ViewMode,
     year: Int,
     month: Int,
     property: MyPropertyItem
-): Triple<List<String>, List<String?>, List<String>> {
+): ScheduleCells {
     val today = LocalDate.now()
     return when (viewMode) {
         ViewMode.MONTHS -> {
@@ -574,10 +625,11 @@ private fun buildCells(
             // будущие годы — полный ЯНВ..ДЕК.
             val startMonth = if (year == today.year) today.monthValue else 1
             val months = (startMonth..12).toList()
-            Triple(
-                months.map { MonthAbbrevLabels[it - 1] },
-                List(months.size) { null },
-                months.map { m -> property.statusAt(LocalDate.of(year, m, 1)) }
+            ScheduleCells(
+                labels = months.map { MonthAbbrevLabels[it - 1] },
+                topLabels = List(months.size) { null },
+                states = months.map { m -> property.statusAt(LocalDate.of(year, m, 1)) },
+                dates = months.map { m -> LocalDate.of(year, m, 1) }
             )
         }
         ViewMode.DAYS -> {
@@ -586,10 +638,11 @@ private fun buildCells(
             val startDay =
                 if (year == today.year && month == today.monthValue) today.dayOfMonth else 1
             val days = (startDay..daysInMonth).toList()
-            Triple(
-                days.map { it.toString() },
-                days.map { day -> weekdayAbbr(LocalDate.of(year, month, day).dayOfWeek) },
-                days.map { day -> property.statusAt(LocalDate.of(year, month, day)) }
+            ScheduleCells(
+                labels = days.map { it.toString() },
+                topLabels = days.map { day -> weekdayAbbr(LocalDate.of(year, month, day).dayOfWeek) },
+                states = days.map { day -> property.statusAt(LocalDate.of(year, month, day)) },
+                dates = days.map { day -> LocalDate.of(year, month, day) }
             )
         }
     }

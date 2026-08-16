@@ -3,6 +3,9 @@ package com.rentmanager.app.ui.landlord.myproperties
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rentmanager.app.data.api.BookingApi
+import com.rentmanager.app.data.api.CreateBookingRequest
+import com.rentmanager.app.data.model.BookingDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PropertyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -49,7 +52,8 @@ enum class DisplayMode { CARDS, TABLE }
 
 @HiltViewModel
 class MyPropertiesViewModel @Inject constructor(
-    private val propertyRepository: PropertyRepository
+    private val propertyRepository: PropertyRepository,
+    private val bookingApi: BookingApi
 ) : ViewModel() {
     private val _properties = MutableStateFlow<List<MyPropertyItem>>(emptyList())
     val properties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
@@ -69,9 +73,21 @@ class MyPropertiesViewModel @Inject constructor(
             try {
                 val resp = propertyRepository.getProperties()
                 if (resp.isSuccessful) {
-                    val apiItems = resp.body()!!.map { it.toMyPropertyItem() }
-                    _properties.value = apiItems
+                    val items = resp.body()!!.map { it.toMyPropertyItem() }
+                    _properties.value = items.map { loadBookings(it) }
                 }
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun saveBooking(propertyId: String, start: LocalDate, end: LocalDate) {
+        viewModelScope.launch {
+            try {
+                val resp = bookingApi.createBooking(
+                    propertyId,
+                    CreateBookingRequest(start.toString(), end.toString())
+                )
+                if (resp.isSuccessful) refresh()
             } catch (_: Exception) { }
         }
     }
@@ -89,6 +105,18 @@ class MyPropertiesViewModel @Inject constructor(
             if (it.id == propertyId) it.copy(year = year, month = month) else it
         }.toMutableList()
     }
+
+    private suspend fun loadBookings(item: MyPropertyItem): MyPropertyItem =
+        try {
+            val resp = bookingApi.getBookings(item.id)
+            if (resp.isSuccessful) {
+                item.copy(bookings = resp.body()!!.map { it.toBookingRange() })
+            } else {
+                item
+            }
+        } catch (_: Exception) {
+            item
+        }
 }
 
 private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
@@ -96,4 +124,10 @@ private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
     name = name,
     address = address,
     photoUrl = photos?.firstOrNull()?.url
+)
+
+private fun BookingDto.toBookingRange(): BookingRange = BookingRange(
+    start = LocalDate.parse(startDate),
+    end = LocalDate.parse(endDate),
+    source = source
 )

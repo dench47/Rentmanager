@@ -1,6 +1,7 @@
 package com.rentmanager.app.di
 
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.ChatApi
 import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.api.PropertyApi
@@ -147,4 +148,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideChatApi(retrofit: Retrofit): ChatApi = retrofit.create(ChatApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideBookingApi(retrofit: Retrofit): BookingApi = retrofit.create(BookingApi::class.java)
 }

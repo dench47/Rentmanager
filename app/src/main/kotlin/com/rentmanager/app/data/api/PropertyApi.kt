@@ -1,8 +1,14 @@
 package com.rentmanager.app.data.api
 
+import com.google.gson.annotations.SerializedName
 import com.rentmanager.app.data.model.PropertyDto
 import retrofit2.Response
 import retrofit2.http.*
+
+data class AttachTenantRequest(
+    @SerializedName("user_id") val userId: String? = null,
+    @SerializedName("tenant_id") val tenantId: String? = null
+)
 
 interface PropertyApi {
 
@@ -20,4 +26,7 @@ interface PropertyApi {
 
     @DELETE("properties/{id}")
     suspend fun deleteProperty(@Path("id") id: String): Response<Unit>
+
+    @POST("properties/{id}/attach_tenant")
+    suspend fun attachTenant(@Path("id") id: String, @Body request: AttachTenantRequest): Response<MessageResponse>
 }

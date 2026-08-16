@@ -98,6 +98,14 @@ data class RegisterDeviceRequest(
 
 data class MessageResponse(val message: String)
 
+data class UserSearchResult(
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("phone") val phone: String,
+    @SerializedName("avatar_url") val avatarUrl: String? = null,
+    @SerializedName("is_landlord") val isLandlord: Boolean = false
+)
+
 data class PinAttemptsResponse(
     @com.google.gson.annotations.SerializedName("attempts_left") val attemptsLeft: Int
 )
@@ -121,6 +129,9 @@ interface AuthApi {
 
     @GET("users/me")
     suspend fun getMe(): Response<UserDto>
+
+    @GET("users/search")
+    suspend fun searchUsers(@Query("phone") phone: String): Response<List<UserSearchResult>>
 
     @PUT("auth/profile")
     suspend fun updateProfile(@Body request: UpdateProfileRequest): Response<UserDto>
