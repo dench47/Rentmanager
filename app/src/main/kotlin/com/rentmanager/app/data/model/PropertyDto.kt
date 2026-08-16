@@ -12,6 +12,7 @@ data class PropertyDto(
     @SerializedName("name") val name: String,
     @SerializedName("address") val address: String,
     @SerializedName("area") val area: Double? = null,
+    @SerializedName("description") val description: String? = null,
     @SerializedName("photos") val photos: List<PhotoDto>? = null,
     @SerializedName("tenant_info") val tenantInfo: String? = null,
     @SerializedName("service_info") val serviceInfo: String? = null,

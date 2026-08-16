@@ -58,6 +58,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -82,6 +83,8 @@ fun CreatePropertyScreen(
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var area by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
     var tenantInfo by remember { mutableStateOf("") }
     var serviceInfo by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
@@ -161,35 +164,21 @@ fun CreatePropertyScreen(
                 ) {
                     // 1. Photos section
                     if (photoUris.isEmpty()) {
-                        // Default — large camera icon with label
-                        Card(
-                            modifier = Modifier.fillMaxWidth().height(160.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        // Компактный значок добавления фото
+                        Box(
+                            modifier = Modifier
+                                .size(88.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFF5F5F5))
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize().clickable { galleryLauncher.launch("image/*") },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                Icon(
-                                    Icons.Default.AddAPhoto,
-                                    null,
-                                    Modifier.size(48.dp),
-                                    tint = Color(0xFF8E8E93)
-                                )
-                                Text(
-                                    "Добавить фото",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF8E8E93)
-                                    )
-                                }
-                            }
+                            Icon(
+                                Icons.Default.AddAPhoto,
+                                null,
+                                Modifier.size(32.dp),
+                                tint = Color(0xFF007AFF)
+                            )
                         }
                     } else {
                         // Photos grid — Figma: 88×88dp, cornerRadius 8, gap 8dp
@@ -215,6 +204,23 @@ fun CreatePropertyScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
                                 )
+
+                                if (index == 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .background(Color(0x99000000)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "Основное",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
 
                                 DropdownMenu(
                                     expanded = showPhotoMenuIndex == index,
@@ -267,7 +273,10 @@ fun CreatePropertyScreen(
                     PremiumTextField(value = address, onValueChange = { address = it }, placeholder = "Адрес")
 
                     // 4. Площадь
-                    PremiumTextField(value = area, onValueChange = { area = it }, placeholder = "Площадь (м²)")
+                    PremiumTextField(value = area, onValueChange = { area = it }, placeholder = "Площадь (м²)", keyboardType = KeyboardType.Decimal)
+
+                    // 5. Цена
+                    PremiumTextField(value = price, onValueChange = { price = it }, placeholder = "Цена (₽/мес)", keyboardType = KeyboardType.Decimal)
 
                     // 5. Информация об объекте (accordion)
                     PremiumAccordionCard(
@@ -282,6 +291,13 @@ fun CreatePropertyScreen(
                                 .padding(top = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            PremiumTextField(
+                                value = description,
+                                onValueChange = { description = it },
+                                placeholder = "Описание",
+                                singleLine = false
+                            )
+
                             Row(
                                 Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -376,6 +392,8 @@ fun CreatePropertyScreen(
                                 name = name,
                                 address = address,
                                 area = area,
+                                rentAmount = price,
+                                description = description,
                                 photoUris = photoUris,
                                 serviceInfo = serviceInfo,
                                 phone = phoneNumber,
@@ -413,7 +431,8 @@ private fun PremiumTextField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     singleLine: Boolean = true,
-    imeAction: ImeAction = ImeAction.Default
+    imeAction: ImeAction = ImeAction.Default,
+    keyboardType: KeyboardType = KeyboardType.Text
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -432,7 +451,7 @@ private fun PremiumTextField(
             ),
             cursorBrush = SolidColor(Color(0xFF1D1D1F)),
             singleLine = singleLine,
-            keyboardOptions = KeyboardOptions(imeAction = imeAction),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
             decorationBox = { innerTextField ->
                 Box {
                     if (value.isEmpty()) {
