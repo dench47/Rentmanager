@@ -2,7 +2,6 @@ package com.rentmanager.app.ui.landlord.myproperties
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -60,6 +60,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -77,7 +78,6 @@ private val White = Color.White
 private val TextPrimary = Color(0xFF212121)
 private val TextGray = Color(0xFF727272)
 private val ToggleBg = Color(0xFFEFEFEF)
-private val TabBg = Color(0xFFEDEDED)
 
 // Шахматка (ячейки 44×39, r=4, gap=4)
 private val CellFullBg = Color(0xFFCFDECB)
@@ -503,7 +503,7 @@ private fun PropertyCard(
 
         // Шахматка загруженности
         ScheduleRow(
-            schedule = property.schedule,
+            property = property,
             viewMode = viewMode,
             year = property.year,
             month = property.month
@@ -521,13 +521,13 @@ private class HeaderLayoutCache(
 
 @Composable
 private fun ScheduleRow(
-    schedule: List<String>,
+    property: MyPropertyItem,
     viewMode: ViewMode,
     year: Int,
     month: Int
 ) {
-    val (labels, topLabels, states) = remember(viewMode, year, month, schedule) {
-        buildCells(viewMode, year, month, schedule)
+    val (labels, topLabels, states) = remember(viewMode, year, month, property) {
+        buildCells(viewMode, year, month, property)
     }
 
     Row(
@@ -543,14 +543,6 @@ private fun ScheduleRow(
             modifier = Modifier.height(39.dp),
             update = { view -> view.setData(labels, topLabels, states, viewMode == ViewMode.DAYS) }
         )
-    }
-}
-
-private fun daySchedule(days: Int): List<String> = (1..days).map { day ->
-    when {
-        day % 7 == 1 -> "expired"
-        day % 7 == 2 -> "free"
-        else -> "fullness"
     }
 }
 
@@ -573,7 +565,7 @@ private fun buildCells(
     viewMode: ViewMode,
     year: Int,
     month: Int,
-    schedule: List<String>
+    property: MyPropertyItem
 ): Triple<List<String>, List<String?>, List<String>> {
     val today = LocalDate.now()
     return when (viewMode) {
@@ -585,7 +577,7 @@ private fun buildCells(
             Triple(
                 months.map { MonthAbbrevLabels[it - 1] },
                 List(months.size) { null },
-                schedule.take(months.size)
+                months.map { m -> property.statusAt(LocalDate.of(year, m, 1)) }
             )
         }
         ViewMode.DAYS -> {
@@ -597,7 +589,7 @@ private fun buildCells(
             Triple(
                 days.map { it.toString() },
                 days.map { day -> weekdayAbbr(LocalDate.of(year, month, day).dayOfWeek) },
-                daySchedule(daysInMonth).subList(startDay - 1, daysInMonth)
+                days.map { day -> property.statusAt(LocalDate.of(year, month, day)) }
             )
         }
     }
@@ -612,48 +604,30 @@ private fun BottomTabBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(TabBg)
+            .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+            .background(Color(0x99EDEDED))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .height(80.dp)
+                .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Финансы
-            TabBarPill(
+            TabItem(
                 iconRes = R.drawable.ic_card_finance,
                 label = "Финансы",
                 onClick = onFinanceClick
             )
-
-            // Создать объект
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clickable { onCreateProperty() }
-                    .padding(horizontal = 15.dp, vertical = 8.dp)
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_plus_circle),
-                    contentDescription = "Создать объект",
-                    modifier = Modifier.size(30.dp),
-                    tint = TextPrimary
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    "Создать объект",
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.Normal,
-                    letterSpacing = (-0.4).sp,
-                    color = TextPrimary
-                )
-            }
-
-            // Написать
-            TabBarPill(
+            TabItem(
+                iconRes = R.drawable.ic_plus_circle,
+                label = "Создать объект",
+                iconSize = 30.dp,
+                onClick = onCreateProperty
+            )
+            TabItem(
                 iconRes = R.drawable.ic_email,
                 label = "Написать",
                 onClick = onWriteClick
@@ -663,24 +637,24 @@ private fun BottomTabBar(
 }
 
 @Composable
-private fun TabBarPill(
+private fun TabItem(
     iconRes: Int,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    iconSize: Dp = 24.dp
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(24.dp))
-            .border(1.dp, TextPrimary, RoundedCornerShape(24.dp))
+            .width(84.dp)
             .clickable { onClick() }
-            .padding(horizontal = 15.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+            .padding(6.dp)
     ) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = label,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(iconSize),
             tint = TextPrimary
         )
         Text(

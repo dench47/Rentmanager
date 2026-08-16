@@ -180,7 +180,7 @@ fun BlackButtonWithIcon(
         contentAlignment = Alignment.Center
     ) {
         Row(
-            Modifier.padding(horizontal = 32.dp, vertical = 10.dp),
+            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
@@ -195,9 +195,11 @@ fun BlackButtonWithIcon(
             Text(
                 text,
                 fontSize = 16.sp,
+                lineHeight = 19.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.White,
-                letterSpacing = (-0.4).sp
+                letterSpacing = (-0.4).sp,
+                maxLines = 1
             )
         }
     }

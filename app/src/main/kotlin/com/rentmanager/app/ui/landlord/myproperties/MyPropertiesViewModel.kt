@@ -26,12 +26,6 @@ data class MyPropertyItem(
     val name: String,
     val address: String,
     val photoUrl: String? = null,
-    val schedule: List<String> = listOf(
-        "fullness", "fullness", "fullness", "fullness", "fullness",
-        "expired",
-        "free", "free",
-        "fullness", "fullness", "fullness", "fullness"
-    ),
     val bookings: List<BookingRange> = emptyList(),
     val overdue: Boolean = false,
     val year: Int = LocalDate.now().year,
@@ -49,34 +43,6 @@ fun MyPropertyItem.statusAt(date: LocalDate): String {
     return "free"
 }
 
-/**
- * Данные из Figma (node-id=2183:9531):
- *   БЦ Пять морей — пер. Серебряного бора
- *   БЦ Легенда — пр. Космонавтов, 1
- *   Квартира 12 — ул. Ленина
- *
- * Шахматка: 12 месяцев (СЕН–АВГ), ячейки 44×39, r=4, gap=4:
- *   занято — fill #CFDECB / stroke #66A256
- *   просрочено — stroke #FF4249 (ФЕВ)
- *   свободно — fill #EFEFEF / stroke #727272 (МАР, АПР)
- */
-private val figmaProperties = listOf(
-    MyPropertyItem(
-        "1", "БЦ Пять морей", "пер. Серебряного бора",
-        bookings = listOf(
-            BookingRange(LocalDate.now().plusDays(15), LocalDate.now().plusDays(40)),
-            BookingRange(LocalDate.now().plusMonths(4).withDayOfMonth(1), LocalDate.now().plusMonths(4).withDayOfMonth(25))
-        )
-    ),
-    MyPropertyItem("2", "БЦ Легенда", "пр. Космонавтов, 1", overdue = true),
-    MyPropertyItem(
-        "3", "Квартира 12", "ул. Ленина",
-        bookings = listOf(
-            BookingRange(LocalDate.now().plusMonths(1).withDayOfMonth(5), LocalDate.now().plusMonths(1).withDayOfMonth(18))
-        )
-    )
-)
-
 enum class ViewMode { MONTHS, DAYS }
 
 enum class DisplayMode { CARDS, TABLE }
@@ -85,7 +51,7 @@ enum class DisplayMode { CARDS, TABLE }
 class MyPropertiesViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository
 ) : ViewModel() {
-    private val _properties = MutableStateFlow(figmaProperties.toMutableList())
+    private val _properties = MutableStateFlow<List<MyPropertyItem>>(emptyList())
     val properties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
 
     private val _viewMode = MutableStateFlow(ViewMode.MONTHS)
@@ -104,7 +70,7 @@ class MyPropertiesViewModel @Inject constructor(
                 val resp = propertyRepository.getProperties()
                 if (resp.isSuccessful) {
                     val apiItems = resp.body()!!.map { it.toMyPropertyItem() }
-                    _properties.value = (figmaProperties + apiItems).toMutableList()
+                    _properties.value = apiItems
                 }
             } catch (_: Exception) { }
         }
