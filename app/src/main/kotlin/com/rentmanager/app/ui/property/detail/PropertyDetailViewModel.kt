@@ -39,7 +39,6 @@ class PropertyDetailViewModel @Inject constructor(
 
     fun load(propertyId: String) {
         viewModelScope.launch {
-            _uiState.value = PropertyDetailUiState(isLoading = true)
             try {
                 val resp = propertyRepository.getProperty(propertyId)
                 if (resp.isSuccessful) {
@@ -73,11 +72,13 @@ class PropertyDetailViewModel @Inject constructor(
                         tenantPhone = tenantPhone,
                         tenantCompany = tenantCompany
                     )
-                } else {
+                } else if (_uiState.value.propertyName.isEmpty()) {
                     _uiState.value = PropertyDetailUiState(isLoading = false, errorMessage = "Объект не найден")
                 }
             } catch (e: Exception) {
-                _uiState.value = PropertyDetailUiState(isLoading = false, errorMessage = e.message ?: "Ошибка")
+                if (_uiState.value.propertyName.isEmpty()) {
+                    _uiState.value = PropertyDetailUiState(isLoading = false, errorMessage = e.message ?: "Ошибка")
+                }
             }
         }
     }

@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -160,6 +161,38 @@ fun PaymentScheduleScreen(
         selectedDay = ""
         variableAmount = ""
         variableDates.clear()
+        save()
+    }
+
+    LaunchedEffect(propertyId) {
+        viewModel.load(propertyId)
+    }
+
+    LaunchedEffect(uiState.isLoading, uiState.schedule) {
+        if (uiState.isLoading) return@LaunchedEffect
+        val s = uiState.schedule
+        when {
+            s == null -> {
+                resetFixed()
+                resetVariable()
+            }
+            s.dayOfMonth != null -> {
+                resetVariable()
+                fixedActive = true
+                fixedExpanded = true
+                fixedDay = s.dayOfMonth.toString()
+                fixedAmount = doubleToString(s.amount)
+                fixedDirty = true
+            }
+            s.customDates != null -> {
+                resetFixed()
+                variableActive = true
+                variableExpanded = true
+                variableDates.clear()
+                variableDates.addAll(parseCustomDates(s.customDates))
+                variableDirty = true
+            }
+        }
         save()
     }
 
@@ -785,6 +818,21 @@ private fun DayPickerWithDialog(
             }
         }
     }
+}
+
+private data class CustomDateEntry(val date: String, val amount: String)
+
+private fun parseCustomDates(json: String): List<VariablePayment> = try {
+    Gson().fromJson(json, Array<CustomDateEntry>::class.java)
+        .map { VariablePayment(date = it.date, amount = it.amount) }
+} catch (_: Exception) {
+    emptyList()
+}
+
+private fun doubleToString(v: Double?): String = when {
+    v == null -> ""
+    v == v.toLong().toDouble() -> v.toLong().toString()
+    else -> v.toString()
 }
 
 private fun monthName(month: Int): String = when (month) {
