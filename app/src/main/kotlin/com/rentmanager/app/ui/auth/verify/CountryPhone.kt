@@ -37,7 +37,34 @@ data class CountryPhone(
             maskPattern = listOf(3, 4, 4)
         )
 
-        val availableCountries = listOf(Russia, China)
+        val Kazakhstan = CountryPhone(
+            countryCode = "KZ",
+            displayName = "Казахстан",
+            flagEmoji = "🇰🇿",
+            phonePrefix = "+7",
+            maxDigits = 10,
+            maskPattern = listOf(3, 3, 2, 2)
+        )
+
+        val Belarus = CountryPhone(
+            countryCode = "BY",
+            displayName = "Беларусь",
+            flagEmoji = "🇧🇾",
+            phonePrefix = "+375",
+            maxDigits = 9,
+            maskPattern = listOf(2, 3, 2, 2)
+        )
+
+        val Georgia = CountryPhone(
+            countryCode = "GE",
+            displayName = "Грузия",
+            flagEmoji = "🇬🇪",
+            phonePrefix = "+995",
+            maxDigits = 9,
+            maskPattern = listOf(3, 2, 2, 2)
+        )
+
+        val availableCountries = listOf(Russia, Kazakhstan, Belarus, Georgia, China)
 
         val defaultCountry = Russia
     }

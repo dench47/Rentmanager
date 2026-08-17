@@ -148,10 +148,40 @@ class PhoneMaskTransformation(
         )
 
         /**
+         * Маска для Казахстана: (XXX) XXX-XX-XX (10 цифр)
+         */
+        fun kazakh(): PhoneMaskTransformation = PhoneMaskTransformation(
+            maskPattern = listOf(3, 3, 2, 2),
+            maxDigits = 10,
+            prefixes = listOf("(", ") ", "-", "-")
+        )
+
+        /**
+         * Маска для Беларуси: XX XXX-XX-XX (9 цифр)
+         */
+        fun belarus(): PhoneMaskTransformation = PhoneMaskTransformation(
+            maskPattern = listOf(2, 3, 2, 2),
+            maxDigits = 9,
+            prefixes = listOf("", " ", "-", "-")
+        )
+
+        /**
+         * Маска для Грузии: XXX-XX-XX-XX (9 цифр)
+         */
+        fun georgian(): PhoneMaskTransformation = PhoneMaskTransformation(
+            maskPattern = listOf(3, 2, 2, 2),
+            maxDigits = 9,
+            prefixes = listOf("", "-", "-", "-")
+        )
+
+        /**
          * Фабрика по стране.
          */
         fun forCountry(country: CountryPhone): PhoneMaskTransformation = when (country.countryCode) {
             "CN" -> chinese()
+            "KZ" -> kazakh()
+            "BY" -> belarus()
+            "GE" -> georgian()
             else -> russian()
         }
 
@@ -160,6 +190,9 @@ class PhoneMaskTransformation(
          */
         fun placeholderForCountry(country: CountryPhone): String = when (country.countryCode) {
             "CN" -> "(123) 4567-8901"
+            "KZ" -> "(700) 000-00-00"
+            "BY" -> "29 000-00-00"
+            "GE" -> "500-00-00-00"
             else -> "(900) 000-00-00"
         }
     }

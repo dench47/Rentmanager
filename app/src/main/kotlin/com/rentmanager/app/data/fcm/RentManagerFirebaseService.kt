@@ -12,6 +12,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.RegisterDeviceRequest
+import com.rentmanager.app.data.local.TenantEvents
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +28,9 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
 
     @Inject
     lateinit var authApi: AuthApi
+
+    @Inject
+    lateinit var tenantEvents: TenantEvents
 
     override fun onCreate() {
         super.onCreate()
@@ -89,13 +93,23 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
         super.onMessageReceived(message)
 
         val type = message.data["type"]
-        if (type == "logout_all") {
-            Log.d("FCM", "Received logout_all — clearing session")
-            tokenManager.clear()
-        } else if (type == "new_login") {
-            val title = message.data["title"] ?: "Новый вход в аккаунт"
-            val body = message.data["body"] ?: "Замечен вход на другом устройстве"
-            showNotification(title, body)
+        when (type) {
+            "logout_all" -> {
+                Log.d("FCM", "Received logout_all — clearing session")
+                tokenManager.clear()
+            }
+            "new_login" -> {
+                val title = message.data["title"] ?: "Новый вход в аккаунт"
+                val body = message.data["body"] ?: "Замечен вход на другом устройстве"
+                showNotification(title, body)
+            }
+            "tenant_attached", "tenant_detached" -> {
+                val title = message.data["title"] ?: "Обновление доступа к объекту"
+                val body = message.data["body"] ?: ""
+                showNotification(title, body)
+                // Сигнал на обновление списка объектов у арендатора
+                tenantEvents.notifyChanged()
+            }
         }
     }
 }

@@ -3,11 +3,13 @@ package com.rentmanager.app.ui.tenant.properties
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.PropertyApi
+import com.rentmanager.app.data.local.TenantEvents
 import com.rentmanager.app.data.model.PropertyDto
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,7 +22,8 @@ data class TenantPropertiesUiState(
 
 @HiltViewModel
 class TenantPropertiesViewModel @Inject constructor(
-    private val propertyApi: PropertyApi
+    private val propertyApi: PropertyApi,
+    tenantEvents: TenantEvents
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TenantPropertiesUiState())
@@ -28,6 +31,10 @@ class TenantPropertiesViewModel @Inject constructor(
 
     init {
         load()
+        // Обновление при push-событиях («вас добавили/удалили из объекта»)
+        viewModelScope.launch {
+            tenantEvents.refreshTick.drop(1).collect { load() }
+        }
     }
 
     fun load() {

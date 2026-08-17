@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.rentmanager.app.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -32,6 +33,8 @@ sealed class UpdateResult {
     data class Error(val message: String) : UpdateResult()
 }
 
+private const val TAG = "UpdateManager"
+
 @Singleton
 class UpdateManager @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -49,30 +52,42 @@ class UpdateManager @Inject constructor(
             @Suppress("DEPRECATION")
             context.packageManager.getInstallerPackageName(context.packageName)
         }
-        return when (installer) {
+        val result = when (installer) {
             "com.android.vending" -> true   // Google Play Store
             "com.rustore.sdk" -> true       // RuStore
             "com.huawei.appmarket" -> true  // AppGallery
             else -> false                   // Sideloaded APK
         }
+        Log.d(TAG, "isInstalledFromStore: installer=$installer -> $result")
+        return result
     }
 
     suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
         // Skip self-update if installed from a store — the store handles updates
-        if (isInstalledFromStore()) return@withContext UpdateResult.UpToDate
+        if (isInstalledFromStore()) {
+            Log.d(TAG, "checkForUpdate: installed from store, skip")
+            return@withContext UpdateResult.UpToDate
+        }
         try {
             val response = authApi.getVersion()
             if (response.isSuccessful) {
                 val info = response.body()!!
+                Log.d(
+                    TAG,
+                    "checkForUpdate: server=${info.versionCode}, app=${BuildConfig.VERSION_CODE}, " +
+                        "min=${info.minClientVersion}, force=${info.forceUpdate}"
+                )
                 if (info.versionCode > BuildConfig.VERSION_CODE) {
                     UpdateResult.Available(info)
                 } else {
                     UpdateResult.UpToDate
                 }
             } else {
+                Log.w(TAG, "checkForUpdate: HTTP ${response.code()}")
                 UpdateResult.Error("Ошибка сервера")
             }
         } catch (e: Exception) {
+            Log.w(TAG, "checkForUpdate: network error: ${e.message}")
             UpdateResult.Error("Нет связи с сервером")
         }
     }

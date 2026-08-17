@@ -187,6 +187,8 @@ class MainActivity : FragmentActivity() {
                     if (retryDownloadSignal.intValue > 0) startDownload()
                 }
 
+                RentManagerNavGraph(tokenManager = tokenManager)
+
                 if (updateInfo != null) {
                     if (updateForced) {
                         ForcedUpdateScreen(
@@ -209,8 +211,6 @@ class MainActivity : FragmentActivity() {
                         )
                     }
                 }
-
-                RentManagerNavGraph(tokenManager = tokenManager)
             }
         }
     }
