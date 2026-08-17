@@ -63,8 +63,7 @@ fun RoleScreen(
 
     androidx.compose.runtime.LaunchedEffect(role) {
         viewModel.setRole(role)
-        if (role == UserRole.TENANT) viewModel.loadTenantFinance()
-        else viewModel.loadLandlordStats()
+        viewModel.refresh(role)
     }
 
     Scaffold(containerColor = Color.White) { paddingValues ->

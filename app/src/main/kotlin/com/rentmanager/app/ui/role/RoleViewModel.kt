@@ -7,6 +7,7 @@ import com.rentmanager.app.R
 import com.rentmanager.app.data.api.CreatePaymentRequest
 import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.api.PropertyApi
+import com.rentmanager.app.data.local.RoleStatsCache
 import com.rentmanager.app.util.PaymentOverdue
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,11 +43,31 @@ data class RoleUiState(
 @HiltViewModel
 class RoleViewModel @Inject constructor(
     private val propertyApi: PropertyApi,
-    private val financeApi: FinanceApi
+    private val financeApi: FinanceApi,
+    private val statsCache: RoleStatsCache
 ) : ViewModel() {
 
     private var overduePropertyId: String? = null
     private var overdueAmount: Double = 0.0
+    private var loadedRole: UserRole? = null
+
+    private val landlordCards = listOf(
+        RoleCard("1", "Моя\nнедвижимость", R.drawable.ic_card_my_properties),
+        RoleCard("2", "Арендаторы", R.drawable.ic_card_tenants),
+        RoleCard("3", "Другие объекты", R.drawable.ic_card_other),
+        RoleCard("4", "Финансы", R.drawable.ic_card_finance),
+        RoleCard("5", "Сообщения", R.drawable.ic_card_messages_unread),
+        RoleCard("6", "Заказать услугу", R.drawable.ic_card_service)
+    )
+
+    private val tenantCards = listOf(
+        RoleCard("1", "Недвижимость\nв пользовании", R.drawable.ic_card_my_properties),
+        RoleCard("2", "Арендодатели", R.drawable.ic_card_tenants),
+        RoleCard("3", "Другие объекты\nв пользовании", R.drawable.ic_card_other),
+        RoleCard("4", "Финансы", R.drawable.ic_card_finance),
+        RoleCard("5", "Сообщения", R.drawable.ic_card_messages_no_badge),
+        RoleCard("6", "Заказать услугу", R.drawable.ic_card_service)
+    )
 
     private val _uiState = MutableStateFlow(
         RoleUiState(
@@ -59,37 +80,33 @@ class RoleViewModel @Inject constructor(
     val uiState: StateFlow<RoleUiState> = _uiState.asStateFlow()
 
     fun setRole(role: UserRole) {
-        _uiState.value = when (role) {
-            UserRole.LANDLORD -> RoleUiState(
-                role = UserRole.LANDLORD,
-                title = "Арендодатель",
-                hasDeals = false,
-                isLoading = true,
-                cards = listOf(
-                    RoleCard("1", "Моя\nнедвижимость", R.drawable.ic_card_my_properties),
-                    RoleCard("2", "Арендаторы", R.drawable.ic_card_tenants),
-                    RoleCard("3", "Другие объекты", R.drawable.ic_card_other),
-                    RoleCard("4", "Финансы", R.drawable.ic_card_finance),
-                    RoleCard("5", "Сообщения", R.drawable.ic_card_messages_unread),
-                    RoleCard("6", "Заказать услугу", R.drawable.ic_card_service)
-                )
+        val title = if (role == UserRole.LANDLORD) "Арендодатель" else "Арендатор"
+        val cards = if (role == UserRole.LANDLORD) landlordCards else tenantCards
+        val cached = statsCache.load(key(role))
+        _uiState.value = if (cached != null) {
+            RoleUiState(
+                role = role,
+                title = title,
+                hasDeals = cached.hasDeals,
+                isLoading = false,
+                hasDebt = cached.hasDebt,
+                nextPaymentDate = cached.nextPaymentDate,
+                nextPaymentAmount = cached.nextPaymentAmount,
+                monthlyIncome = cached.monthlyIncome,
+                cards = cards
             )
-            UserRole.TENANT -> RoleUiState(
-                role = UserRole.TENANT,
-                title = "Арендатор",
-                hasDeals = false,
-                isLoading = true,
-                cards = listOf(
-                    RoleCard("1", "Недвижимость\nв пользовании", R.drawable.ic_card_my_properties),
-                    RoleCard("2", "Арендодатели", R.drawable.ic_card_tenants),
-                    RoleCard("3", "Другие объекты\nв пользовании", R.drawable.ic_card_other),
-                    RoleCard("4", "Финансы", R.drawable.ic_card_finance),
-                    RoleCard("5", "Сообщения", R.drawable.ic_card_messages_no_badge),
-                    RoleCard("6", "Заказать услугу", R.drawable.ic_card_service)
-                )
-            )
+        } else {
+            RoleUiState(role = role, title = title, hasDeals = false, isLoading = true, cards = cards)
         }
     }
+
+    fun refresh(role: UserRole) {
+        if (loadedRole == role) return
+        loadedRole = role
+        if (role == UserRole.TENANT) loadTenantFinance() else loadLandlordStats()
+    }
+
+    private fun key(role: UserRole) = if (role == UserRole.LANDLORD) "landlord" else "tenant"
 
     fun onCardClick(cardId: String) {
         // Navigation handled by callback
@@ -98,10 +115,16 @@ class RoleViewModel @Inject constructor(
     fun loadLandlordStats() {
         viewModelScope.launch {
             try {
-                val props = propertyApi.getProperties().body() ?: emptyList()
+                val resp = propertyApi.getProperties()
+                if (!resp.isSuccessful) {
+                    _uiState.update { it.copy(isLoading = false) }
+                    return@launch
+                }
+                val props = resp.body() ?: emptyList()
                 val schedules = financeApi.getSchedules().body() ?: emptyList()
                 if (props.isEmpty()) {
-                    _uiState.update { it.copy(hasDeals = false, hasDebt = false, isLoading = false) }
+                    statsCache.save("landlord", RoleStatsCache.Stats(hasDeals = false, hasDebt = false, nextPaymentDate = "", nextPaymentAmount = "", monthlyIncome = ""))
+                    _uiState.update { it.copy(hasDeals = false, hasDebt = false, isLoading = false, nextPaymentDate = "", nextPaymentAmount = "", monthlyIncome = "") }
                     return@launch
                 }
                 var hasDebt = false
@@ -119,16 +142,12 @@ class RoleViewModel @Inject constructor(
                     .mapNotNull { PaymentOverdue.nextPayment(it) }
                     .filter { it.date != null }
                     .minByOrNull { it.date!! }
-                val total = schedules.sumOf { PaymentOverdue.monthlyAmount(it) }
+                val nextDate = nearest?.date?.let(::formatDate) ?: ""
+                val nextAmount = nearest?.amount?.let(::formatAmount) ?: ""
+                val income = formatAmount(schedules.sumOf { PaymentOverdue.monthlyAmount(it) }) + "/мес"
+                statsCache.save("landlord", RoleStatsCache.Stats(hasDeals = true, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = income))
                 _uiState.update {
-                    it.copy(
-                        hasDeals = true,
-                        isLoading = false,
-                        hasDebt = hasDebt,
-                        nextPaymentDate = nearest?.date?.let(::formatDate) ?: "",
-                        nextPaymentAmount = nearest?.amount?.let(::formatAmount) ?: "",
-                        monthlyIncome = formatAmount(total) + "/мес"
-                    )
+                    it.copy(hasDeals = true, isLoading = false, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = income)
                 }
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false) }
@@ -139,12 +158,18 @@ class RoleViewModel @Inject constructor(
     fun loadTenantFinance() {
         viewModelScope.launch {
             try {
-                val props = propertyApi.getTenantProperties().body() ?: emptyList()
+                val resp = propertyApi.getTenantProperties()
+                if (!resp.isSuccessful) {
+                    _uiState.update { it.copy(isLoading = false) }
+                    return@launch
+                }
+                val props = resp.body() ?: emptyList()
                 val schedules = financeApi.getTenantSchedules().body() ?: emptyList()
                 if (props.isEmpty()) {
                     overduePropertyId = null
                     overdueAmount = 0.0
-                    _uiState.update { it.copy(hasDeals = false, hasDebt = false, isLoading = false) }
+                    statsCache.save("tenant", RoleStatsCache.Stats(hasDeals = false, hasDebt = false, nextPaymentDate = "", nextPaymentAmount = "", monthlyIncome = ""))
+                    _uiState.update { it.copy(hasDeals = false, hasDebt = false, isLoading = false, nextPaymentDate = "", nextPaymentAmount = "") }
                     return@launch
                 }
                 val ownSchedules = schedules.filter { s -> props.any { it.id == s.propertyId } }
@@ -170,14 +195,11 @@ class RoleViewModel @Inject constructor(
                 }
                 overduePropertyId = debtPropertyId
                 overdueAmount = debtAmount
+                val nextDate = nearest?.date?.let(::formatDate) ?: ""
+                val nextAmount = nearest?.amount?.let(::formatAmount) ?: ""
+                statsCache.save("tenant", RoleStatsCache.Stats(hasDeals = true, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = ""))
                 _uiState.update {
-                    it.copy(
-                        hasDeals = true,
-                        isLoading = false,
-                        hasDebt = hasDebt,
-                        nextPaymentDate = nearest?.date?.let(::formatDate) ?: "",
-                        nextPaymentAmount = nearest?.amount?.let(::formatAmount) ?: ""
-                    )
+                    it.copy(hasDeals = true, isLoading = false, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount)
                 }
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false) }
