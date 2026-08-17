@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreateBookingRequest
 import com.rentmanager.app.data.api.FinanceApi
+import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.model.BookingDto
 import com.rentmanager.app.data.model.PaymentScheduleDto
 import com.rentmanager.app.data.model.PropertyDto
@@ -58,7 +59,8 @@ enum class DisplayMode { CARDS, TABLE }
 class MyPropertiesViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
     private val bookingApi: BookingApi,
-    private val financeApi: FinanceApi
+    private val financeApi: FinanceApi,
+    private val detailCache: PropertyDetailCache
 ) : ViewModel() {
     private val _properties = MutableStateFlow<List<MyPropertyItem>>(emptyList())
     val properties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
@@ -78,7 +80,9 @@ class MyPropertiesViewModel @Inject constructor(
             try {
                 val resp = propertyRepository.getProperties()
                 if (resp.isSuccessful) {
-                    val items = resp.body()!!.map { it.toMyPropertyItem() }
+                    val dtos = resp.body()!!
+                    dtos.forEach { detailCache.saveProperty(it) }
+                    val items = dtos.map { it.toMyPropertyItem() }
                     val schedules = loadSchedules()
                     val withBookings = items.map { loadBookings(it) }
                     _properties.value = withBookings.map { loadOverdue(it, schedules) }

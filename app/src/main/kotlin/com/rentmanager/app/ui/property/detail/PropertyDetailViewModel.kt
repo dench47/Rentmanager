@@ -3,6 +3,7 @@ package com.rentmanager.app.ui.property.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.TenantApi
+import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.repository.PropertyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,13 +32,32 @@ data class PropertyDetailUiState(
 @HiltViewModel
 class PropertyDetailViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
-    private val tenantApi: TenantApi
+    private val tenantApi: TenantApi,
+    private val detailCache: PropertyDetailCache
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PropertyDetailUiState())
     val uiState: StateFlow<PropertyDetailUiState> = _uiState.asStateFlow()
 
     fun load(propertyId: String) {
+        detailCache.load(propertyId)?.let { entry ->
+            val p = entry.property
+            _uiState.value = PropertyDetailUiState(
+                isLoading = false,
+                propertyName = p.name,
+                address = p.address,
+                area = formatArea(p.area),
+                rentPrice = formatPrice(p.rentAmount),
+                photos = p.photos?.map { it.url } ?: emptyList(),
+                serviceInfo = p.serviceInfo ?: "",
+                phone = p.phone ?: "",
+                wifiPassword = p.wifiPassword ?: "",
+                houseRules = p.houseRules ?: "",
+                tenantName = entry.tenantName,
+                tenantPhone = entry.tenantPhone,
+                tenantCompany = entry.tenantCompany
+            )
+        }
         viewModelScope.launch {
             try {
                 val resp = propertyRepository.getProperty(propertyId)
@@ -72,6 +92,7 @@ class PropertyDetailViewModel @Inject constructor(
                         tenantPhone = tenantPhone,
                         tenantCompany = tenantCompany
                     )
+                    detailCache.save(PropertyDetailCache.Entry(property = p, tenantName = tenantName, tenantPhone = tenantPhone, tenantCompany = tenantCompany))
                 } else if (_uiState.value.propertyName.isEmpty()) {
                     _uiState.value = PropertyDetailUiState(isLoading = false, errorMessage = "Объект не найден")
                 }

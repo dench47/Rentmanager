@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.model.PhotoDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PropertyRepository
@@ -28,6 +29,7 @@ data class CreatePropertyUiState(
 class CreatePropertyViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
     private val authApi: AuthApi,
+    private val detailCache: PropertyDetailCache,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -68,6 +70,7 @@ class CreatePropertyViewModel @Inject constructor(
                 )
                 val resp = propertyRepository.createProperty(dto)
                 if (resp.isSuccessful) {
+                    resp.body()?.let { detailCache.saveProperty(it) }
                     onSuccess()
                 } else {
                     _uiState.value = CreatePropertyUiState(isCreating = false, errorMessage = "Ошибка создания объекта")
