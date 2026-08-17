@@ -81,7 +81,7 @@ class MyPropertiesViewModel @Inject constructor(
                 val resp = propertyRepository.getProperties()
                 if (resp.isSuccessful) {
                     val dtos = resp.body()!!
-                    dtos.forEach { detailCache.saveProperty(it) }
+                    dtos.forEach { runCatching { detailCache.saveProperty(it) } }
                     val items = dtos.map { it.toMyPropertyItem() }
                     val schedules = loadSchedules()
                     val withBookings = items.map { loadBookings(it) }

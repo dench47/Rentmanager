@@ -34,18 +34,22 @@ class PropertyDetailCache @Inject constructor(
 
     /** Сохраняет объект (без арендатора) — используется при создании/загрузке списка. */
     fun saveProperty(dto: PropertyDto) {
-        val existing = load(dto.id)
-        save(
-            Entry(
-                property = dto,
-                tenantName = existing?.tenantName ?: "",
-                tenantPhone = existing?.tenantPhone ?: "",
-                tenantCompany = existing?.tenantCompany ?: ""
+        try {
+            val existing = load(dto.id)
+            save(
+                Entry(
+                    property = dto,
+                    tenantName = existing?.tenantName ?: "",
+                    tenantPhone = existing?.tenantPhone ?: "",
+                    tenantCompany = existing?.tenantCompany ?: ""
+                )
             )
-        )
+        } catch (_: Exception) { }
     }
 
     fun save(entry: Entry) {
-        prefs.edit().putString(entry.property.id, gson.toJson(entry)).apply()
+        try {
+            prefs.edit().putString(entry.property.id, gson.toJson(entry)).apply()
+        } catch (_: Exception) { }
     }
 }

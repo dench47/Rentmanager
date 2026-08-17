@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.property.detail
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.TenantApi
@@ -33,31 +34,36 @@ data class PropertyDetailUiState(
 class PropertyDetailViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
     private val tenantApi: TenantApi,
-    private val detailCache: PropertyDetailCache
+    private val detailCache: PropertyDetailCache,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(PropertyDetailUiState())
+    private val propertyId: String = savedStateHandle.get<String>("propertyId") ?: ""
+
+    private val _uiState = MutableStateFlow(initialState())
     val uiState: StateFlow<PropertyDetailUiState> = _uiState.asStateFlow()
 
+    private fun initialState(): PropertyDetailUiState {
+        val entry = detailCache.load(propertyId) ?: return PropertyDetailUiState(isLoading = true)
+        val p = entry.property
+        return PropertyDetailUiState(
+            isLoading = false,
+            propertyName = p.name,
+            address = p.address,
+            area = formatArea(p.area),
+            rentPrice = formatPrice(p.rentAmount),
+            photos = p.photos?.map { it.url } ?: emptyList(),
+            serviceInfo = p.serviceInfo ?: "",
+            phone = p.phone ?: "",
+            wifiPassword = p.wifiPassword ?: "",
+            houseRules = p.houseRules ?: "",
+            tenantName = entry.tenantName,
+            tenantPhone = entry.tenantPhone,
+            tenantCompany = entry.tenantCompany
+        )
+    }
+
     fun load(propertyId: String) {
-        detailCache.load(propertyId)?.let { entry ->
-            val p = entry.property
-            _uiState.value = PropertyDetailUiState(
-                isLoading = false,
-                propertyName = p.name,
-                address = p.address,
-                area = formatArea(p.area),
-                rentPrice = formatPrice(p.rentAmount),
-                photos = p.photos?.map { it.url } ?: emptyList(),
-                serviceInfo = p.serviceInfo ?: "",
-                phone = p.phone ?: "",
-                wifiPassword = p.wifiPassword ?: "",
-                houseRules = p.houseRules ?: "",
-                tenantName = entry.tenantName,
-                tenantPhone = entry.tenantPhone,
-                tenantCompany = entry.tenantCompany
-            )
-        }
         viewModelScope.launch {
             try {
                 val resp = propertyRepository.getProperty(propertyId)
