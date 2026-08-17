@@ -2,6 +2,7 @@ package com.rentmanager.app.ui.property.detail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rentmanager.app.data.api.TenantApi
 import com.rentmanager.app.data.repository.PropertyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,12 +22,16 @@ data class PropertyDetailUiState(
     val phone: String = "",
     val wifiPassword: String = "",
     val houseRules: String = "",
+    val tenantName: String = "",
+    val tenantPhone: String = "",
+    val tenantCompany: String = "",
     val errorMessage: String? = null
 )
 
 @HiltViewModel
 class PropertyDetailViewModel @Inject constructor(
-    private val propertyRepository: PropertyRepository
+    private val propertyRepository: PropertyRepository,
+    private val tenantApi: TenantApi
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PropertyDetailUiState())
@@ -39,6 +44,20 @@ class PropertyDetailViewModel @Inject constructor(
                 val resp = propertyRepository.getProperty(propertyId)
                 if (resp.isSuccessful) {
                     val p = resp.body()!!
+                    var tenantName = ""
+                    var tenantPhone = ""
+                    var tenantCompany = ""
+                    p.tenantId?.let { tid ->
+                        try {
+                            val tResp = tenantApi.getTenant(tid)
+                            if (tResp.isSuccessful) {
+                                val t = tResp.body()
+                                tenantName = t?.fullName ?: ""
+                                tenantPhone = t?.phone ?: ""
+                                tenantCompany = t?.companyName ?: ""
+                            }
+                        } catch (_: Exception) { }
+                    }
                     _uiState.value = PropertyDetailUiState(
                         isLoading = false,
                         propertyName = p.name,
@@ -49,7 +68,10 @@ class PropertyDetailViewModel @Inject constructor(
                         serviceInfo = p.serviceInfo ?: "",
                         phone = p.phone ?: "",
                         wifiPassword = p.wifiPassword ?: "",
-                        houseRules = p.houseRules ?: ""
+                        houseRules = p.houseRules ?: "",
+                        tenantName = tenantName,
+                        tenantPhone = tenantPhone,
+                        tenantCompany = tenantCompany
                     )
                 } else {
                     _uiState.value = PropertyDetailUiState(isLoading = false, errorMessage = "Объект не найден")

@@ -192,7 +192,7 @@ fun AttachTenantScreen(
             } else if (uiState.searchResults.isNotEmpty()) {
                 uiState.searchResults.forEach { user ->
                     UserCard(user, selected = selectedUser?.id == user.id) {
-                        selectedUser = user
+                        selectedUser = if (selectedUser?.id == user.id) null else user
                     }
                 }
             }

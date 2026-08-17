@@ -63,9 +63,8 @@ fun RoleScreen(
 
     androidx.compose.runtime.LaunchedEffect(role) {
         viewModel.setRole(role)
-        if (role == UserRole.TENANT) {
-            viewModel.loadTenantFinance()
-        }
+        if (role == UserRole.TENANT) viewModel.loadTenantFinance()
+        else viewModel.loadLandlordStats()
     }
 
     Scaffold(containerColor = Color.White) { paddingValues ->
@@ -104,6 +103,7 @@ fun RoleScreen(
                 // Секция статистики: 3 состояния — нет сделок / всё хорошо / задолженность (Figma INF: 104dp)
                 Box(modifier = Modifier.fillMaxWidth().height(104.dp)) {
                     when {
+                        uiState.isLoading -> { }
                         !uiState.hasDeals -> EmptyStateBlock(
                             role = uiState.role,
                             onAction = {

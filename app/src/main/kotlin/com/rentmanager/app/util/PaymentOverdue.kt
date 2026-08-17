@@ -4,12 +4,14 @@ import com.google.gson.Gson
 import com.rentmanager.app.data.model.PaymentDto
 import com.rentmanager.app.data.model.PaymentScheduleDto
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
- * Расчёт просрочки по графику платежей и фактическим платежам.
- * Просрочка = дата платежа наступила, а оплаченного платежа за период нет.
+ * Расчёт платежей: просрочка, ближайший платёж, суммарный месячный доход.
  */
 object PaymentOverdue {
+
+    data class NextPayment(val date: LocalDate?, val amount: Double?)
 
     fun isOverdue(
         schedule: PaymentScheduleDto?,
@@ -26,17 +28,49 @@ object PaymentOverdue {
         }
     }
 
-    private fun hasOverdueCustom(customDatesJson: String, payments: List<PaymentDto>, today: LocalDate): Boolean {
-        val dueDates = try {
-            val arr = Gson().fromJson(customDatesJson, Array<CustomPaymentDate>::class.java)
-            arr.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
-        } catch (_: Exception) {
-            emptyList()
+    /** Ближайшая предстоящая дата платежа и сумма. */
+    fun nextPayment(schedule: PaymentScheduleDto?, today: LocalDate = LocalDate.now()): NextPayment {
+        val s = schedule ?: return NextPayment(null, null)
+        return when {
+            s.dayOfMonth != null -> {
+                val ym = YearMonth.of(today.year, today.monthValue)
+                val day = s.dayOfMonth.coerceIn(1, ym.lengthOfMonth())
+                var candidate = ym.atDay(day)
+                if (candidate.isBefore(today)) candidate = candidate.plusMonths(1)
+                NextPayment(candidate, s.amount)
+            }
+            s.customDates != null -> {
+                val items = parseCustomDates(s.customDates)
+                    .mapNotNull { entry ->
+                        runCatching { LocalDate.parse(entry.date) }.getOrNull()
+                            ?.let { it to entry.amount }
+                    }
+                val upcoming = items.filter { !it.first.isBefore(today) }.minByOrNull { it.first }
+                NextPayment(upcoming?.first, upcoming?.second?.toDoubleOrNull())
+            }
+            else -> NextPayment(null, s.amount)
         }
+    }
+
+    /** Месячная сумма по графику (фикс — amount, переменный — сумма дат). */
+    fun monthlyAmount(schedule: PaymentScheduleDto): Double = when {
+        schedule.amount != null -> schedule.amount
+        schedule.customDates != null -> parseCustomDates(schedule.customDates).sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+        else -> 0.0
+    }
+
+    private fun hasOverdueCustom(customDatesJson: String, payments: List<PaymentDto>, today: LocalDate): Boolean {
+        val dueDates = parseCustomDates(customDatesJson).mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
         val paidDates = payments.filter { it.status == "paid" }.map { it.date }
         return dueDates.any { due ->
             !due.isAfter(today) && paidDates.none { it >= due.toString() }
         }
+    }
+
+    private fun parseCustomDates(json: String): List<CustomPaymentDate> = try {
+        Gson().fromJson(json, Array<CustomPaymentDate>::class.java).toList()
+    } catch (_: Exception) {
+        emptyList()
     }
 
     private data class CustomPaymentDate(val date: String, val amount: String)

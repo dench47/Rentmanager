@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,12 +46,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import kotlinx.coroutines.launch
@@ -75,7 +79,16 @@ fun PropertyDetailScreen(
     viewModel: PropertyDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    LaunchedEffect(propertyId) { viewModel.load(propertyId) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, propertyId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.load(propertyId)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(containerColor = Color.White) { paddingValues ->
         Column(
@@ -115,6 +128,14 @@ fun PropertyDetailScreen(
                             .padding(horizontal = 20.dp, vertical = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        if (uiState.tenantName.isNotBlank()) {
+                            TenantInfoCard(
+                                name = uiState.tenantName,
+                                phone = uiState.tenantPhone,
+                                company = uiState.tenantCompany
+                            )
+                        }
+
                         DarkPillButton(
                             text = "Добавить арендатора",
                             iconRes = R.drawable.ic_plus_circle,
@@ -485,6 +506,32 @@ private fun OutlinedPillButton(text: String, onClick: () -> Unit) {
             color = Color.Black,
             letterSpacing = (-0.4).sp
         )
+    }
+}
+
+@Composable
+private fun TenantInfoCard(name: String, phone: String, company: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+            .background(Color(0x99EDEDED))
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            name,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextPrimary,
+            letterSpacing = (-0.3).sp
+        )
+        if (phone.isNotBlank()) {
+            Text(phone, fontSize = 14.sp, color = SubtitleGray, letterSpacing = (-0.4).sp)
+        }
+        if (company.isNotBlank()) {
+            Text(company, fontSize = 14.sp, color = SubtitleGray, letterSpacing = (-0.4).sp)
+        }
     }
 }
 

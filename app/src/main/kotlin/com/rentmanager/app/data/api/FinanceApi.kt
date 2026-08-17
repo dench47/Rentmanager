@@ -23,6 +23,9 @@ interface FinanceApi {
     @GET("payments/schedule")
     suspend fun getSchedules(): Response<List<PaymentScheduleDto>>
 
+    @GET("tenant/schedules")
+    suspend fun getTenantSchedules(): Response<List<PaymentScheduleDto>>
+
     @POST("payments/schedule")
     suspend fun createSchedule(@Body request: PaymentScheduleDto): Response<PaymentScheduleDto>
 
