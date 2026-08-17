@@ -17,4 +17,7 @@ interface TenantApi {
 
     @DELETE("tenants/{id}")
     suspend fun deleteTenant(@Path("id") id: String): Response<Unit>
+
+    @GET("tenant/landlords")
+    suspend fun getLandlords(): Response<List<UserSearchResult>>
 }

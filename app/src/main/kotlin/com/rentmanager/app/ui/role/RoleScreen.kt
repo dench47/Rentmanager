@@ -40,7 +40,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.ui.components.DashboardCard
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.RentManagerTheme
@@ -57,12 +57,15 @@ fun RoleScreen(
     onNavigateToTenantProperties: () -> Unit = {},
     onBackToMain: () -> Unit = {},
     onPay: () -> Unit = {},
-    viewModel: RoleViewModel = viewModel()
+    viewModel: RoleViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     androidx.compose.runtime.LaunchedEffect(role) {
         viewModel.setRole(role)
+        if (role == UserRole.TENANT) {
+            viewModel.loadTenantFinance()
+        }
     }
 
     Scaffold(containerColor = Color.White) { paddingValues ->
@@ -108,7 +111,7 @@ fun RoleScreen(
                             }
                         )
                         uiState.role == UserRole.LANDLORD -> LandlordStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.monthlyIncome, uiState.hasDebt)
-                        else -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.hasDebt, onPay)
+                        else -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.hasDebt, onPay = { viewModel.pay() })
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -342,35 +345,5 @@ private fun EmptyStateBlock(role: UserRole, onAction: () -> Unit) {
                 letterSpacing = (-0.4).sp
             )
         }
-    }
-}
-
-@Preview(showBackground = true, name = "Арендодатель — всё хорошо")
-@Composable
-private fun PreviewRoleScreenLandlord() {
-    RentManagerTheme {
-        val vm = RoleViewModel()
-        vm.setRole(UserRole.LANDLORD)
-        RoleScreen(role = UserRole.LANDLORD, viewModel = vm)
-    }
-}
-
-@Preview(showBackground = true, name = "Арендатор — задолженность")
-@Composable
-private fun PreviewRoleScreenTenant() {
-    RentManagerTheme {
-        val vm = RoleViewModel()
-        vm.setRole(UserRole.TENANT, hasDebt = true)
-        RoleScreen(role = UserRole.TENANT, viewModel = vm)
-    }
-}
-
-@Preview(showBackground = true, name = "Нет сделок")
-@Composable
-private fun PreviewRoleScreenEmpty() {
-    RentManagerTheme {
-        val vm = RoleViewModel()
-        vm.setRole(UserRole.LANDLORD, hasDeals = false)
-        RoleScreen(role = UserRole.LANDLORD, viewModel = vm)
     }
 }

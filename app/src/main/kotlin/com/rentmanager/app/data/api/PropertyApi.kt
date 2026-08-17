@@ -29,4 +29,7 @@ interface PropertyApi {
 
     @POST("properties/{id}/attach_tenant")
     suspend fun attachTenant(@Path("id") id: String, @Body request: AttachTenantRequest): Response<MessageResponse>
+
+    @GET("tenant/properties")
+    suspend fun getTenantProperties(): Response<List<PropertyDto>>
 }

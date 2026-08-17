@@ -19,7 +19,9 @@ sealed class Screen(val route: String) {
     // Tenant screens
     data object TenantProperties : Screen("tenant/properties")
     // Payment Schedule
-    data object PaymentSchedule : Screen("landlord/payment_schedule")
+    data object PaymentSchedule : Screen("landlord/payment_schedule?propertyId={propertyId}") {
+        fun createRoute(propertyId: String = "") = "landlord/payment_schedule?propertyId=$propertyId"
+    }
     data object TenantPaymentScreen : Screen("tenant/payment")
 
     // Role screen (unified landlord/tenant)

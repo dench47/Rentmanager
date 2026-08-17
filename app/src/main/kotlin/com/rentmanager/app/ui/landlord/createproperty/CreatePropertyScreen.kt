@@ -76,7 +76,7 @@ fun CreatePropertyScreen(
     propertyId: String? = null,
     onBack: () -> Unit,
     onCreated: () -> Unit = {},
-    onPaymentSchedule: () -> Unit = {},
+    onPaymentSchedule: (String) -> Unit = {},
     viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
     val isEdit = propertyId != null
@@ -373,12 +373,14 @@ fun CreatePropertyScreen(
                         )
                     }
 
-                    BlackButtonWithIcon(
-                        text = "График платежей и реквизиты",
-                        iconRes = R.drawable.ic_calendar_edit,
-                        onClick = { onPaymentSchedule() },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (isEdit) {
+                        BlackButtonWithIcon(
+                            text = "График платежей и реквизиты",
+                            iconRes = R.drawable.ic_calendar_edit,
+                            onClick = { onPaymentSchedule(propertyId!!) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
                     // Сохранить / Создать
                     Box(

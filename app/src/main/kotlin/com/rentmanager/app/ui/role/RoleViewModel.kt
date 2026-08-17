@@ -2,10 +2,19 @@ package com.rentmanager.app.ui.role
 
 import androidx.annotation.DrawableRes
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.R
+import com.rentmanager.app.data.api.CreatePaymentRequest
+import com.rentmanager.app.data.api.FinanceApi
+import com.rentmanager.app.data.api.PropertyApi
+import com.rentmanager.app.util.PaymentOverdue
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 enum class UserRole { LANDLORD, TENANT }
 
@@ -28,7 +37,14 @@ data class RoleUiState(
     val cards: List<RoleCard> = emptyList()
 )
 
-class RoleViewModel : ViewModel() {
+@HiltViewModel
+class RoleViewModel @Inject constructor(
+    private val propertyApi: PropertyApi,
+    private val financeApi: FinanceApi
+) : ViewModel() {
+
+    private var overduePropertyId: String? = null
+    private var overdueAmount: Double = 0.0
 
     private val _uiState = MutableStateFlow(
         RoleUiState(
@@ -83,5 +99,46 @@ class RoleViewModel : ViewModel() {
 
     fun onCardClick(cardId: String) {
         // Navigation handled by callback
+    }
+
+    fun loadTenantFinance() {
+        viewModelScope.launch {
+            try {
+                val props = propertyApi.getTenantProperties().body() ?: emptyList()
+                val schedules = financeApi.getSchedules().body() ?: emptyList()
+                for (p in props) {
+                    val schedule = schedules.firstOrNull { it.propertyId == p.id }
+                    val payments = financeApi.listPayments(p.id).body() ?: emptyList()
+                    if (schedule != null && PaymentOverdue.isOverdue(schedule, payments)) {
+                        overduePropertyId = p.id
+                        overdueAmount = schedule.amount ?: 0.0
+                        _uiState.update {
+                            it.copy(
+                                hasDebt = true,
+                                nextPaymentAmount = formatAmount(schedule.amount),
+                                nextPaymentDate = schedule.dayOfMonth?.toString() ?: ""
+                            )
+                        }
+                        return@launch
+                    }
+                }
+                _uiState.update { it.copy(hasDebt = false) }
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun pay() {
+        val propertyId = overduePropertyId ?: return
+        viewModelScope.launch {
+            try {
+                financeApi.createPayment(propertyId, CreatePaymentRequest(overdueAmount))
+                loadTenantFinance()
+            } catch (_: Exception) { }
+        }
+    }
+
+    private fun formatAmount(amount: Double?): String {
+        val v = amount ?: return ""
+        return String.format("%,.0f ₽", v).replace(',', ' ')
     }
 }

@@ -14,10 +14,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -25,6 +30,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,11 +82,20 @@ private fun headerLabel(date: LocalDate, viewMode: ViewMode): String = when (vie
 fun ScheduleTable(
     properties: List<MyPropertyItem>,
     viewMode: ViewMode,
+    onRangeSelected: (String, LocalDate, LocalDate, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val dates = remember(viewMode) { buildTimeline(viewMode) }
     val horizontalScroll = rememberScrollState()
     val yearGroups = remember(dates) { dates.groupBy { it.year }.toSortedMap() }
+
+    // Выбор диапазона: первый тап — старт, второй — завершение и сохранение/снятие.
+    var selPropertyId by remember { mutableStateOf<String?>(null) }
+    var selStart by remember { mutableStateOf<Int?>(null) }
+    var selEnd by remember { mutableStateOf<Int?>(null) }
+    var selRemove by remember { mutableStateOf(false) }
+    val currentOnRangeSelected by rememberUpdatedState(onRangeSelected)
+    val cellPitchPx = with(LocalDensity.current) { (44.dp + 4.dp).toPx() }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Лента годов (только для «Месяцев»)
@@ -141,6 +157,8 @@ fun ScheduleTable(
         // Тело: строки объектов с ячейками
         LazyColumn(Modifier.fillMaxSize()) {
             items(properties, key = { it.id }) { property ->
+                val currentProperty by rememberUpdatedState(property)
+                val rowSelected = selPropertyId == property.id
                 Row(Modifier.fillMaxWidth().height(39.dp)) {
                     Box(
                         Modifier.width(140.dp).height(39.dp),
@@ -157,7 +175,39 @@ fun ScheduleTable(
                         Modifier.weight(1f).height(39.dp).horizontalScroll(horizontalScroll)
                     ) {
                         val totalWidthDp = (dates.size * 44 + (dates.size - 1) * 4).dp
-                        Canvas(Modifier.width(totalWidthDp).height(39.dp)) {
+                        Canvas(
+                            Modifier
+                                .width(totalWidthDp)
+                                .height(39.dp)
+                                .pointerInput(dates) {
+                                    detectTapGestures(
+                                        onTap = { offset ->
+                                            if (dates.isNotEmpty()) {
+                                                val index = (offset.x / cellPitchPx).toInt()
+                                                    .coerceIn(0, dates.lastIndex)
+                                                if (selPropertyId == null || selPropertyId != currentProperty.id) {
+                                                    selPropertyId = currentProperty.id
+                                                    selStart = index
+                                                    selEnd = index
+                                                    selRemove = currentProperty.statusAt(dates[index]) == "fullness"
+                                                } else {
+                                                    val s = selStart ?: index
+                                                    val lo = minOf(s, index)
+                                                    val hi = maxOf(s, index)
+                                                    val startDate = dates.getOrNull(lo)
+                                                    val endDate = dates.getOrNull(hi)
+                                                    if (startDate != null && endDate != null) {
+                                                        currentOnRangeSelected(currentProperty.id, startDate, endDate, selRemove)
+                                                    }
+                                                    selPropertyId = null
+                                                    selStart = null
+                                                    selEnd = null
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                        ) {
                             val cellW = 44.dp.toPx()
                             val cellH = 39.dp.toPx()
                             val gap = 4.dp.toPx()
@@ -178,6 +228,19 @@ fun ScheduleTable(
                                     cornerRadius = radius,
                                     style = Stroke(1.dp.toPx())
                                 )
+                                if (rowSelected) {
+                                    val s = selStart
+                                    val e = selEnd
+                                    if (s != null && e != null && i in minOf(s, e)..maxOf(s, e)) {
+                                        drawRoundRect(
+                                            color = TableCellFullStroke,
+                                            topLeft = Offset(x, 0f),
+                                            size = Size(cellW, cellH),
+                                            cornerRadius = radius,
+                                            style = Stroke(2.dp.toPx())
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

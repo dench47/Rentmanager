@@ -172,7 +172,7 @@ fun RentManagerNavGraph(
                     propertiesViewModel.refresh()
                     navController.popBackStack()
                 },
-                onPaymentSchedule = { navController.navigate(Screen.PaymentSchedule.route) }
+                onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) }
             )
         }
 
@@ -185,7 +185,8 @@ fun RentManagerNavGraph(
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
                 propertyId = propertyId,
                 onBack = { navController.popBackStack() },
-                onCreated = { navController.popBackStack() }
+                onCreated = { navController.popBackStack() },
+                onPaymentSchedule = { navController.navigate(Screen.PaymentSchedule.createRoute(propertyId)) }
             )
         }
 
@@ -240,7 +241,7 @@ fun RentManagerNavGraph(
                     navController.navigate(Screen.EditProperty.createRoute(propertyId))
                 },
                 onPaymentSchedule = {
-                    navController.navigate(Screen.PaymentSchedule.route)
+                    navController.navigate(Screen.PaymentSchedule.createRoute(propertyId))
                 }
             )
         }
@@ -253,8 +254,13 @@ fun RentManagerNavGraph(
         }
 
         // ========== Payment Schedule ==========
-        composable(Screen.PaymentSchedule.route) {
+        composable(
+            route = Screen.PaymentSchedule.route,
+            arguments = listOf(navArgument("propertyId") { type = NavType.StringType; defaultValue = "" })
+        ) { backStackEntry ->
+            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
             PaymentScheduleScreen(
+                propertyId = propertyId,
                 onBack = { navController.popBackStack() }
             )
         }

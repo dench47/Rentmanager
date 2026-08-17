@@ -28,7 +28,7 @@ class ScheduleGridView(context: Context) : View(context) {
     private val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 2f * density
-        color = 0xFF007AFF.toInt()
+        color = 0xFF66A256.toInt()
     }
     private val monthPaint = textPaint(11f)
     private val dayPaint = textPaint(14f)

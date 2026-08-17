@@ -1,10 +1,13 @@
 package com.rentmanager.app.ui.landlord.myproperties.propertydetail
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +17,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -80,7 +85,7 @@ fun AttachTenantScreen(
     var manualPhone by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
 
-    val contactPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val contactPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
         if (uri != null) {
             val (name, phone) = queryContact(context, uri)
             if (phone.isNotBlank()) {
@@ -90,6 +95,19 @@ fun AttachTenantScreen(
                 viewModel.searchUsers(phone)
             }
         }
+    }
+
+    var hasContactsPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasContactsPermission = granted
+        if (granted) contactPicker.launch(null)
     }
 
     val canAttach = selectedUser != null || (manualName.isNotBlank() && manualPhone.isNotBlank())
@@ -112,7 +130,10 @@ fun AttachTenantScreen(
             )
         },
         bottomBar = {
-            Surface(color = Color.White) {
+            Surface(
+                color = Color.White,
+                modifier = Modifier.navigationBarsPadding().imePadding()
+            ) {
                 Button(
                     onClick = {
                         val user = selectedUser
@@ -149,7 +170,8 @@ fun AttachTenantScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             ActionCard(Icons.Default.Contacts, "Выбрать из контактов") {
-                contactPicker.launch(ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                if (hasContactsPermission) contactPicker.launch(null)
+                else permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
             }
 
             SectionDivider("или")
@@ -191,13 +213,16 @@ fun AttachTenantScreen(
 private fun queryContact(context: Context, uri: Uri): Pair<String, String> {
     var name = ""
     var phone = ""
+    val contactId = uri.lastPathSegment
     context.contentResolver.query(
-        uri,
+        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
         arrayOf(
             ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
             ContactsContract.CommonDataKinds.Phone.NUMBER
         ),
-        null, null, null
+        ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
+        arrayOf(contactId),
+        null
     )?.use { cursor ->
         if (cursor.moveToFirst()) {
             name = cursor.getString(0) ?: ""

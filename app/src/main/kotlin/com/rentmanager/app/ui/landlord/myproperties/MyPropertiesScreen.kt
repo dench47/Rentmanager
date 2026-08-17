@@ -208,13 +208,20 @@ fun MyPropertiesScreen(
                             headerLayoutCache = headerLayoutCache,
                             onClick = { onPropertyClick(property.id) },
                             onPeriodClick = { pickerPropertyId = property.id },
-                            onRangeSelected = { start, end -> viewModel.saveBooking(property.id, start, end) }
+                            onRangeSelected = { start, end, isRemove ->
+                                if (isRemove) viewModel.deleteBookings(property.id, start, end)
+                                else viewModel.saveBooking(property.id, start, end)
+                            }
                         )
                     }
                 }
                 DisplayMode.TABLE -> ScheduleTable(
                     properties = properties,
                     viewMode = viewMode,
+                    onRangeSelected = { propertyId, start, end, isRemove ->
+                        if (isRemove) viewModel.deleteBookings(propertyId, start, end)
+                        else viewModel.saveBooking(propertyId, start, end)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
@@ -422,7 +429,7 @@ private fun PropertyCard(
     headerLayoutCache: HeaderLayoutCache,
     onClick: () -> Unit,
     onPeriodClick: () -> Unit,
-    onRangeSelected: (LocalDate, LocalDate) -> Unit
+    onRangeSelected: (LocalDate, LocalDate, Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -531,13 +538,14 @@ private fun ScheduleRow(
     viewMode: ViewMode,
     year: Int,
     month: Int,
-    onRangeSelected: (LocalDate, LocalDate) -> Unit
+    onRangeSelected: (LocalDate, LocalDate, Boolean) -> Unit
 ) {
     val cells = remember(viewMode, year, month, property) {
         buildCells(viewMode, year, month, property)
     }
     var selectionStart by remember { mutableStateOf<Int?>(null) }
     var selectionEnd by remember { mutableStateOf<Int?>(null) }
+    var selectionRemove by remember { mutableStateOf(false) }
     val currentOnRangeSelected by rememberUpdatedState(onRangeSelected)
     val cellPitchPx = with(LocalDensity.current) { (44.dp + 4.dp).toPx() }
 
@@ -554,7 +562,7 @@ private fun ScheduleRow(
                 .height(39.dp)
                 .pointerInput(cells) {
                     detectTapGestures(
-                        onLongPress = { offset ->
+                        onTap = { offset ->
                             if (cells.dates.isNotEmpty()) {
                                 val index = (offset.x / cellPitchPx).toInt()
                                     .coerceIn(0, cells.dates.lastIndex)
@@ -562,13 +570,14 @@ private fun ScheduleRow(
                                 if (start == null) {
                                     selectionStart = index
                                     selectionEnd = index
+                                    selectionRemove = cells.states.getOrNull(index) == "fullness"
                                 } else {
                                     val lo = minOf(start, index)
                                     val hi = maxOf(start, index)
                                     val startDate = cells.dates.getOrNull(lo)
                                     val endDate = cells.dates.getOrNull(hi)
                                     if (startDate != null && endDate != null) {
-                                        currentOnRangeSelected(startDate, endDate)
+                                        currentOnRangeSelected(startDate, endDate, selectionRemove)
                                     }
                                     selectionStart = null
                                     selectionEnd = null

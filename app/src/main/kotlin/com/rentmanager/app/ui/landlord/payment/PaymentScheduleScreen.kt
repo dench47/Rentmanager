@@ -37,8 +37,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -61,6 +63,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.gson.Gson
 import com.rentmanager.app.R
 import java.util.Calendar
 
@@ -96,8 +100,11 @@ private val CreamColor = Color(0xFFFAF8F5)
 
 @Composable
 fun PaymentScheduleScreen(
-    onBack: () -> Unit
+    propertyId: String,
+    onBack: () -> Unit,
+    viewModel: PaymentScheduleViewModel = hiltViewModel()
 ) {
+    val uiState by viewModel.uiState.collectAsState()
     val cache = PaymentScheduleCache
 
     var fixedDay by remember { mutableStateOf(cache.fixedDay) }
@@ -634,6 +641,31 @@ fun PaymentScheduleScreen(
                                 )
                             }
                         }
+                    }
+
+                    // Сохранить график на сервере
+                    Button(
+                        onClick = {
+                            val day = if (fixedActive && fixedDay.isNotBlank()) fixedDay.toIntOrNull() else null
+                            val amount = if (fixedActive) fixedAmount.toDoubleOrNull() else null
+                            val customJson = if (variableActive && variableDates.isNotEmpty()) {
+                                Gson().toJson(variableDates.map { mapOf("date" to it.date, "amount" to it.amount) })
+                            } else null
+                            save()
+                            viewModel.save(propertyId, day, amount, customJson)
+                        },
+                        enabled = !uiState.isLoading,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(100.dp)
+                    ) {
+                        Text(if (uiState.isLoading) "Сохранение…" else "Сохранить", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    }
+
+                    uiState.errorMessage?.let {
+                        Text(it, color = Color(0xFFE53935), fontSize = 13.sp)
+                    }
+                    if (uiState.saved) {
+                        Text("Сохранено", color = Color(0xFF66A256), fontSize = 13.sp)
                     }
 
                     Spacer(Modifier.height(8.dp))

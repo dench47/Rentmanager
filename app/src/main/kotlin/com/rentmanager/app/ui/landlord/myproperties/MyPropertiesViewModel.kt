@@ -5,9 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreateBookingRequest
+import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.model.BookingDto
+import com.rentmanager.app.data.model.PaymentScheduleDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PropertyRepository
+import com.rentmanager.app.util.PaymentOverdue
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +21,7 @@ import javax.inject.Inject
 
 /** Диапазон брони. source: app / avito / cian / manual. */
 data class BookingRange(
+    val id: String? = null,
     val start: LocalDate,
     val end: LocalDate,
     val source: String = "manual"
@@ -53,7 +57,8 @@ enum class DisplayMode { CARDS, TABLE }
 @HiltViewModel
 class MyPropertiesViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
-    private val bookingApi: BookingApi
+    private val bookingApi: BookingApi,
+    private val financeApi: FinanceApi
 ) : ViewModel() {
     private val _properties = MutableStateFlow<List<MyPropertyItem>>(emptyList())
     val properties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
@@ -74,7 +79,9 @@ class MyPropertiesViewModel @Inject constructor(
                 val resp = propertyRepository.getProperties()
                 if (resp.isSuccessful) {
                     val items = resp.body()!!.map { it.toMyPropertyItem() }
-                    _properties.value = items.map { loadBookings(it) }
+                    val schedules = loadSchedules()
+                    val withBookings = items.map { loadBookings(it) }
+                    _properties.value = withBookings.map { loadOverdue(it, schedules) }
                 }
             } catch (_: Exception) { }
         }
@@ -88,6 +95,22 @@ class MyPropertiesViewModel @Inject constructor(
                     CreateBookingRequest(start.toString(), end.toString())
                 )
                 if (resp.isSuccessful) refresh()
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun deleteBookings(propertyId: String, start: LocalDate, end: LocalDate) {
+        viewModelScope.launch {
+            try {
+                val item = _properties.value.find { it.id == propertyId } ?: return@launch
+                val toDelete = item.bookings.filter { b ->
+                    b.id != null && !start.isAfter(b.end) && !end.isBefore(b.start)
+                }
+                if (toDelete.isEmpty()) return@launch
+                for (b in toDelete) {
+                    bookingApi.deleteBooking(propertyId, b.id!!)
+                }
+                refresh()
             } catch (_: Exception) { }
         }
     }
@@ -117,6 +140,22 @@ class MyPropertiesViewModel @Inject constructor(
         } catch (_: Exception) {
             item
         }
+
+    private suspend fun loadSchedules(): List<PaymentScheduleDto> =
+        try {
+            financeApi.getSchedules().body() ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+    private suspend fun loadOverdue(item: MyPropertyItem, schedules: List<PaymentScheduleDto>): MyPropertyItem =
+        try {
+            val schedule = schedules.firstOrNull { it.propertyId == item.id }
+            val payments = financeApi.listPayments(item.id).body() ?: emptyList()
+            item.copy(overdue = PaymentOverdue.isOverdue(schedule, payments))
+        } catch (_: Exception) {
+            item
+        }
 }
 
 private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
@@ -127,6 +166,7 @@ private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
 )
 
 private fun BookingDto.toBookingRange(): BookingRange = BookingRange(
+    id = id,
     start = LocalDate.parse(startDate),
     end = LocalDate.parse(endDate),
     source = source

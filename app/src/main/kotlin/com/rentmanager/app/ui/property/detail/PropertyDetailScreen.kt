@@ -71,7 +71,7 @@ fun PropertyDetailScreen(
     onWrite: () -> Unit,
     onAttachTenant: () -> Unit,
     onEdit: () -> Unit,
-    onPaymentSchedule: () -> Unit,
+    onPaymentSchedule: (String) -> Unit,
     viewModel: PropertyDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -140,7 +140,7 @@ fun PropertyDetailScreen(
                         DarkPillButton(
                             text = "График платежей и реквизиты",
                             iconRes = R.drawable.ic_calendar_edit,
-                            onClick = onPaymentSchedule
+                            onClick = { onPaymentSchedule(propertyId) }
                         )
 
                         OutlinedPillButton(text = "Расходы", onClick = { })

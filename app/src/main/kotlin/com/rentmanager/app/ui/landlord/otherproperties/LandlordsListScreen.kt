@@ -1,6 +1,5 @@
 package com.rentmanager.app.ui.landlord.otherproperties
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +18,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,22 +30,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
+import com.rentmanager.app.data.api.UserSearchResult
+import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
-data class LandlordItem(
-    val id: String, val name: String, val company: String,
-    @DrawableRes val avatarRes: Int? = null
-)
-
 @Composable
-fun LandlordsListScreen(onLandlordClick: (String) -> Unit, onBack: () -> Unit) {
-    val landlords = listOf(
-        LandlordItem("1", "Кузнецов Андрей", "Vertex Studio", R.drawable.mock_avatar_kuznetsov),
-        LandlordItem("2", "Новиков Тихон", "Nexus Dynamics", R.drawable.mock_avatar_novikov),
-        LandlordItem("3", "Лебедев Павел", ""),
-        LandlordItem("4", "Морозова София", "Neural", R.drawable.mock_avatar_morozova)
-    )
+fun LandlordsListScreen(
+    onLandlordClick: (String) -> Unit,
+    onBack: () -> Unit,
+    viewModel: LandlordsListViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(containerColor = Color.White) { paddingValues ->
         Column(Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
@@ -62,10 +60,20 @@ fun LandlordsListScreen(onLandlordClick: (String) -> Unit, onBack: () -> Unit) {
                     Box(Modifier.size(44.dp).clickable { }, Alignment.Center) { Image(painter = painterResource(R.drawable.ic_sort), contentDescription = "Сортировка", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit) }
                 }
             }
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(landlords) { landlord ->
-                    LandlordCard(landlord.name, landlord.company, landlord.avatarRes) { onLandlordClick(landlord.id) }
-                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+            uiState.errorMessage?.let {
+                Text(it, color = Color(0xFFE53935), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            }
+
+            if (uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Загрузка…", fontSize = 14.sp, color = Color(0xFF8E8E93))
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(uiState.landlords, key = { it.id }) { landlord ->
+                        LandlordCard(landlord) { onLandlordClick(landlord.id) }
+                        HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+                    }
                 }
             }
         }
@@ -73,14 +81,26 @@ fun LandlordsListScreen(onLandlordClick: (String) -> Unit, onBack: () -> Unit) {
 }
 
 @Composable
-private fun LandlordCard(name: String, company: String, @DrawableRes avatarRes: Int?, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+private fun LandlordCard(landlord: UserSearchResult, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painter = painterResource(avatarRes ?: R.drawable.ic_default_avatar), contentDescription = name, modifier = Modifier.size(40.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+        Box(
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFEFEFEF)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                landlord.name.ifBlank { "?" }.take(1).uppercase(),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF8E8E93),
+                fontFamily = InterFontFamily
+            )
+        }
         Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.Black, letterSpacing = (-0.3).sp)
-            if (company.isNotEmpty()) Text(company, fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
+            Text(landlord.name.ifBlank { "Без имени" }, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.Black, letterSpacing = (-0.3).sp)
+            Text(landlord.phone, fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
         }
     }
 }
