@@ -69,6 +69,31 @@ fun PinSetupScreen(
             )
         }
 
+        if (!isOnboarding) {
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Вход без PIN", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF212121))
+                    Text(
+                        if (uiState.isPasswordSet) "Выключить проверку PIN-кода" else "Вход выполняется без PIN-кода",
+                        fontSize = 12.sp,
+                        color = Color(0x993C3C43)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(
+                    checked = !uiState.isPasswordSet,
+                    onCheckedChange = { viewModel.onTogglePinWithoutPin(it) },
+                    enabled = !uiState.isLoading,
+                    colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF007AFF))
+                )
+            }
+        }
+
         Spacer(Modifier.height(32.dp))
 
         when (uiState.step) {
