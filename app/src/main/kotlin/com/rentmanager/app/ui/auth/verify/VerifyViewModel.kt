@@ -83,7 +83,7 @@ class VerifyViewModel @Inject constructor(
                             body.token?.let { tokenManager.accessToken = it }
                             body.user?.name?.let { tokenManager.userName = it }
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
-                            tokenManager.hasPassword = body.user?.hasPassword ?: false
+                            tokenManager.hasPassword = false // bypass: не требовать PIN при следующем запуске
                             // Регистрируем FCM-токен
                             tokenManager.fcmToken?.let { fcm ->
                                 launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
