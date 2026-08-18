@@ -18,6 +18,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -73,6 +76,22 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
         NotificationManagerCompat.from(this).notify(1, notification)
     }
 
+    // Время входа приходит как UNIX-метка (timestamp) — форматируем в часовом поясе телефона.
+    // Если метки нет (старый сервер) — используем готовую строку body как есть.
+    private fun buildNewLoginBody(message: RemoteMessage): String {
+        val time = message.data["timestamp"]?.toLongOrNull()?.let { ts ->
+            try {
+                DateTimeFormatter.ofPattern("HH:mm")
+                    .withZone(ZoneId.systemDefault())
+                    .format(Instant.ofEpochSecond(ts))
+            } catch (e: Exception) {
+                null
+            }
+        }
+        return if (time != null) "Замечен вход в $time"
+        else (message.data["body"] ?: "Замечен вход на другом устройстве")
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -100,7 +119,7 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
             }
             "new_login" -> {
                 val title = message.data["title"] ?: "Новый вход в аккаунт"
-                val body = message.data["body"] ?: "Замечен вход на другом устройстве"
+                val body = buildNewLoginBody(message)
                 showNotification(title, body)
             }
             "tenant_attached", "tenant_detached" -> {
