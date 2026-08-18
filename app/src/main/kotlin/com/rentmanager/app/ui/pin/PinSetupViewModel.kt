@@ -25,7 +25,6 @@ data class PinSetupUiState(
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
     val isPasswordSet: Boolean = false,
-    val isDisabling: Boolean = false,
     val attemptsLeft: Int? = null  // null = ещё грузим с сервера
 )
 
@@ -110,12 +109,7 @@ class PinSetupViewModel @Inject constructor(
                 tokenManager.fcmToken?.let { fcm ->
                     launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
                 }
-                if (_uiState.value.isDisabling) {
-                    // Подтвердили текущий код — отключаем PIN
-                    clearPassword()
-                } else {
-                    _uiState.update { it.copy(isLoading = false, step = PinSetupStep.ENTER, pin = "", currentPin = "", errorMessage = null) }
-                }
+                _uiState.update { it.copy(isLoading = false, step = PinSetupStep.ENTER, pin = "", currentPin = "", errorMessage = null) }
                 } else {
                     val remaining = (_uiState.value.attemptsLeft ?: 5) - 1
                     if (remaining <= 0) {
@@ -200,37 +194,30 @@ class PinSetupViewModel @Inject constructor(
     // Тумблер «Вход без PIN»
     fun onTogglePinWithoutPin(disable: Boolean) {
         if (disable) {
-            // Отключаем PIN: сначала подтверждаем текущий код
-            if (_uiState.value.isPasswordSet) {
-                _uiState.update {
-                    it.copy(step = PinSetupStep.VERIFY_CURRENT, isDisabling = true, currentPin = "", errorMessage = null)
-                }
-            }
+            // Выключаем PIN сразу (пользователь уже авторизован)
+            clearPassword()
         } else {
             // Включаем PIN: задаём новый код
             _uiState.update {
-                it.copy(step = PinSetupStep.ENTER, isDisabling = false, pin = "", confirmPin = "", errorMessage = null)
+                it.copy(step = PinSetupStep.ENTER, pin = "", confirmPin = "", errorMessage = null)
             }
         }
     }
 
     private fun clearPassword() {
+        _uiState.update { it.copy(isLoading = true) }
         viewModelScope.launch {
             try {
                 val resp = authApi.setPassword(SetPasswordRequest(""))
                 if (resp.isSuccessful) {
                     tokenManager.hasPassword = false
                     cryptoManager.clearPin()
-                    _uiState.update { it.copy(isLoading = false, isPasswordSet = false, isDisabling = false, isSuccess = true) }
+                    _uiState.update { it.copy(isLoading = false, isPasswordSet = false, isSuccess = true) }
                 } else {
-                    _uiState.update {
-                        it.copy(isLoading = false, isDisabling = false, step = PinSetupStep.VERIFY_CURRENT, currentPin = "", errorMessage = "Ошибка отключения PIN")
-                    }
+                    _uiState.update { it.copy(isLoading = false, errorMessage = "Ошибка отключения PIN") }
                 }
             } catch (_: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false, isDisabling = false, step = PinSetupStep.VERIFY_CURRENT, currentPin = "", errorMessage = "Нет связи с сервером")
-                }
+                _uiState.update { it.copy(isLoading = false, errorMessage = "Нет связи с сервером") }
             }
         }
     }
