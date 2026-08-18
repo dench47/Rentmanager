@@ -84,13 +84,23 @@ fun RentManagerNavGraph(
         composable(Screen.Verify.route) {
             VerifyScreen(
                 onVerified = { isNewUser ->
-                    if (isNewUser) {
-                        navController.navigate(Screen.PinSetup.createRoute(onboarding = true)) {
-                            popUpTo(0) { inclusive = true }
+                    when {
+                        isNewUser -> {
+                            navController.navigate(Screen.PinSetup.createRoute(onboarding = true)) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
-                    } else {
-                        navController.navigate(Screen.MainScreen.route) {
-                            popUpTo(0) { inclusive = true }
+                        // Тестовый режим (AUTH_BYPASS_PIN): сервер выдал токены сразу
+                        tokenManager.accessToken != null -> {
+                            navController.navigate(Screen.MainScreen.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                        // Продакшн: вход по PIN
+                        else -> {
+                            navController.navigate(Screen.PinEntry.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
                 }

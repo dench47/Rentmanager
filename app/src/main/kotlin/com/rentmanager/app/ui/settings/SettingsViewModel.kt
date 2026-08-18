@@ -6,6 +6,7 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.SendCodeRequest
 import com.rentmanager.app.data.api.UpdateProfileRequest
 import com.rentmanager.app.data.local.TokenManager
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -206,9 +208,23 @@ class SettingsViewModel @Inject constructor(
     fun showLogoutDialog() { _uiState.update { it.copy(showLogoutDialog = true) } }
 
     fun logoutCurrentDevice(onLoggedOut: () -> Unit) {
-        tokenManager.clear()
-        _uiState.update { it.copy(showLogoutDialog = false) }
-        onLoggedOut()
+        val fcm = tokenManager.fcmToken
+        val finish = {
+            tokenManager.clear()
+            _uiState.update { it.copy(showLogoutDialog = false) }
+            onLoggedOut()
+        }
+        if (fcm != null) {
+            viewModelScope.launch {
+                // Отвязываем FCM-токен на сервере, пока access-токен ещё валиден
+                withTimeoutOrNull(3000) {
+                    try { authApi.unregisterDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {}
+                }
+                finish()
+            }
+        } else {
+            finish()
+        }
     }
 
     fun logoutAllDevices(onLoggedOut: () -> Unit) {

@@ -22,7 +22,11 @@ data class LoginResponse(
     @SerializedName("access_token") val accessToken: String?,
     @SerializedName("refresh_token") val refreshToken: String?,
     val token: String?,
-    val user: UserDto?
+    val user: UserDto?,
+    @SerializedName("has_password") val hasPassword: Boolean?,
+    val name: String?,
+    val phone: String?,
+    @SerializedName("default_start_screen") val defaultStartScreen: String?
 )
 
 data class CallCheckAddResponse(
@@ -147,6 +151,9 @@ interface AuthApi {
 
     @POST("auth/register_device")
     suspend fun registerDevice(@Body request: RegisterDeviceRequest): Response<MessageResponse>
+
+    @POST("auth/unregister_device")
+    suspend fun unregisterDevice(@Body request: RegisterDeviceRequest): Response<MessageResponse>
 
     @DELETE("auth/account")
     suspend fun deleteAccount(): Response<MessageResponse>

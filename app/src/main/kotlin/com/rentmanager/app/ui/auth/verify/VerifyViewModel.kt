@@ -72,20 +72,29 @@ class VerifyViewModel @Inject constructor(
                 if (loginResp.isSuccessful) {
                     val body = loginResp.body()
                     if (body?.exists == true) {
-                        // Пользователь уже зарегистрирован — сохраняем токен и идём дальше
-                        // Сохраняем токены (новый формат access_token/refresh_token)
-                        body.accessToken?.let { tokenManager.accessToken = it }
-                        body.refreshToken?.let { tokenManager.refreshToken = it }
-                        // Обратная совместимость со старым форматом token
-                        body.token?.let { tokenManager.accessToken = it }
-                        body.user?.name?.let { tokenManager.userName = it }
-                        body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
-                        body.user?.passwordHash?.let { tokenManager.hasPassword = it.isNotEmpty() }
                         tokenManager.phone = phone
-                        // Регистрируем FCM-токен
-                        tokenManager.fcmToken?.let { fcm ->
-                            launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                        body.name?.let { tokenManager.userName = it }
+                        body.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
+
+                        if (body.accessToken != null) {
+                            // Тестовый режим (сервер выдал токены без PIN, AUTH_BYPASS_PIN=true) — входим сразу
+                            tokenManager.accessToken = body.accessToken
+                            body.refreshToken?.let { tokenManager.refreshToken = it }
+                            body.token?.let { tokenManager.accessToken = it }
+                            body.user?.name?.let { tokenManager.userName = it }
+                            body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
+                            tokenManager.hasPassword = body.user?.hasPassword ?: false
+                            // Регистрируем FCM-токен
+                            tokenManager.fcmToken?.let { fcm ->
+                                launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                            }
+                            _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false) }
+                            onSuccess(phone)
+                            return@launch
                         }
+
+                        // Продакшн: вход только по PIN — идём на экран ввода PIN
+                        tokenManager.hasPassword = body.hasPassword ?: true
                         _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false) }
                         onSuccess(phone)
                         return@launch

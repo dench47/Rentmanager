@@ -63,7 +63,7 @@ class PinSetupViewModel @Inject constructor(
             try {
                 val resp = authApi.getMe()
                 if (resp.isSuccessful) {
-                    val hasPassword = !resp.body()?.passwordHash.isNullOrEmpty()
+                    val hasPassword = resp.body()?.hasPassword ?: false
                     _uiState.update { it.copy(isPasswordSet = hasPassword, step = if (hasPassword) PinSetupStep.VERIFY_CURRENT else PinSetupStep.ENTER) }
                 }
             } catch (_: Exception) { }

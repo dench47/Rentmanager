@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import com.google.firebase.messaging.FirebaseMessaging
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.UpdateManager
@@ -87,12 +89,28 @@ class MainActivity : FragmentActivity() {
 
     private fun registerFcmTokenIfLoggedIn() {
         if (tokenManager.accessToken == null) return
-        val token = tokenManager.fcmToken ?: return
+        val cached = tokenManager.fcmToken
+        if (cached != null) {
+            registerDeviceOnServer(cached)
+            return
+        }
+        // Токен ещё не сохранён — запрашиваем напрямую у Firebase
+        @Suppress("DEPRECATION")
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful && tokenManager.accessToken != null) {
+                val token = task.result
+                tokenManager.fcmToken = token
+                registerDeviceOnServer(token)
+            }
+        }
+    }
+
+    private fun registerDeviceOnServer(token: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 authApi.registerDevice(RegisterDeviceRequest(token))
-            } catch (_: Exception) {
-                // не критично — токен зарегистрируется при следующем логине
+            } catch (e: Exception) {
+                Log.e("FCM", "Failed to register device: ${e.message}")
             }
         }
     }

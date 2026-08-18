@@ -35,6 +35,7 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
     @Inject
     lateinit var tenantEvents: TenantEvents
 
+    @Suppress("DEPRECATION") // FCM token API: миграция на register()/onRegistered(FID) — отдельная задача
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -92,7 +93,7 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
         else (message.data["body"] ?: "Замечен вход на другом устройстве")
     }
 
-    @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION") // устаревший API FCM: миграция на onRegistered(FID) — отдельная задача
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("FCM", "New token: $token")

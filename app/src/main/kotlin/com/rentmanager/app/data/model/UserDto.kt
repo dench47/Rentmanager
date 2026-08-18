@@ -12,7 +12,7 @@ data class UserDto(
     @SerializedName("avatar_url") val avatarUrl: String? = null,
     @SerializedName("email") val email: String? = null,
     @SerializedName("full_name") val fullName: String? = null,
-    @SerializedName("password_hash") val passwordHash: String? = null,
+    @SerializedName("has_password") val hasPassword: Boolean? = null,
     @SerializedName("token_version") val tokenVersion: Int = 0,
     @SerializedName("default_start_screen") val defaultStartScreen: String = ""
 )

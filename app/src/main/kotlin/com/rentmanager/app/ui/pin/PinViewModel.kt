@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 data class PinUiState(
@@ -129,9 +130,18 @@ class PinViewModel @Inject constructor(
     }
 
     fun logout(onLoggedOut: () -> Unit) {
-        tokenManager.clear()
-        cryptoManager.clearPin()
-        onLoggedOut()
+        val fcm = tokenManager.fcmToken
+        viewModelScope.launch {
+            if (fcm != null) {
+                // Отвязываем FCM-токен на сервере, пока access-токен ещё валиден
+                withTimeoutOrNull(3000) {
+                    try { authApi.unregisterDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {}
+                }
+            }
+            tokenManager.clear()
+            cryptoManager.clearPin()
+            onLoggedOut()
+        }
     }
 
     fun onBiometricSuccess(pin: String) {
