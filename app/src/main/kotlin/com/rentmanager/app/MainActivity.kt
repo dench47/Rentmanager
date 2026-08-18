@@ -19,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.UpdateManager
 import com.rentmanager.app.data.api.UpdateResult
 import com.rentmanager.app.data.api.VersionResponse
@@ -27,6 +29,8 @@ import com.rentmanager.app.ui.components.UpdateDialog
 import com.rentmanager.app.ui.navigation.RentManagerNavGraph
 import com.rentmanager.app.ui.theme.RentManagerTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import androidx.compose.runtime.DisposableEffect
@@ -41,6 +45,7 @@ class MainActivity : FragmentActivity() {
 
     @Inject lateinit var tokenManager: TokenManager
     @Inject lateinit var updateManager: UpdateManager
+    @Inject lateinit var authApi: AuthApi
 
     private val retryDownloadSignal = mutableIntStateOf(0)
 
@@ -74,6 +79,20 @@ class MainActivity : FragmentActivity() {
             val elapsed = now - tokenManager.lastPauseTimestamp
             if (tokenManager.lastPauseTimestamp > 0L && elapsed > BACKGROUND_TIMEOUT_MS) {
                 tokenManager.requirePin = true
+            }
+        }
+        // Перерегистрируем FCM-токен, чтобы он не пропал после рестарта сервера
+        registerFcmTokenIfLoggedIn()
+    }
+
+    private fun registerFcmTokenIfLoggedIn() {
+        if (tokenManager.accessToken == null) return
+        val token = tokenManager.fcmToken ?: return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                authApi.registerDevice(RegisterDeviceRequest(token))
+            } catch (_: Exception) {
+                // не критично — токен зарегистрируется при следующем логине
             }
         }
     }
