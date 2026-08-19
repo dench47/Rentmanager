@@ -218,7 +218,12 @@ class SettingsViewModel @Inject constructor(
             viewModelScope.launch {
                 // Отвязываем FCM-токен на сервере, пока access-токен ещё валиден
                 withTimeoutOrNull(3000) {
-                    try { authApi.unregisterDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {}
+                    try {
+                        val resp = authApi.unregisterDevice(RegisterDeviceRequest(fcm))
+                        if (!resp.isSuccessful) android.util.Log.e("FCM", "unregister failed: ${resp.code()}")
+                    } catch (e: Exception) {
+                        android.util.Log.e("FCM", "unregister error: ${e.message}")
+                    }
                 }
                 finish()
             }
