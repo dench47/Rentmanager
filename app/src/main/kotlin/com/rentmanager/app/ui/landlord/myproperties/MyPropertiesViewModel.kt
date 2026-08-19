@@ -82,7 +82,13 @@ class MyPropertiesViewModel @Inject constructor(
                 if (resp.isSuccessful) {
                     val dtos = resp.body()!!
                     dtos.forEach { runCatching { detailCache.saveProperty(it) } }
-                    val items = dtos.map { it.toMyPropertyItem() }
+                    // Сохраняем выбранный период каждого объекта, чтобы refresh не сбрасывал его на текущий год/месяц
+                    val previous = _properties.value.associateBy { it.id }
+                    val items = dtos.map { dto ->
+                        val item = dto.toMyPropertyItem()
+                        val prev = previous[dto.id]
+                        if (prev != null) item.copy(year = prev.year, month = prev.month) else item
+                    }
                     val schedules = loadSchedules()
                     val withBookings = items.map { loadBookings(it) }
                     _properties.value = withBookings.map { loadOverdue(it, schedules) }

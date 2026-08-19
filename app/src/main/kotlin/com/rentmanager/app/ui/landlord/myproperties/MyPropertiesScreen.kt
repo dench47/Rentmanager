@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -705,26 +707,35 @@ private fun TabItem(
     onClick: () -> Unit,
     iconSize: Dp = 24.dp
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val contentColor = if (isPressed) White else TextPrimary
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .width(84.dp)
-            .clickable { onClick() }
+            .clip(RoundedCornerShape(30.dp))
+            .background(if (isPressed) TextPrimary else Color.Transparent)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) { onClick() }
             .padding(6.dp)
     ) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = label,
             modifier = Modifier.size(iconSize),
-            tint = TextPrimary
+            tint = contentColor
         )
         Text(
             label,
             fontSize = 9.5.sp,
             fontWeight = FontWeight.Normal,
             letterSpacing = (-0.4).sp,
-            color = TextPrimary
+            color = contentColor
         )
     }
 }
