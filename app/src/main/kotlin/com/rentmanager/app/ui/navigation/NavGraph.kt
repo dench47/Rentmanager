@@ -186,20 +186,6 @@ fun RentManagerNavGraph(
             )
         }
 
-        // ========== Edit Property ==========
-        composable(
-            route = Screen.EditProperty.route,
-            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
-            com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
-                propertyId = propertyId,
-                onBack = { navController.popBackStack() },
-                onCreated = { navController.popBackStack() },
-                onPaymentSchedule = { navController.navigate(Screen.PaymentSchedule.createRoute(propertyId)) }
-            )
-        }
-
         // ========== Attach Tenant ==========
         composable(
             route = Screen.AttachTenant.route,
@@ -246,9 +232,6 @@ fun RentManagerNavGraph(
                 },
                 onAttachTenant = {
                     navController.navigate(Screen.AttachTenant.createRoute(propertyId))
-                },
-                onEdit = {
-                    navController.navigate(Screen.EditProperty.createRoute(propertyId))
                 },
                 onPaymentSchedule = {
                     navController.navigate(Screen.PaymentSchedule.createRoute(propertyId))

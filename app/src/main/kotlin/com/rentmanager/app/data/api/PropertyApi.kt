@@ -1,6 +1,7 @@
 package com.rentmanager.app.data.api
 
 import com.google.gson.annotations.SerializedName
+import com.rentmanager.app.data.model.PhotoDto
 import com.rentmanager.app.data.model.PropertyDto
 import retrofit2.Response
 import retrofit2.http.*
@@ -8,6 +9,10 @@ import retrofit2.http.*
 data class AttachTenantRequest(
     @SerializedName("user_id") val userId: String? = null,
     @SerializedName("tenant_id") val tenantId: String? = null
+)
+
+data class AddPhotoRequest(
+    @SerializedName("url") val url: String
 )
 
 interface PropertyApi {
@@ -29,6 +34,12 @@ interface PropertyApi {
 
     @POST("properties/{id}/attach_tenant")
     suspend fun attachTenant(@Path("id") id: String, @Body request: AttachTenantRequest): Response<MessageResponse>
+
+    @POST("properties/{id}/photos")
+    suspend fun addPhoto(@Path("id") id: String, @Body request: AddPhotoRequest): Response<PhotoDto>
+
+    @DELETE("photos/{photoId}")
+    suspend fun deletePhoto(@Path("photoId") photoId: String): Response<Unit>
 
     @GET("tenant/properties")
     suspend fun getTenantProperties(): Response<List<PropertyDto>>

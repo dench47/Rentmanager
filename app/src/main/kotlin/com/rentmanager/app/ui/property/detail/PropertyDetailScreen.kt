@@ -1,5 +1,7 @@
 package com.rentmanager.app.ui.property.detail
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +31,8 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -57,6 +61,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
+import com.rentmanager.app.data.model.PhotoDto
 import kotlinx.coroutines.launch
 
 // Цвета из макета (node 73:915 / 73:1005), стиль «Моя недвижимость»
@@ -74,12 +79,20 @@ fun PropertyDetailScreen(
     onCall: () -> Unit,
     onWrite: () -> Unit,
     onAttachTenant: () -> Unit,
-    onEdit: () -> Unit,
     onPaymentSchedule: (String) -> Unit,
     viewModel: PropertyDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.addPhotos(uris.map { it.toString() })
+        }
+    }
+
     DisposableEffect(lifecycleOwner, propertyId) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -110,12 +123,13 @@ fun PropertyDetailScreen(
                         PhotoCarousel(
                             photos = uiState.photos,
                             area = uiState.area,
-                            onEdit = onEdit
+                            onAddPhoto = { galleryLauncher.launch("image/*") },
+                            onDelete = { photoId -> viewModel.deletePhoto(photoId) }
                         )
                     } else {
                         PhotoPlaceholder(
                             area = uiState.area,
-                            onEdit = onEdit
+                            onAddPhoto = { galleryLauncher.launch("image/*") }
                         )
                     }
                 }
@@ -260,12 +274,20 @@ private fun DetailHeader(
 }
 @Composable
 private fun PhotoCarousel(
-    photos: List<String>,
+    photos: List<PhotoDto>,
     area: String,
-    onEdit: () -> Unit
+    onAddPhoto: () -> Unit,
+    onDelete: (String) -> Unit
 ) {
     val pagerState = rememberPagerState(pageCount = { photos.size })
     val scope = rememberCoroutineScope()
+
+    // Если удалили последний снимок — не выходим за границы пагера
+    LaunchedEffect(photos.size) {
+        if (photos.isNotEmpty() && pagerState.currentPage >= photos.size) {
+            pagerState.scrollToPage(photos.size - 1)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -274,7 +296,7 @@ private fun PhotoCarousel(
     ) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             AsyncImage(
-                model = photos[page],
+                model = photos[page].url,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
@@ -370,28 +392,19 @@ private fun PhotoCarousel(
             }
         }
 
-        // Карандаш (редактирование) — правый верхний угол фото
-        Box(
+        // Карандаш (редактирование фото) — правый верхний угол
+        PhotoEditMenu(
+            canDelete = true,
+            onAddPhoto = onAddPhoto,
+            onDelete = { photos[pagerState.currentPage].id?.let(onDelete) },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(12.dp)
-                .size(40.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White.copy(alpha = 0.9f))
-                .clickable { onEdit() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Edit,
-                contentDescription = "Изменить",
-                modifier = Modifier.size(20.dp),
-                tint = TextPrimary
-            )
-        }
+        )
     }
 }
 @Composable
-private fun PhotoPlaceholder(area: String, onEdit: () -> Unit) {
+private fun PhotoPlaceholder(area: String, onAddPhoto: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -424,15 +437,33 @@ private fun PhotoPlaceholder(area: String, onEdit: () -> Unit) {
             }
         }
 
-        // Карандаш (редактирование)
-        Box(
+        // Карандаш (добавление фото)
+        PhotoEditMenu(
+            canDelete = false,
+            onAddPhoto = onAddPhoto,
+            onDelete = null,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(12.dp)
+        )
+    }
+}
+
+@Composable
+private fun PhotoEditMenu(
+    canDelete: Boolean,
+    onAddPhoto: () -> Unit,
+    onDelete: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color.White.copy(alpha = 0.9f))
-                .clickable { onEdit() },
+                .clickable { expanded = true },
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -441,6 +472,27 @@ private fun PhotoPlaceholder(area: String, onEdit: () -> Unit) {
                 modifier = Modifier.size(20.dp),
                 tint = TextPrimary
             )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("Добавить фото") },
+                onClick = {
+                    expanded = false
+                    onAddPhoto()
+                }
+            )
+            if (canDelete && onDelete != null) {
+                DropdownMenuItem(
+                    text = { Text("Удалить", color = Color(0xFFE53935)) },
+                    onClick = {
+                        expanded = false
+                        onDelete()
+                    }
+                )
+            }
         }
     }
 }

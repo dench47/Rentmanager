@@ -1,23 +1,18 @@
 package com.rentmanager.app.ui.landlord.createproperty
 
-import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.model.PhotoDto
 import com.rentmanager.app.data.model.PropertyDto
+import com.rentmanager.app.data.repository.PhotoUploader
 import com.rentmanager.app.data.repository.PropertyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 
 data class CreatePropertyUiState(
@@ -28,9 +23,8 @@ data class CreatePropertyUiState(
 @HiltViewModel
 class CreatePropertyViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
-    private val authApi: AuthApi,
-    private val detailCache: PropertyDetailCache,
-    @ApplicationContext private val context: Context
+    private val photoUploader: PhotoUploader,
+    private val detailCache: PropertyDetailCache
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreatePropertyUiState())
@@ -53,7 +47,7 @@ class CreatePropertyViewModel @Inject constructor(
             _uiState.value = CreatePropertyUiState(isCreating = true)
             try {
                 // 1. Загружаем фото в S3 (папка photos), по аналогии с аватаркой
-                val photoUrls = photoUris.map { uploadPhoto(Uri.parse(it)) }
+                val photoUrls = photoUris.map { photoUploader.upload(Uri.parse(it)) }
 
                 // 2. Создаём объект в БД
                 val dto = PropertyDto(
@@ -83,21 +77,5 @@ class CreatePropertyViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = CreatePropertyUiState()
-    }
-
-    private suspend fun uploadPhoto(uri: Uri): String {
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw Exception("Cannot open file")
-        val bytes = inputStream.readBytes()
-        inputStream.close()
-
-        val fileName = "photo_${System.currentTimeMillis()}.jpg"
-        val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
-        val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
-        val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
-
-        val resp = authApi.uploadPhoto(part)
-        if (!resp.isSuccessful) throw Exception("Ошибка загрузки фото")
-        return resp.body()!!.url
     }
 }

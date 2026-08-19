@@ -1,10 +1,13 @@
 package com.rentmanager.app.ui.property.detail
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.TenantApi
 import com.rentmanager.app.data.local.PropertyDetailCache
+import com.rentmanager.app.data.model.PhotoDto
+import com.rentmanager.app.data.repository.PhotoUploader
 import com.rentmanager.app.data.repository.PropertyRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +22,7 @@ data class PropertyDetailUiState(
     val address: String = "",
     val area: String = "",
     val rentPrice: String = "",
-    val photos: List<String> = emptyList(),
+    val photos: List<PhotoDto> = emptyList(),
     val serviceInfo: String = "",
     val phone: String = "",
     val wifiPassword: String = "",
@@ -34,6 +37,7 @@ data class PropertyDetailUiState(
 class PropertyDetailViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
     private val tenantApi: TenantApi,
+    private val photoUploader: PhotoUploader,
     private val detailCache: PropertyDetailCache,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -52,7 +56,7 @@ class PropertyDetailViewModel @Inject constructor(
             address = p.address,
             area = formatArea(p.area),
             rentPrice = formatPrice(p.rentAmount),
-            photos = p.photos?.map { it.url } ?: emptyList(),
+            photos = p.photos ?: emptyList(),
             serviceInfo = p.serviceInfo ?: "",
             phone = p.phone ?: "",
             wifiPassword = p.wifiPassword ?: "",
@@ -89,7 +93,7 @@ class PropertyDetailViewModel @Inject constructor(
                         address = p.address,
                         area = formatArea(p.area),
                         rentPrice = formatPrice(p.rentAmount),
-                        photos = p.photos?.map { it.url } ?: emptyList(),
+                        photos = p.photos ?: emptyList(),
                         serviceInfo = p.serviceInfo ?: "",
                         phone = p.phone ?: "",
                         wifiPassword = p.wifiPassword ?: "",
@@ -120,5 +124,50 @@ class PropertyDetailViewModel @Inject constructor(
         val whole = amount.toLong()
         val withSpaces = whole.toString().reversed().chunked(3).joinToString(" ").reversed()
         return "$withSpaces ₽"
+    }
+
+    fun addPhotos(photoUris: List<String>) {
+        if (photoUris.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val added = photoUris.map { uploadAndRegisterPhoto(Uri.parse(it)) }
+                val updated = _uiState.value.photos + added
+                _uiState.value = _uiState.value.copy(photos = updated)
+                syncCache(updated)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message ?: "Ошибка загрузки фото")
+            }
+        }
+    }
+
+    fun deletePhoto(photoId: String) {
+        viewModelScope.launch {
+            try {
+                val resp = propertyRepository.deletePhoto(photoId)
+                if (resp.isSuccessful) {
+                    val updated = _uiState.value.photos.filterNot { it.id == photoId }
+                    _uiState.value = _uiState.value.copy(photos = updated)
+                    syncCache(updated)
+                } else {
+                    _uiState.value = _uiState.value.copy(errorMessage = "Ошибка удаления фото")
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(errorMessage = e.message ?: "Ошибка")
+            }
+        }
+    }
+
+    private suspend fun uploadAndRegisterPhoto(uri: Uri): PhotoDto {
+        val url = photoUploader.upload(uri)
+
+        val addResp = propertyRepository.addPhoto(propertyId, url)
+        if (!addResp.isSuccessful) throw Exception("Ошибка сохранения фото")
+        return addResp.body()!!
+    }
+
+    private fun syncCache(photos: List<PhotoDto>) {
+        detailCache.load(propertyId)?.let { entry ->
+            detailCache.save(entry.copy(property = entry.property.copy(photos = photos)))
+        }
     }
 }
