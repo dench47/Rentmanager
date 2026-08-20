@@ -1,0 +1,78 @@
+package com.rentmanager.app.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+
+/**
+ * Карта OpenStreetMap (osmdroid) с одной меткой.
+ * Бесплатно, без API-ключей. Требует атрибуции © OpenStreetMap contributors.
+ */
+@Composable
+fun AddressMapPicker(
+    latitude: Double,
+    longitude: Double,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+
+    val mapView = remember {
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            controller.setZoom(16.0)
+        }
+    }
+    val marker = remember {
+        Marker(mapView).apply {
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = "Объект"
+        }
+    }
+
+    Box(modifier = modifier.clip(RoundedCornerShape(12.dp))) {
+        AndroidView(
+            factory = { mapView },
+            modifier = Modifier.fillMaxSize(),
+            update = { view ->
+                val point = GeoPoint(latitude, longitude)
+                view.controller.setCenter(point)
+                marker.position = point
+                if (marker !in view.overlays) {
+                    view.overlayManager.add(marker)
+                }
+                view.invalidate()
+            }
+        )
+
+        // Обязательная атрибуция OpenStreetMap (ODbL)
+        Text(
+            text = "© OpenStreetMap contributors",
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(4.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.White.copy(alpha = 0.75f))
+                .padding(horizontal = 5.dp, vertical = 2.dp),
+            fontSize = 10.sp,
+            color = Color(0xFF444444)
+        )
+    }
+}

@@ -4,6 +4,7 @@ import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.ChatApi
 import com.rentmanager.app.data.api.FinanceApi
+import com.rentmanager.app.data.api.GeoApi
 import com.rentmanager.app.data.api.PropertyApi
 import com.rentmanager.app.BuildConfig
 import com.rentmanager.app.data.api.RefreshTokenRequest
@@ -152,4 +153,23 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideBookingApi(retrofit: Retrofit): BookingApi = retrofit.create(BookingApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideGeoApi(): GeoApi {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", "RentManagerApp/1.0")
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://photon.komoot.io/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(GeoApi::class.java)
+    }
 }

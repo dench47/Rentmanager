@@ -112,6 +112,9 @@ dependencies {
     // Coil (image loading)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // OSM-карты (osmdroid) — бесплатно, без ключей
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
+
     // Biometric
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

@@ -36,6 +36,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -63,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.AddressMapPicker
 import com.rentmanager.app.ui.components.BlackButtonWithIcon
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -270,7 +272,62 @@ fun CreatePropertyScreen(
                     PremiumTextField(value = name, onValueChange = { name = it }, placeholder = "Название")
 
                     // 3. Адрес
-                    PremiumTextField(value = address, onValueChange = { address = it }, placeholder = "Адрес")
+                    PremiumTextField(
+                        value = address,
+                        onValueChange = {
+                            address = it
+                            viewModel.suggestAddress(it)
+                        },
+                        placeholder = "Адрес"
+                    )
+
+                    // Подсказки адреса (Photon / OpenStreetMap)
+                    if (uiState.addressSuggestions.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column {
+                                uiState.addressSuggestions.forEachIndexed { index, suggestion ->
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                address = suggestion.displayName
+                                                viewModel.selectAddress(suggestion)
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    ) {
+                                        Text(
+                                            suggestion.displayName,
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF1D1D1F),
+                                            letterSpacing = (-0.4).sp
+                                        )
+                                    }
+                                    if (index < uiState.addressSuggestions.lastIndex) {
+                                        HorizontalDivider(color = Color(0xFFF2F2F7), thickness = 1.dp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Карта с выбранной меткой
+                    if (uiState.selectedLatitude != null && uiState.selectedLongitude != null) {
+                        AddressMapPicker(
+                            latitude = uiState.selectedLatitude!!,
+                            longitude = uiState.selectedLongitude!!,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .padding(top = 12.dp)
+                        )
+                    }
 
                     // 4. Площадь
                     PremiumTextField(value = area, onValueChange = { area = it }, placeholder = "Площадь (м²)", keyboardType = KeyboardType.Decimal)
@@ -401,6 +458,8 @@ fun CreatePropertyScreen(
                                 phone = phoneNumber,
                                 wifiPassword = wifiPassword,
                                 houseRules = rulesText,
+                                latitude = uiState.selectedLatitude,
+                                longitude = uiState.selectedLongitude,
                                 onSuccess = onCreated
                             )
                         }
