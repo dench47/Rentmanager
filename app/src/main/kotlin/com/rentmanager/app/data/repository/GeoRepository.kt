@@ -9,18 +9,22 @@ import javax.inject.Singleton
 data class AddressSuggestion(
     val displayName: String,
     val latitude: Double,
-    val longitude: Double
+    val longitude: Double,
+    val extent: List<Double>? = null, // [minLon, minLat, maxLon, maxLat]
+    val type: String? = null
 )
 
 @Singleton
 class GeoRepository @Inject constructor(
     private val geoApi: GeoApi
 ) {
-    suspend fun suggest(query: String): List<AddressSuggestion> {
+    suspend fun suggest(query: String, bbox: String? = null): List<AddressSuggestion> {
         return try {
-            val resp = geoApi.suggest(query)
+            val resp = geoApi.suggest(query = query, bbox = bbox)
             if (resp.isSuccessful) {
-                resp.body()?.features.orEmpty().mapNotNull { it.toAddressSuggestion() }
+                resp.body()?.features.orEmpty()
+                    .mapNotNull { it.toAddressSuggestion() }
+                    .distinctBy { it.displayName }
             } else {
                 emptyList()
             }
@@ -38,12 +42,22 @@ private fun PhotonFeature.toAddressSuggestion(): AddressSuggestion? {
     val streetFull = listOfNotNull(p.street, p.housenumber)
         .joinToString(" ")
         .trim()
-    val locality = p.city ?: p.state ?: ""
-    val parts = listOfNotNull(
-        streetFull.ifBlank { null },
-        locality.ifBlank { null },
-        p.country
+
+    // Собираем понятное название: сначала сам объект (name), затем иерархия
+    val parts = mutableListOf<String>()
+    if (streetFull.isNotBlank()) parts += streetFull
+    if (!p.name.isNullOrBlank()) parts += p.name
+    p.city?.let { if (it.isNotBlank()) parts += it }
+    p.state?.let { if (it.isNotBlank()) parts += it }
+    p.country?.let { if (it.isNotBlank()) parts += it }
+
+    val unique = parts.distinct()
+    val display = if (unique.isEmpty()) (p.name ?: "Адрес") else unique.joinToString(", ")
+    return AddressSuggestion(
+        displayName = display,
+        latitude = lat,
+        longitude = lon,
+        extent = p.extent,
+        type = p.type
     )
-    val display = if (parts.isEmpty()) (p.name ?: "Адрес") else parts.joinToString(", ")
-    return AddressSuggestion(displayName = display, latitude = lat, longitude = lon)
 }

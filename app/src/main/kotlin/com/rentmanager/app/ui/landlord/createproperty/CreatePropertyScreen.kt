@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -56,10 +57,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -83,7 +86,7 @@ fun CreatePropertyScreen(
 ) {
     val isEdit = propertyId != null
     var name by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf(TextFieldValue("")) }
     var area by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -272,11 +275,11 @@ fun CreatePropertyScreen(
                     PremiumTextField(value = name, onValueChange = { name = it }, placeholder = "Название")
 
                     // 3. Адрес
-                    PremiumTextField(
+                    AddressTextField(
                         value = address,
                         onValueChange = {
                             address = it
-                            viewModel.suggestAddress(it)
+                            viewModel.suggestAddress(it.text)
                         },
                         placeholder = "Адрес"
                     )
@@ -291,13 +294,18 @@ fun CreatePropertyScreen(
                             colors = CardDefaults.cardColors(containerColor = Color.White),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Column {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 240.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
                                 uiState.addressSuggestions.forEachIndexed { index, suggestion ->
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                address = suggestion.displayName
+                                                address = TextFieldValue(" " + suggestion.displayName, TextRange(0))
                                                 viewModel.selectAddress(suggestion)
                                             }
                                             .padding(horizontal = 12.dp, vertical = 10.dp)
@@ -442,14 +450,14 @@ fun CreatePropertyScreen(
                     // Сохранить / Создать
                     Box(
                         modifier = Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(100.dp))
-                            .background(if (name.isNotBlank() && address.isNotBlank()) Color(0xFF212121) else Color(0xFF212121).copy(alpha = 0.5f))
-                    .clickable(enabled = name.isNotBlank() && address.isNotBlank() && !uiState.isCreating) {
+                            .background(if (name.isNotBlank() && address.text.isNotBlank()) Color(0xFF212121) else Color(0xFF212121).copy(alpha = 0.5f))
+                    .clickable(enabled = name.isNotBlank() && address.text.isNotBlank() && !uiState.isCreating) {
                         if (isEdit) {
                             onCreated()
                         } else {
                             viewModel.createProperty(
                                 name = name,
-                                address = address,
+                                address = address.text,
                                 area = area,
                                 rentAmount = price,
                                 description = description,
@@ -483,6 +491,47 @@ fun CreatePropertyScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AddressTextField(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    placeholder: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+            textStyle = TextStyle(
+                fontSize = 15.sp,
+                color = Color(0xFF1D1D1F),
+                letterSpacing = (-0.4).sp
+            ),
+            cursorBrush = SolidColor(Color(0xFF1D1D1F)),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Default),
+            decorationBox = { innerTextField ->
+                Box {
+                    if (value.text.isEmpty()) {
+                        Text(
+                            placeholder,
+                            fontSize = 15.sp,
+                            color = Color(0xFF8E8E93),
+                            letterSpacing = (-0.4).sp
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        )
     }
 }
 

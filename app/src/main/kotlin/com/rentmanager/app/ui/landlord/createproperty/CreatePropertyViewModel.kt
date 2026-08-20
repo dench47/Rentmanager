@@ -39,21 +39,64 @@ class CreatePropertyViewModel @Inject constructor(
     val uiState: StateFlow<CreatePropertyUiState> = _uiState.asStateFlow()
 
     private var suggestJob: Job? = null
+    private var baseAddress: String = ""
+    private var scopeBbox: String? = null
+    private var refinePrefix: String? = null
 
-    fun suggestAddress(query: String) {
+    fun suggestAddress(fullText: String) {
         suggestJob?.cancel()
-        if (query.trim().length < 3) {
+
+        // Если пользователь стёр всё — сбрасываем накопленную базу и область поиска
+        if (fullText.trim().isEmpty()) {
+            baseAddress = ""
+            scopeBbox = null
+            refinePrefix = null
             _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
             return
         }
+
+        // «Активный сегмент» — то, что пользователь печатает после уже выбранной базы
+        val segment = when {
+            baseAddress.isNotEmpty() && fullText.endsWith(baseAddress) ->
+                fullText.removeSuffix(baseAddress).trim(' ', ',', '-', '.', ';')
+            baseAddress.isNotEmpty() && fullText.startsWith(baseAddress) ->
+                fullText.removePrefix(baseAddress).trim(' ', ',', '-', '.', ';')
+            else -> fullText.trim()
+        }
+
+        // Порог: 1 символ при уточнении номера дома, 3 — для общего поиска
+        val minLength = if (refinePrefix != null) 1 else 3
+        if (segment.length < minLength) {
+            _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
+            return
+        }
+
+        // Запрос: «улица номер» при уточнении дома, иначе сам сегмент
+        val query = if (refinePrefix != null) "$refinePrefix $segment" else segment
+
         suggestJob = viewModelScope.launch {
             delay(300)
-            val suggestions = geoRepository.suggest(query.trim())
+            val suggestions = geoRepository.suggest(query, scopeBbox)
             _uiState.value = _uiState.value.copy(addressSuggestions = suggestions)
         }
     }
 
     fun selectAddress(suggestion: AddressSuggestion) {
+        baseAddress = suggestion.displayName
+        val type = suggestion.type ?: ""
+
+        if (type == "street") {
+            // Улица: оставляем городской bbox, запоминаем имя для уточнения номера дома
+            refinePrefix = suggestion.displayName.substringBefore(",").trim()
+        } else {
+            refinePrefix = null
+            if (type in setOf("city", "town", "village", "hamlet", "state", "country", "district", "county", "municipality")) {
+                scopeBbox = suggestion.extent?.let { ext ->
+                    if (ext.size >= 4) ext.take(4).joinToString(",") else null
+                }
+            }
+        }
+
         _uiState.value = _uiState.value.copy(
             addressSuggestions = emptyList(),
             selectedLatitude = suggestion.latitude,
@@ -62,7 +105,11 @@ class CreatePropertyViewModel @Inject constructor(
     }
 
     fun clearAddressSelection() {
+        baseAddress = ""
+        scopeBbox = null
+        refinePrefix = null
         _uiState.value = _uiState.value.copy(
+            addressSuggestions = emptyList(),
             selectedLatitude = null,
             selectedLongitude = null
         )
@@ -92,7 +139,7 @@ class CreatePropertyViewModel @Inject constructor(
                 // 2. Создаём объект в БД
                 val dto = PropertyDto(
                     name = name,
-                    address = address,
+                    address = address.trim().trimEnd(',', ' '),
                     area = area?.toDoubleOrNull(),
                     rentAmount = rentAmount?.toDoubleOrNull(),
                     description = description,

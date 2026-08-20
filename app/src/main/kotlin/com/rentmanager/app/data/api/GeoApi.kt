@@ -26,13 +26,16 @@ data class PhotonProperties(
     val postcode: String? = null,
     val city: String? = null,
     val state: String? = null,
-    val country: String? = null
+    val country: String? = null,
+    val type: String? = null,
+    val extent: List<Double>? = null // [minLon, minLat, maxLon, maxLat]
 )
 
 interface GeoApi {
     @GET("api/")
     suspend fun suggest(
         @Query("q") query: String,
-        @Query("limit") limit: Int = 5
+        @Query("limit") limit: Int = 30,
+        @Query("bbox") bbox: String? = null
     ): Response<PhotonResponse>
 }
