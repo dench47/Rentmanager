@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -223,11 +224,12 @@ fun CreatePropertyScreen(
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                val photoWidth = (LocalConfiguration.current.screenWidthDp - 40).dp / 2 - 3.dp
                 // 1. Фото
                 if (photoUris.isEmpty()) {
                     Box(
                         modifier = Modifier
-                            .width(183.dp)
+                            .width(photoWidth)
                             .height(130.dp)
                             .clip(RoundedCornerShape(30.dp))
                             .background(CardBackground)
@@ -247,11 +249,11 @@ fun CreatePropertyScreen(
                         }
                     }
                 } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                         items(photoUris.size) { index ->
                             Box(
                                 modifier = Modifier
-                                    .width(183.dp)
+                                    .width(photoWidth)
                                     .height(130.dp)
                                     .clip(RoundedCornerShape(30.dp))
                                     .background(InactiveGray)
@@ -283,7 +285,8 @@ fun CreatePropertyScreen(
                                 }
                                 DropdownMenu(
                                     expanded = showPhotoMenuIndex == index,
-                                    onDismissRequest = { showPhotoMenuIndex = -1 }
+                                    onDismissRequest = { showPhotoMenuIndex = -1 },
+                                    containerColor = Color.White
                                 ) {
                                     DropdownMenuItem(
                                         text = { Text("Сделать основным") },
@@ -307,7 +310,7 @@ fun CreatePropertyScreen(
                         item {
                             Box(
                                 modifier = Modifier
-                                    .width(183.dp)
+                                    .width(photoWidth)
                                     .height(130.dp)
                                     .clip(RoundedCornerShape(30.dp))
                                     .background(CardBackground)
