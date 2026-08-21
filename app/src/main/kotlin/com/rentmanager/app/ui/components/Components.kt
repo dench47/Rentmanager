@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
@@ -44,7 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.rentmanager.app.ui.theme.InterFontFamily
 
 @Composable
-fun StepProgressBar(currentStep: Int, totalSteps: Int = 3, modifier: Modifier = Modifier) {
+fun StepProgressBar(currentStep: Int, totalSteps: Int = 3, @SuppressLint("ModifierParameter") modifier: Modifier = Modifier) {
     if (totalSteps <= 0) return
     val segmentWidth = if (totalSteps == 2) 156.dp else if (totalSteps == 3) 116.dp else (311 / totalSteps).dp
     Row(modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.Center) {
@@ -105,61 +102,6 @@ fun DashboardCard(@DrawableRes iconRes: Int, title: String, showBadge: Boolean =
             Spacer(Modifier.height(8.dp))
             Text(title, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium, fontFamily = InterFontFamily, color = Color(0xFF000000), letterSpacing = (-0.4).sp, textAlign = TextAlign.Center, maxLines = 2)
         }
-    }
-}
-
-@Composable
-fun PremiumBanner(onConnectClick: () -> Unit = {}, @SuppressLint("ModifierParameter") modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(153.dp)
-            .clip(RoundedCornerShape(30.dp))
-            .background(Color(0xFFFEFFBB))
-            .clipToBounds()
-    ) {
-        // Image pinned to right edge, proportionate height
-        Image(
-            painter = painterResource(com.rentmanager.app.R.drawable.img_premium),
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .aspectRatio(169f / 153f),
-            contentScale = ContentScale.Fit
-        )
-
-        // Left content — text + button
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 12.dp)
-        ) {
-            Text("Премиум", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xE5151515), letterSpacing = (-0.4).sp)
-            Spacer(Modifier.height(8.dp))
-            Text("\u2022 Условие\n\u2022 Условие", fontSize = 14.sp, fontWeight = FontWeight.Normal, color = Color(0xCC151515), letterSpacing = (-0.4).sp, lineHeight = 17.sp)
-            Spacer(Modifier.height(6.dp))
-            // Button — wraps content, auto left-aligned
-            Box(
-                modifier = Modifier
-                    .background(Color(0xFF212121), RoundedCornerShape(100.dp))
-                    .clickable { onConnectClick() }
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Подключить", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.White, letterSpacing = (-0.4).sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun HomeTabButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.width(110.dp).clip(RoundedCornerShape(24.dp)).clickable { onClick() }.padding(horizontal = 15.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Image(painter = painterResource(com.rentmanager.app.R.drawable.ic_tab_home), contentDescription = "На Главную", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit)
-        Text("На Главную", fontSize = 9.5.sp, fontWeight = FontWeight.Normal, color = Color(0xFF404040), letterSpacing = (-0.4).sp)
     }
 }
 

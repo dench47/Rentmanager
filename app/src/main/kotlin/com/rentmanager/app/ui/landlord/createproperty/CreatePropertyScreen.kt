@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
@@ -48,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -160,12 +162,17 @@ fun CreatePropertyScreen(
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     var columnTop by remember { mutableStateOf(0f) }
+    var viewportHeight by remember { mutableStateOf(0f) }
     var descriptionTop by remember { mutableStateOf(0f) }
+    var descriptionHeight by remember { mutableStateOf(0f) }
     var tenantInfoTop by remember { mutableStateOf(0f) }
+    var tenantInfoHeight by remember { mutableStateOf(0f) }
     var serviceInfoTop by remember { mutableStateOf(0f) }
+    var serviceInfoHeight by remember { mutableStateOf(0f) }
 
     // Photos
     var photoUris by remember { mutableStateOf(listOf<String>()) }
+    var showPhotoMenuIndex by remember { mutableIntStateOf(-1) }
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
@@ -236,8 +243,8 @@ fun CreatePropertyScreen(
             Column(
                 modifier = Modifier
                     .weight(1f)
+                    .onGloballyPositioned { coords -> columnTop = coords.localToRoot(Offset.Zero).y; viewportHeight = coords.size.height.toFloat() }
                     .verticalScroll(scrollState)
-                    .onGloballyPositioned { coords -> columnTop = coords.localToRoot(Offset.Zero).y }
                     .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -290,16 +297,35 @@ fun CreatePropertyScreen(
                                         .size(40.dp)
                                         .clip(CircleShape)
                                         .background(CardBackground)
-                                        .clickable {
-                                            photoUris = photoUris.filterIndexed { i, _ -> i != index }
-                                        },
+                                        .clickable { showPhotoMenuIndex = index },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = "Удалить фото",
+                                        Icons.Filled.Edit,
+                                        contentDescription = "Редактировать фото",
                                         modifier = Modifier.size(20.dp),
                                         tint = Graphite
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showPhotoMenuIndex == index,
+                                    onDismissRequest = { showPhotoMenuIndex = -1 }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Сделать основным") },
+                                        onClick = {
+                                            if (index > 0) {
+                                                photoUris = listOf(photoUris[index]) + photoUris.filterIndexed { i, _ -> i != index }
+                                            }
+                                            showPhotoMenuIndex = -1
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Удалить", color = ErrorRed) },
+                                        onClick = {
+                                            photoUris = photoUris.filterIndexed { i, _ -> i != index }
+                                            showPhotoMenuIndex = -1
+                                        }
                                     )
                                 }
                             }
@@ -460,7 +486,7 @@ fun CreatePropertyScreen(
                 }
 
                 // 7. Описание объявления (аккордеон)
-                Box(Modifier.onGloballyPositioned { coords -> descriptionTop = coords.localToRoot(Offset.Zero).y }) {
+                Box(Modifier.onGloballyPositioned { coords -> descriptionTop = coords.localToRoot(Offset.Zero).y; descriptionHeight = coords.size.height.toFloat() }) {
                     DescriptionCard(
                         value = description,
                         onValueChange = { description = it },
@@ -468,7 +494,12 @@ fun CreatePropertyScreen(
                         onToggle = {
                             val willExpand = !descriptionExpanded
                             descriptionExpanded = willExpand
-                            if (willExpand) scope.launch { delay(300); scrollState.animateScrollTo((scrollState.value + (descriptionTop - columnTop)).toInt()) }
+                            if (willExpand) scope.launch {
+                                delay(300)
+                                if (descriptionTop + descriptionHeight > columnTop + viewportHeight) {
+                                    scrollState.animateScrollTo((scrollState.value + (descriptionTop - columnTop)).toInt())
+                                }
+                            }
                         }
                     )
                 }
@@ -509,7 +540,7 @@ fun CreatePropertyScreen(
                 )
 
                 // 10. Информация об объекте
-                Box(Modifier.onGloballyPositioned { coords -> tenantInfoTop = coords.localToRoot(Offset.Zero).y }) {
+                Box(Modifier.onGloballyPositioned { coords -> tenantInfoTop = coords.localToRoot(Offset.Zero).y; tenantInfoHeight = coords.size.height.toFloat() }) {
                     InfoAccordionCard(
                         title = "Информация об объекте",
                         subtitle = "Эта информация будет видна арендатору",
@@ -517,7 +548,12 @@ fun CreatePropertyScreen(
                         onToggle = {
                             val willExpand = !tenantInfoExpanded
                             tenantInfoExpanded = willExpand
-                            if (willExpand) scope.launch { delay(300); scrollState.animateScrollTo((scrollState.value + (tenantInfoTop - columnTop)).toInt()) }
+                            if (willExpand) scope.launch {
+                                delay(300)
+                                if (tenantInfoTop + tenantInfoHeight > columnTop + viewportHeight) {
+                                    scrollState.animateScrollTo((scrollState.value + (tenantInfoTop - columnTop)).toInt())
+                                }
+                            }
                         }
                     ) {
                         LabeledField(
@@ -549,7 +585,7 @@ fun CreatePropertyScreen(
                 }
 
                 // 11. Служебная информация
-                Box(Modifier.onGloballyPositioned { coords -> serviceInfoTop = coords.localToRoot(Offset.Zero).y }) {
+                Box(Modifier.onGloballyPositioned { coords -> serviceInfoTop = coords.localToRoot(Offset.Zero).y; serviceInfoHeight = coords.size.height.toFloat() }) {
                     InfoAccordionCard(
                         title = "Служебная информация",
                         subtitle = "Эта информация будет видна только вам",
@@ -557,7 +593,12 @@ fun CreatePropertyScreen(
                         onToggle = {
                             val willExpand = !serviceInfoExpanded
                             serviceInfoExpanded = willExpand
-                            if (willExpand) scope.launch { delay(300); scrollState.animateScrollTo((scrollState.value + (serviceInfoTop - columnTop)).toInt()) }
+                            if (willExpand) scope.launch {
+                                delay(300)
+                                if (serviceInfoTop + serviceInfoHeight > columnTop + viewportHeight) {
+                                    scrollState.animateScrollTo((scrollState.value + (serviceInfoTop - columnTop)).toInt())
+                                }
+                            }
                         }
                     ) {
                         MultilineTextField(value = serviceInfo, onValueChange = { serviceInfo = it }, placeholder = "")
@@ -628,12 +669,13 @@ private fun CreationProgressBar(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        repeat(4) { index ->
+        repeat(3) {
             Box(
                 modifier = Modifier
-                    .width(90.dp)
+                    .width(120.dp)
                     .height(12.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -642,7 +684,7 @@ private fun CreationProgressBar(modifier: Modifier = Modifier) {
                         .fillMaxWidth()
                         .height(4.dp)
                         .background(
-                            Graphite.copy(alpha = if (index == 3) 0.9f else 1f),
+                            Graphite,
                             RoundedCornerShape(24.dp)
                         )
                 )
@@ -737,7 +779,9 @@ private fun InfoDropdown(
         }
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 304.dp),
+            containerColor = Color.White
         ) {
             options.forEach { option ->
                 DropdownMenuItem(

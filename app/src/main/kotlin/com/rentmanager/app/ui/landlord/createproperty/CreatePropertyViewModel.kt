@@ -154,6 +154,7 @@ class CreatePropertyViewModel @Inject constructor(
 
     fun commitAddress(text: String) {
         val trimmed = text.trim().trimEnd(',', ' ')
+        suggestJob?.cancel()
         _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
@@ -164,15 +165,24 @@ class CreatePropertyViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(addressError = "Укажите валидный адрес")
                 return@launch
             }
-            baseAddress = best.displayName
-            scopeBbox = null
-            refinePrefix = null
             val needCity = (best.type == "street" || best.type == "house" || best.type == "locality") && !trimmed.contains(",")
-            _uiState.value = _uiState.value.copy(
-                selectedLatitude = best.latitude,
-                selectedLongitude = best.longitude,
-                addressError = if (needCity) "Добавьте город" else null
-            )
+            if (needCity) {
+                // Улица/дом без города: не ставим метку, ждём город или выбор из подсказок
+                _uiState.value = _uiState.value.copy(
+                    selectedLatitude = null,
+                    selectedLongitude = null,
+                    addressError = "Добавьте город"
+                )
+            } else {
+                baseAddress = best.displayName
+                scopeBbox = null
+                refinePrefix = null
+                _uiState.value = _uiState.value.copy(
+                    selectedLatitude = best.latitude,
+                    selectedLongitude = best.longitude,
+                    addressError = null
+                )
+            }
         }
     }
 
