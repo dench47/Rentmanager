@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -69,7 +70,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -81,49 +81,23 @@ import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.AddressMapPicker
 import com.rentmanager.app.ui.components.BlackButtonWithIcon
-import com.rentmanager.app.ui.theme.InterFontFamily
+import com.rentmanager.app.ui.theme.ButtonTextStyle
+import com.rentmanager.app.ui.theme.CardBackground
+import com.rentmanager.app.ui.theme.CardShape
+import com.rentmanager.app.ui.theme.CardSubtitleStyle
+import com.rentmanager.app.ui.theme.DividerLight
+import com.rentmanager.app.ui.theme.ErrorRed
+import com.rentmanager.app.ui.theme.FieldLabelErrorStyle
+import com.rentmanager.app.ui.theme.FieldLabelStyle
+import com.rentmanager.app.ui.theme.FieldTextStyle
+import com.rentmanager.app.ui.theme.Graphite
+import com.rentmanager.app.ui.theme.GreyText
+import com.rentmanager.app.ui.theme.InactiveGray
+import com.rentmanager.app.ui.theme.PillShape
+import com.rentmanager.app.ui.theme.ScreenBackground
+import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-// --- Цвета из макета (Figma) ---
-private val ScreenBackground = Color(0xFFF5F5F5)   // colors/backgrounds/light
-private val CardBackground = Color(0xFFEFEFEF)     // Grey/Icon
-private val Graphite = Color(0xFF212121)           // Graphite/Icon
-private val GreyText = Color(0xFF727272)           // Grey/Text
-private val ErrorRed = Color(0xFFFF4249)           // Red/Text
-
-private val CardShape = RoundedCornerShape(20.dp)
-private val PillShape = RoundedCornerShape(100.dp)
-
-private val ToolbarTitleStyle = TextStyle(
-    fontFamily = InterFontFamily,
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 20.sp,
-    letterSpacing = (-0.3).sp,
-    color = Graphite
-)
-private val FieldTextStyle = TextStyle(
-    fontFamily = InterFontFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 15.sp,
-    letterSpacing = (-0.4).sp,
-    color = Graphite
-)
-private val FieldLabelStyle = FieldTextStyle.copy(color = GreyText)
-private val FieldLabelErrorStyle = FieldTextStyle.copy(color = ErrorRed)
-private val CardSubtitleStyle = TextStyle(
-    fontFamily = InterFontFamily,
-    fontWeight = FontWeight.Normal,
-    fontSize = 13.sp,
-    letterSpacing = (-0.4).sp,
-    color = GreyText
-)
-private val ButtonTextStyle = TextStyle(
-    fontFamily = InterFontFamily,
-    fontWeight = FontWeight.Medium,
-    fontSize = 15.sp,
-    letterSpacing = (-0.4).sp
-)
 
 // Опции дропдаунов (локально, в бэкенд не уходят)
 private val RoomsOptions = listOf("Студия", "1", "2", "3", "4", "5+")
@@ -280,7 +254,7 @@ fun CreatePropertyScreen(
                                     .width(183.dp)
                                     .height(130.dp)
                                     .clip(RoundedCornerShape(30.dp))
-                                    .background(Color(0xFFD3D3D3))
+                                    .background(InactiveGray)
                                     .border(1.dp, Color.Black, RoundedCornerShape(30.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -422,7 +396,7 @@ fun CreatePropertyScreen(
                                     )
                                 }
                                 if (index < uiState.addressSuggestions.lastIndex) {
-                                    HorizontalDivider(color = Color(0xFFF2F2F7), thickness = 1.dp)
+                                    HorizontalDivider(color = DividerLight, thickness = 1.dp)
                                 }
                             }
                         }
@@ -495,9 +469,10 @@ fun CreatePropertyScreen(
                             val willExpand = !descriptionExpanded
                             descriptionExpanded = willExpand
                             if (willExpand) scope.launch {
-                                delay(300)
-                                if (descriptionTop + descriptionHeight > columnTop + viewportHeight) {
-                                    scrollState.animateScrollTo((scrollState.value + (descriptionTop - columnTop)).toInt())
+                                delay(250)
+                                val overflow = (descriptionTop + descriptionHeight) - (columnTop + viewportHeight)
+                                if (overflow > 0f) {
+                                    scrollState.animateScrollTo((scrollState.value + overflow).toInt(), animationSpec = tween(300))
                                 }
                             }
                         }
@@ -549,9 +524,10 @@ fun CreatePropertyScreen(
                             val willExpand = !tenantInfoExpanded
                             tenantInfoExpanded = willExpand
                             if (willExpand) scope.launch {
-                                delay(300)
-                                if (tenantInfoTop + tenantInfoHeight > columnTop + viewportHeight) {
-                                    scrollState.animateScrollTo((scrollState.value + (tenantInfoTop - columnTop)).toInt())
+                                delay(250)
+                                val overflow = (tenantInfoTop + tenantInfoHeight) - (columnTop + viewportHeight)
+                                if (overflow > 0f) {
+                                    scrollState.animateScrollTo((scrollState.value + overflow).toInt(), animationSpec = tween(300))
                                 }
                             }
                         }
@@ -594,9 +570,10 @@ fun CreatePropertyScreen(
                             val willExpand = !serviceInfoExpanded
                             serviceInfoExpanded = willExpand
                             if (willExpand) scope.launch {
-                                delay(300)
-                                if (serviceInfoTop + serviceInfoHeight > columnTop + viewportHeight) {
-                                    scrollState.animateScrollTo((scrollState.value + (serviceInfoTop - columnTop)).toInt())
+                                delay(250)
+                                val overflow = (serviceInfoTop + serviceInfoHeight) - (columnTop + viewportHeight)
+                                if (overflow > 0f) {
+                                    scrollState.animateScrollTo((scrollState.value + overflow).toInt(), animationSpec = tween(300))
                                 }
                             }
                         }
@@ -669,13 +646,13 @@ private fun CreationProgressBar(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         repeat(3) {
             Box(
                 modifier = Modifier
-                    .width(120.dp)
+                    .weight(1f)
                     .height(12.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -944,7 +921,7 @@ private fun FilledButton(
             .fillMaxWidth()
             .height(55.dp)
             .clip(PillShape)
-            .background(if (enabled) Graphite else Color(0xFFD3D3D3))
+            .background(if (enabled) Graphite else InactiveGray)
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {

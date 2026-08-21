@@ -54,3 +54,11 @@ val GrayLight = Color(0xFFE0E0E0)
 val GrayMedium = Color(0xFF9E9E9E)
 val GrayDark = Color(0xFF616161)
 val DividerColor = Color(0xFFEEEEEE)
+
+// Экран создания объекта (Figma)
+val ScreenBackground = Color(0xFFF5F5F5)   // colors/backgrounds/light
+val CardBackground = Color(0xFFEFEFEF)     // Grey/Icon (== CardGray)
+val Graphite = Color(0xFF212121)           // Graphite/Icon (== AlmostBlack)
+val GreyText = Color(0xFF727272)           // Grey/Text
+val ErrorRed = Color(0xFFFF4249)           // Red/Text
+val DividerLight = Color(0xFFF2F2F7)       // разделитель в подсказках адреса

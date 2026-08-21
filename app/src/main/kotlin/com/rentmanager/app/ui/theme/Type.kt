@@ -106,3 +106,34 @@ val Typography = Typography(
         lineHeight = 14.sp
     )
 )
+
+// Стили текста экрана создания объекта (Figma)
+val ToolbarTitleStyle = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 20.sp,
+    letterSpacing = (-0.3).sp,
+    color = Graphite
+)
+val FieldTextStyle = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = 15.sp,
+    letterSpacing = (-0.4).sp,
+    color = Graphite
+)
+val FieldLabelStyle = FieldTextStyle.copy(color = GreyText)
+val FieldLabelErrorStyle = FieldTextStyle.copy(color = ErrorRed)
+val CardSubtitleStyle = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.Normal,
+    fontSize = 13.sp,
+    letterSpacing = (-0.4).sp,
+    color = GreyText
+)
+val ButtonTextStyle = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.Medium,
+    fontSize = 15.sp,
+    letterSpacing = (-0.4).sp
+)
