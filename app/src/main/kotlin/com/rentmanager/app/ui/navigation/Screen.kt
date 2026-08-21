@@ -35,7 +35,14 @@ sealed class Screen(val route: String) {
     data object PropertyDetail : Screen("landlord/property_detail/{propertyId}") {
         fun createRoute(propertyId: String) = "landlord/property_detail/$propertyId"
     }
-    data object CreateProperty : Screen("landlord/create_property")
+    data object ChoosePropertyType : Screen("landlord/choose_property_type")
+    data object ChooseRentType : Screen("landlord/choose_rent_type?propertyType={propertyType}") {
+        fun createRoute(propertyType: String) = "landlord/choose_rent_type?propertyType=$propertyType"
+    }
+    data object CreateProperty : Screen("landlord/create_property?propertyType={propertyType}&rentType={rentType}") {
+        fun createRoute(propertyType: String, rentType: String) =
+            "landlord/create_property?propertyType=$propertyType&rentType=$rentType"
+    }
     data object TenantsList : Screen("landlord/tenants")
     data object TenantDetail : Screen("landlord/tenant_detail/{tenantId}") {
         fun createRoute(tenantId: String) = "landlord/tenant_detail/$tenantId"

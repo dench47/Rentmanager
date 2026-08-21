@@ -16,6 +16,7 @@ val Black = Color(0xFF000000)                    // #000000
 val White90 = Color(0xE6FFFFFF)                  // 90% белый
 val White80 = Color(0xCCFFFFFF)                  // 80% белый
 val Black90 = Color(0xE5000000)                  // 90% чёрный
+val Black60 = Color(0x99000000)                  // 60% чёрный — подложка подписи «Основное» на фото
 
 // Secondary / Subtitle text
 val SubtitleGray = Color(0x993C3C43)             // #3c3c4399 — 60% подзаголовки

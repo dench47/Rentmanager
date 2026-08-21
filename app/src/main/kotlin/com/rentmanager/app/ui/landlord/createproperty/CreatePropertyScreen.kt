@@ -82,6 +82,7 @@ import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.AddressMapPicker
 import com.rentmanager.app.ui.components.BlackButtonWithIcon
+import com.rentmanager.app.ui.theme.Black60
 import com.rentmanager.app.ui.theme.ButtonTextStyle
 import com.rentmanager.app.ui.theme.CardBackground
 import com.rentmanager.app.ui.theme.CardShape
@@ -108,6 +109,8 @@ private val FloorsInHouseOptions = (1..100).map { it.toString() }
 @Composable
 fun CreatePropertyScreen(
     propertyId: String? = null,
+    propertyType: String = "Квартира",
+    rentType: String = "посуточно",
     onBack: () -> Unit,
     onCreated: () -> Unit = {},
     onPaymentSchedule: (String) -> Unit = {},
@@ -266,6 +269,22 @@ fun CreatePropertyScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
                                 )
+                                if (index == 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .background(Black60),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "Основное",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
@@ -482,11 +501,11 @@ fun CreatePropertyScreen(
                     )
                 }
 
-                // 8. Стоимость за сутки
+                // 8. Стоимость (за сутки / за месяц — по варианту сдачи)
                 InfoTextField(
                     value = price,
                     onValueChange = { price = it },
-                    label = "Стоимость за сутки, ₽",
+                    label = if (rentType == "длительно") "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
                     keyboardType = KeyboardType.Decimal
                 )
 
@@ -509,6 +528,12 @@ fun CreatePropertyScreen(
                                 phone = phoneNumber,
                                 wifiPassword = wifiPassword,
                                 houseRules = rulesText,
+                                type = propertyType,
+                                rentType = rentType,
+                                rooms = rooms,
+                                sleepingPlaces = sleepingPlaces,
+                                floor = floor,
+                                floorsInHouse = floorsInHouse,
                                 latitude = uiState.selectedLatitude,
                                 longitude = uiState.selectedLongitude,
                                 onSuccess = { newId -> onPaymentSchedule(newId) }
@@ -610,6 +635,12 @@ fun CreatePropertyScreen(
                             phone = phoneNumber,
                             wifiPassword = wifiPassword,
                             houseRules = rulesText,
+                            type = propertyType,
+                            rentType = rentType,
+                            rooms = rooms,
+                            sleepingPlaces = sleepingPlaces,
+                            floor = floor,
+                            floorsInHouse = floorsInHouse,
                             latitude = uiState.selectedLatitude,
                             longitude = uiState.selectedLongitude,
                             onSuccess = { onCreated() }
@@ -631,6 +662,12 @@ fun CreatePropertyScreen(
                             phone = phoneNumber,
                             wifiPassword = wifiPassword,
                             houseRules = rulesText,
+                            type = propertyType,
+                            rentType = rentType,
+                            rooms = rooms,
+                            sleepingPlaces = sleepingPlaces,
+                            floor = floor,
+                            floorsInHouse = floorsInHouse,
                             latitude = uiState.selectedLatitude,
                             longitude = uiState.selectedLongitude,
                             onSuccess = { onCreated() }
@@ -644,7 +681,7 @@ fun CreatePropertyScreen(
 }
 // 4 плоских сегмента-индикатора (Progress indicator / Width 4)
 @Composable
-private fun CreationProgressBar(modifier: Modifier = Modifier) {
+fun CreationProgressBar(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()

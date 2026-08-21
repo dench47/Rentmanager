@@ -197,6 +197,12 @@ class CreatePropertyViewModel @Inject constructor(
         phone: String?,
         wifiPassword: String?,
         houseRules: String?,
+        type: String?,
+        rentType: String?,
+        rooms: String?,
+        sleepingPlaces: String?,
+        floor: String?,
+        floorsInHouse: String?,
         latitude: Double?,
         longitude: Double?,
         onSuccess: (String) -> Unit
@@ -219,6 +225,12 @@ class CreatePropertyViewModel @Inject constructor(
                     phone = phone,
                     wifiPassword = wifiPassword,
                     houseRules = houseRules,
+                    type = type,
+                    rentType = rentType,
+                    rooms = rooms,
+                    sleepingPlaces = sleepingPlaces,
+                    floor = floor,
+                    floorsInHouse = floorsInHouse,
                     latitude = latitude,
                     longitude = longitude
                 )
