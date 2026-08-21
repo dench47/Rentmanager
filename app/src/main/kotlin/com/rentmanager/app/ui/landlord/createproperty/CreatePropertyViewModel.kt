@@ -26,7 +26,8 @@ data class CreatePropertyUiState(
     val addressSuggestions: List<AddressSuggestion> = emptyList(),
     val selectedLatitude: Double? = null,
     val selectedLongitude: Double? = null,
-    val addressToSet: String? = null
+    val addressToSet: String? = null,
+    val addressError: String? = null
 )
 
 @HiltViewModel
@@ -54,7 +55,7 @@ class CreatePropertyViewModel @Inject constructor(
             baseAddress = ""
             scopeBbox = null
             refinePrefix = null
-            _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
+            _uiState.value = _uiState.value.copy(addressSuggestions = emptyList(), addressError = null)
             return
         }
 
@@ -70,7 +71,7 @@ class CreatePropertyViewModel @Inject constructor(
         // Порог: 1 символ при уточнении номера дома, 3 — для общего поиска
         val minLength = if (refinePrefix != null) 1 else 3
         if (segment.length < minLength) {
-            _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
+            _uiState.value = _uiState.value.copy(addressSuggestions = emptyList(), addressError = null)
             return
         }
 
@@ -88,7 +89,7 @@ class CreatePropertyViewModel @Inject constructor(
                 }
             }
             val suggestions = geoRepository.suggest(query, scopeBbox, lat, lon)
-            _uiState.value = _uiState.value.copy(addressSuggestions = suggestions)
+            _uiState.value = _uiState.value.copy(addressSuggestions = suggestions, addressError = null)
         }
     }
 
@@ -111,7 +112,8 @@ class CreatePropertyViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             addressSuggestions = emptyList(),
             selectedLatitude = suggestion.latitude,
-            selectedLongitude = suggestion.longitude
+            selectedLongitude = suggestion.longitude,
+            addressError = null
         )
     }
 
@@ -122,7 +124,8 @@ class CreatePropertyViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             addressSuggestions = emptyList(),
             selectedLatitude = null,
-            selectedLongitude = null
+            selectedLongitude = null,
+            addressError = null
         )
     }
 
@@ -156,7 +159,11 @@ class CreatePropertyViewModel @Inject constructor(
         viewModelScope.launch {
             val loc = locationProvider.lastKnownLocation()
             val suggestions = geoRepository.suggest(trimmed, null, loc?.first, loc?.second)
-            val best = suggestions.firstOrNull() ?: return@launch
+            val best = suggestions.firstOrNull()
+            if (best == null) {
+                _uiState.value = _uiState.value.copy(addressError = "Укажите валидный адрес")
+                return@launch
+            }
             baseAddress = best.displayName
             scopeBbox = null
             refinePrefix = null
@@ -164,7 +171,7 @@ class CreatePropertyViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(
                 selectedLatitude = best.latitude,
                 selectedLongitude = best.longitude,
-                errorMessage = if (needCity) "Укажите город" else null
+                addressError = if (needCity) "Добавьте город" else null
             )
         }
     }
@@ -176,10 +183,6 @@ class CreatePropertyViewModel @Inject constructor(
         rentAmount: String?,
         description: String?,
         photoUris: List<String>,
-        serviceInfo: String?,
-        phone: String?,
-        wifiPassword: String?,
-        houseRules: String?,
         latitude: Double?,
         longitude: Double?,
         onSuccess: () -> Unit
@@ -198,10 +201,6 @@ class CreatePropertyViewModel @Inject constructor(
                     rentAmount = rentAmount?.toDoubleOrNull(),
                     description = description,
                     photos = photoUrls.map { PhotoDto(url = it) },
-                    serviceInfo = serviceInfo,
-                    phone = phone,
-                    wifiPassword = wifiPassword,
-                    houseRules = houseRules,
                     latitude = latitude,
                     longitude = longitude
                 )
