@@ -18,9 +18,9 @@ data class AddressSuggestion(
 class GeoRepository @Inject constructor(
     private val geoApi: GeoApi
 ) {
-    suspend fun suggest(query: String, bbox: String? = null): List<AddressSuggestion> {
+    suspend fun suggest(query: String, bbox: String? = null, lat: Double? = null, lon: Double? = null): List<AddressSuggestion> {
         return try {
-            val resp = geoApi.suggest(query = query, bbox = bbox)
+            val resp = geoApi.suggest(query = query, bbox = bbox, lat = lat, lon = lon)
             if (resp.isSuccessful) {
                 resp.body()?.features.orEmpty()
                     .mapNotNull { it.toAddressSuggestion() }
@@ -34,10 +34,38 @@ class GeoRepository @Inject constructor(
     }
 }
 
+// Регионы, отображаемые как российские (Крым и новые регионы РФ)
+private val RUSSIAN_REGIONS = mapOf(
+    "Республика Крым" to "Республика Крым",
+    "Автономна Республіка Крим" to "Республика Крым",
+    "Автономная Республика Крым" to "Республика Крым",
+    "Крым" to "Республика Крым",
+    "Севастополь" to "Севастополь",
+    "Донецька область" to "Донецкая область",
+    "Донецкая область" to "Донецкая область",
+    "Донецкая Народная Республика" to "Донецкая область",
+    "Луганська область" to "Луганская область",
+    "Луганская область" to "Луганская область",
+    "Луганская Народная Республика" to "Луганская область",
+    "Запорізька область" to "Запорожская область",
+    "Запорожская область" to "Запорожская область",
+    "Херсонська область" to "Херсонская область",
+    "Херсонская область" to "Херсонская область"
+)
+
 private fun PhotonFeature.toAddressSuggestion(): AddressSuggestion? {
     val lon = geometry?.coordinates?.getOrNull(0) ?: return null
     val lat = geometry?.coordinates?.getOrNull(1) ?: return null
     val p = properties ?: return null
+
+    // Переопределение региона/страны (Крым и новые регионы — как Россия)
+    val rusRegion = RUSSIAN_REGIONS[p.state] ?: RUSSIAN_REGIONS[p.city]
+    val state = rusRegion ?: p.state
+    val country = when {
+        rusRegion != null -> "Россия"
+        p.country == "Україна" || p.country == "Украина" || p.country == "Ukraine" -> "Украина"
+        else -> p.country
+    }
 
     val streetFull = listOfNotNull(p.street, p.housenumber)
         .joinToString(" ")
@@ -48,8 +76,8 @@ private fun PhotonFeature.toAddressSuggestion(): AddressSuggestion? {
     if (streetFull.isNotBlank()) parts += streetFull
     if (!p.name.isNullOrBlank()) parts += p.name
     p.city?.let { if (it.isNotBlank()) parts += it }
-    p.state?.let { if (it.isNotBlank()) parts += it }
-    p.country?.let { if (it.isNotBlank()) parts += it }
+    state?.let { if (it.isNotBlank()) parts += it }
+    country?.let { if (it.isNotBlank()) parts += it }
 
     val unique = parts.distinct()
     val display = if (unique.isEmpty()) (p.name ?: "Адрес") else unique.joinToString(", ")

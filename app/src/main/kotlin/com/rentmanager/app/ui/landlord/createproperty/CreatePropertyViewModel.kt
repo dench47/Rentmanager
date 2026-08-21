@@ -3,6 +3,7 @@ package com.rentmanager.app.ui.landlord.createproperty
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rentmanager.app.data.local.LocationProvider
 import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.model.PhotoDto
 import com.rentmanager.app.data.model.PropertyDto
@@ -32,7 +33,8 @@ class CreatePropertyViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
     private val photoUploader: PhotoUploader,
     private val geoRepository: GeoRepository,
-    private val detailCache: PropertyDetailCache
+    private val detailCache: PropertyDetailCache,
+    private val locationProvider: LocationProvider
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreatePropertyUiState())
@@ -76,7 +78,15 @@ class CreatePropertyViewModel @Inject constructor(
 
         suggestJob = viewModelScope.launch {
             delay(300)
-            val suggestions = geoRepository.suggest(query, scopeBbox)
+            var lat: Double? = null
+            var lon: Double? = null
+            if (scopeBbox == null && refinePrefix == null) {
+                locationProvider.lastKnownLocation()?.let { pair ->
+                    lat = pair.first
+                    lon = pair.second
+                }
+            }
+            val suggestions = geoRepository.suggest(query, scopeBbox, lat, lon)
             _uiState.value = _uiState.value.copy(addressSuggestions = suggestions)
         }
     }
@@ -113,6 +123,10 @@ class CreatePropertyViewModel @Inject constructor(
             selectedLatitude = null,
             selectedLongitude = null
         )
+    }
+
+    fun clearAddressSuggestions() {
+        _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
     }
 
     fun createProperty(

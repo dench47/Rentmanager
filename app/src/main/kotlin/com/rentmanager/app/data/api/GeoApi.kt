@@ -36,6 +36,8 @@ interface GeoApi {
     suspend fun suggest(
         @Query("q") query: String,
         @Query("limit") limit: Int = 30,
-        @Query("bbox") bbox: String? = null
+        @Query("bbox") bbox: String? = null,
+        @Query("lat") lat: Double? = null,
+        @Query("lon") lon: Double? = null
     ): Response<PhotonResponse>
 }
