@@ -32,6 +32,19 @@ class GeoRepository @Inject constructor(
             emptyList()
         }
     }
+
+    suspend fun reverse(lat: Double, lon: Double): AddressSuggestion? {
+        return try {
+            val resp = geoApi.reverseGeocode(lon = lon, lat = lat)
+            if (resp.isSuccessful) {
+                resp.body()?.features?.firstOrNull()?.toAddressSuggestion()
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
 }
 
 // Регионы, отображаемые как российские (Крым и новые регионы РФ)

@@ -40,4 +40,10 @@ interface GeoApi {
         @Query("lat") lat: Double? = null,
         @Query("lon") lon: Double? = null
     ): Response<PhotonResponse>
+
+    @GET("reverse")
+    suspend fun reverseGeocode(
+        @Query("lon") lon: Double,
+        @Query("lat") lat: Double
+    ): Response<PhotonResponse>
 }

@@ -119,6 +119,14 @@ fun CreatePropertyScreen(
         }
     }
 
+    // Подстановка адреса после обратного геокодинга (тап по карте)
+    LaunchedEffect(uiState.addressToSet) {
+        uiState.addressToSet?.let { text ->
+            address = TextFieldValue(text, TextRange(0))
+            viewModel.consumeAddressToSet()
+        }
+    }
+
     Scaffold(
         containerColor = Color.Transparent
     ) { paddingValues ->
@@ -330,6 +338,7 @@ fun CreatePropertyScreen(
                         AddressMapPicker(
                             latitude = uiState.selectedLatitude!!,
                             longitude = uiState.selectedLongitude!!,
+                            onLocationSelected = { lat, lon -> viewModel.onMapTapped(lat, lon) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(180.dp)

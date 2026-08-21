@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.RegisterDeviceRequest
+import com.rentmanager.app.data.api.TokenRefresher
 import com.rentmanager.app.data.api.UpdateManager
 import com.rentmanager.app.data.api.UpdateResult
 import com.rentmanager.app.data.api.VersionResponse
@@ -46,6 +47,7 @@ import com.rentmanager.app.ui.components.ForcedUpdateScreen
 class MainActivity : FragmentActivity() {
 
     @Inject lateinit var tokenManager: TokenManager
+    @Inject lateinit var tokenRefresher: TokenRefresher
     @Inject lateinit var updateManager: UpdateManager
     @Inject lateinit var authApi: AuthApi
 
@@ -86,6 +88,14 @@ class MainActivity : FragmentActivity() {
                 tokenManager.requirePin = true
             }
         }
+        // Проактивно обновляем access-токен, если он близок к истечению,
+        // чтобы следующий запрос не падал с 401.
+        if (tokenRefresher.shouldRefresh()) {
+            CoroutineScope(Dispatchers.IO).launch {
+                tokenRefresher.refresh()
+            }
+        }
+
         // Перерегистрируем FCM-токен, чтобы он не пропал после рестарта сервера
         registerFcmTokenIfLoggedIn()
     }

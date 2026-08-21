@@ -7,7 +7,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -16,9 +20,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
 import org.osmdroid.views.overlay.Marker
 
 /**
@@ -29,6 +35,7 @@ import org.osmdroid.views.overlay.Marker
 fun AddressMapPicker(
     latitude: Double,
     longitude: Double,
+    onLocationSelected: (Double, Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -44,6 +51,22 @@ fun AddressMapPicker(
         Marker(mapView).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             title = "Объект"
+        }
+    }
+
+    // Тап по карте → перемещаем метку (обратный геокодинг делает вызывающая сторона)
+    val currentOnLocationSelected by rememberUpdatedState(onLocationSelected)
+    DisposableEffect(mapView) {
+        val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
+            override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
+                p?.let { currentOnLocationSelected(it.latitude, it.longitude) }
+                return false
+            }
+            override fun longPressHelper(p: GeoPoint?): Boolean = false
+        })
+        mapView.overlayManager.add(eventsOverlay)
+        onDispose {
+            mapView.overlayManager.remove(eventsOverlay)
         }
     }
 

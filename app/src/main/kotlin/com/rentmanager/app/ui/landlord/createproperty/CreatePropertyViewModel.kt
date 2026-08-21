@@ -25,7 +25,8 @@ data class CreatePropertyUiState(
     val errorMessage: String? = null,
     val addressSuggestions: List<AddressSuggestion> = emptyList(),
     val selectedLatitude: Double? = null,
-    val selectedLongitude: Double? = null
+    val selectedLongitude: Double? = null,
+    val addressToSet: String? = null
 )
 
 @HiltViewModel
@@ -127,6 +128,29 @@ class CreatePropertyViewModel @Inject constructor(
 
     fun clearAddressSuggestions() {
         _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
+    }
+
+    fun onMapTapped(lat: Double, lon: Double) {
+        _uiState.value = _uiState.value.copy(
+            selectedLatitude = lat,
+            selectedLongitude = lon
+        )
+        viewModelScope.launch {
+            val suggestion = geoRepository.reverse(lat, lon)
+            if (suggestion != null) {
+                baseAddress = suggestion.displayName
+                scopeBbox = null
+                refinePrefix = null
+                _uiState.value = _uiState.value.copy(
+                    addressToSet = suggestion.displayName,
+                    addressSuggestions = emptyList()
+                )
+            }
+        }
+    }
+
+    fun consumeAddressToSet() {
+        _uiState.value = _uiState.value.copy(addressToSet = null)
     }
 
     fun createProperty(
