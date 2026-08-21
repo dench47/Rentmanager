@@ -39,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -69,6 +70,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.imageLoader
@@ -127,6 +131,18 @@ fun MyPropertiesScreen(
     val properties by viewModel.properties.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val displayMode by viewModel.displayMode.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+
+    // Обновление списка при возврате на экран / из фона
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     var pickerPropertyId by remember { mutableStateOf<String?>(null) }
 
     // Общий кэш раскладки текста шапки: мерим уникальные подписи один раз.
@@ -193,6 +209,10 @@ fun MyPropertiesScreen(
                 currentMode = displayMode,
                 onModeChange = { viewModel.setDisplayMode(it) }
             )
+
+            errorMessage?.let {
+                Text(it, color = Color(0xFFE53935), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            }
 
             // Отображение: карточки (независимая шахматка) или общая таблица
             when (displayMode) {

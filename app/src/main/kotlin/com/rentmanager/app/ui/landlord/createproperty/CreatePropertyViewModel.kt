@@ -1,6 +1,6 @@
 package com.rentmanager.app.ui.landlord.createproperty
 
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.local.LocationProvider
@@ -153,6 +153,26 @@ class CreatePropertyViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(addressToSet = null)
     }
 
+    fun commitAddress(text: String) {
+        val trimmed = text.trim().trimEnd(',', ' ')
+        _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val loc = locationProvider.lastKnownLocation()
+            val suggestions = geoRepository.suggest(trimmed, null, loc?.first, loc?.second)
+            val best = suggestions.firstOrNull() ?: return@launch
+            baseAddress = best.displayName
+            scopeBbox = null
+            refinePrefix = null
+            val needCity = (best.type == "street" || best.type == "house" || best.type == "locality") && !trimmed.contains(",")
+            _uiState.value = _uiState.value.copy(
+                selectedLatitude = best.latitude,
+                selectedLongitude = best.longitude,
+                errorMessage = if (needCity) "Укажите город" else null
+            )
+        }
+    }
+
     fun createProperty(
         name: String,
         address: String,
@@ -172,7 +192,7 @@ class CreatePropertyViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isCreating = true)
             try {
                 // 1. Загружаем фото в S3 (папка photos), по аналогии с аватаркой
-                val photoUrls = photoUris.map { photoUploader.upload(Uri.parse(it)) }
+                val photoUrls = photoUris.map { photoUploader.upload(it.toUri()) }
 
                 // 2. Создаём объект в БД
                 val dto = PropertyDto(

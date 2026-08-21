@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -52,6 +54,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -70,6 +74,7 @@ import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.AddressMapPicker
 import com.rentmanager.app.ui.components.BlackButtonWithIcon
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.hilt.navigation.compose.hiltViewModel
 
 private val GradientBackground = Brush.verticalGradient(
@@ -87,6 +92,7 @@ fun CreatePropertyScreen(
     val isEdit = propertyId != null
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf(TextFieldValue("")) }
+    var addressFocused by remember { mutableStateOf(false) }
     var area by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -112,6 +118,7 @@ fun CreatePropertyScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -172,6 +179,9 @@ fun CreatePropertyScreen(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
+                        .pointerInput(Unit) {
+                            detectTapGestures { focusManager.clearFocus() }
+                        }
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -289,7 +299,16 @@ fun CreatePropertyScreen(
                             address = it
                             viewModel.suggestAddress(it.text)
                         },
-                        placeholder = "Адрес"
+                        placeholder = "Адрес",
+                        onFocusChanged = { focused ->
+                            addressFocused = focused
+                            if (!focused) {
+                                viewModel.commitAddress(address.text)
+                            }
+                        },
+                        onDone = {
+                            viewModel.commitAddress(address.text)
+                        }
                     )
 
                     // Подсказки адреса (Photon / OpenStreetMap)
@@ -334,7 +353,7 @@ fun CreatePropertyScreen(
                     }
 
                     // Карта с выбранной меткой
-                    if (uiState.selectedLatitude != null && uiState.selectedLongitude != null) {
+                    if (addressFocused && uiState.selectedLatitude != null && uiState.selectedLongitude != null) {
                         AddressMapPicker(
                             latitude = uiState.selectedLatitude!!,
                             longitude = uiState.selectedLongitude!!,
@@ -507,7 +526,9 @@ fun CreatePropertyScreen(
 private fun AddressTextField(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
-    placeholder: String
+    placeholder: String,
+    onFocusChanged: (Boolean) -> Unit,
+    onDone: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -518,7 +539,10 @@ private fun AddressTextField(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { onFocusChanged(it.isFocused) }
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             textStyle = TextStyle(
                 fontSize = 15.sp,
                 color = Color(0xFF1D1D1F),
@@ -526,7 +550,8 @@ private fun AddressTextField(
             ),
             cursorBrush = SolidColor(Color(0xFF1D1D1F)),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Default),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onDone() }),
             decorationBox = { innerTextField ->
                 Box {
                     if (value.text.isEmpty()) {

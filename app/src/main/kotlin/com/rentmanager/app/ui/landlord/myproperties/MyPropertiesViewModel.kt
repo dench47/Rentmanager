@@ -65,6 +65,9 @@ class MyPropertiesViewModel @Inject constructor(
     private val _properties = MutableStateFlow<List<MyPropertyItem>>(emptyList())
     val properties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
     private val _viewMode = MutableStateFlow(ViewMode.MONTHS)
     val viewMode: StateFlow<ViewMode> = _viewMode.asStateFlow()
 
@@ -77,6 +80,7 @@ class MyPropertiesViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
+            _errorMessage.value = null
             try {
                 val resp = propertyRepository.getProperties()
                 if (resp.isSuccessful) {
@@ -92,8 +96,12 @@ class MyPropertiesViewModel @Inject constructor(
                     val schedules = loadSchedules()
                     val withBookings = items.map { loadBookings(it) }
                     _properties.value = withBookings.map { loadOverdue(it, schedules) }
+                } else {
+                    _errorMessage.value = "Ошибка загрузки"
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {
+                _errorMessage.value = "Нет связи с сервером"
+            }
         }
     }
 

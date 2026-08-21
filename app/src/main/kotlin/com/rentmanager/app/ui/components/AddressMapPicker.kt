@@ -44,6 +44,8 @@ fun AddressMapPicker(
         MapView(context).apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
+            isFocusable = false
+            isFocusableInTouchMode = false
             controller.setZoom(16.0)
         }
     }
