@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Phone
@@ -308,6 +309,10 @@ fun CreatePropertyScreen(
                         },
                         onDone = {
                             viewModel.commitAddress(address.text)
+                        },
+                        onClear = {
+                            address = TextFieldValue("")
+                            viewModel.clearAddressSelection()
                         }
                     )
 
@@ -528,7 +533,8 @@ private fun AddressTextField(
     onValueChange: (TextFieldValue) -> Unit,
     placeholder: String,
     onFocusChanged: (Boolean) -> Unit,
-    onDone: () -> Unit
+    onDone: () -> Unit,
+    onClear: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -536,36 +542,49 @@ private fun AddressTextField(
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .onFocusChanged { onFocusChanged(it.isFocused) }
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            textStyle = TextStyle(
-                fontSize = 15.sp,
-                color = Color(0xFF1D1D1F),
-                letterSpacing = (-0.4).sp
-            ),
-            cursorBrush = SolidColor(Color(0xFF1D1D1F)),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onDone() }),
-            decorationBox = { innerTextField ->
-                Box {
-                    if (value.text.isEmpty()) {
-                        Text(
-                            placeholder,
-                            fontSize = 15.sp,
-                            color = Color(0xFF8E8E93),
-                            letterSpacing = (-0.4).sp
-                        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { onFocusChanged(it.isFocused) }
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                textStyle = TextStyle(
+                    fontSize = 15.sp,
+                    color = Color(0xFF1D1D1F),
+                    letterSpacing = (-0.4).sp
+                ),
+                cursorBrush = SolidColor(Color(0xFF1D1D1F)),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onDone() }),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (value.text.isEmpty()) {
+                            Text(
+                                placeholder,
+                                fontSize = 15.sp,
+                                color = Color(0xFF8E8E93),
+                                letterSpacing = (-0.4).sp
+                            )
+                        }
+                        innerTextField()
                     }
-                    innerTextField()
                 }
+            )
+            if (value.text.isNotEmpty()) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Очистить",
+                    modifier = Modifier
+                        .clickable { onClear() }
+                        .padding(end = 12.dp)
+                        .size(20.dp),
+                    tint = Color(0xFF8E8E93)
+                )
             }
-        )
+        }
     }
 }
 

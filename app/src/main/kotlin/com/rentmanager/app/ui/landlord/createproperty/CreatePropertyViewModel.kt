@@ -126,10 +126,6 @@ class CreatePropertyViewModel @Inject constructor(
         )
     }
 
-    fun clearAddressSuggestions() {
-        _uiState.value = _uiState.value.copy(addressSuggestions = emptyList())
-    }
-
     fun onMapTapped(lat: Double, lon: Double) {
         _uiState.value = _uiState.value.copy(
             selectedLatitude = lat,
