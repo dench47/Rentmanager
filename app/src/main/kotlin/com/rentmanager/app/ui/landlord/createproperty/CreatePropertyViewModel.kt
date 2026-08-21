@@ -183,9 +183,13 @@ class CreatePropertyViewModel @Inject constructor(
         rentAmount: String?,
         description: String?,
         photoUris: List<String>,
+        serviceInfo: String?,
+        phone: String?,
+        wifiPassword: String?,
+        houseRules: String?,
         latitude: Double?,
         longitude: Double?,
-        onSuccess: () -> Unit
+        onSuccess: (String) -> Unit
     ) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreating = true)
@@ -201,13 +205,18 @@ class CreatePropertyViewModel @Inject constructor(
                     rentAmount = rentAmount?.toDoubleOrNull(),
                     description = description,
                     photos = photoUrls.map { PhotoDto(url = it) },
+                    serviceInfo = serviceInfo,
+                    phone = phone,
+                    wifiPassword = wifiPassword,
+                    houseRules = houseRules,
                     latitude = latitude,
                     longitude = longitude
                 )
                 val resp = propertyRepository.createProperty(dto)
                 if (resp.isSuccessful) {
-                    resp.body()?.let { detailCache.saveProperty(it) }
-                    onSuccess()
+                    val created = resp.body()
+                    created?.let { detailCache.saveProperty(it) }
+                    onSuccess(created?.id ?: "")
                 } else {
                     _uiState.value = _uiState.value.copy(isCreating = false, errorMessage = "Ошибка создания объекта")
                 }

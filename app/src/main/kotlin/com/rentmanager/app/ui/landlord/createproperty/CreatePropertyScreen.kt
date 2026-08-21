@@ -4,12 +4,10 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -35,6 +34,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -47,18 +48,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -73,7 +77,11 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.AddressMapPicker
+import com.rentmanager.app.ui.components.BlackButtonWithIcon
 import com.rentmanager.app.ui.theme.InterFontFamily
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // --- Цвета из макета (Figma) ---
 private val ScreenBackground = Color(0xFFF5F5F5)   // colors/backgrounds/light
@@ -118,8 +126,8 @@ private val ButtonTextStyle = TextStyle(
 // Опции дропдаунов (локально, в бэкенд не уходят)
 private val RoomsOptions = listOf("Студия", "1", "2", "3", "4", "5+")
 private val SleepingOptions = listOf("1", "2", "3", "4", "5", "6+")
-private val FloorOptions = (1..30).map { it.toString() }
-private val FloorsInHouseOptions = (1..30).map { it.toString() }
+private val FloorOptions = listOf("Подвал", "Цоколь", "-2", "-1") + (1..100).map { it.toString() }
+private val FloorsInHouseOptions = (1..100).map { it.toString() }
 @Composable
 fun CreatePropertyScreen(
     propertyId: String? = null,
@@ -140,14 +148,29 @@ fun CreatePropertyScreen(
     var floor by remember { mutableStateOf<String?>(null) }
     var floorsInHouse by remember { mutableStateOf<String?>(null) }
 
+    // Данные аккордеонов «Информация об объекте» / «Служебная информация»
+    var phoneNumber by remember { mutableStateOf("") }
+    var wifiPassword by remember { mutableStateOf("") }
+    var rulesText by remember { mutableStateOf("") }
+    var serviceInfo by remember { mutableStateOf("") }
+    var tenantInfoExpanded by remember { mutableStateOf(false) }
+    var serviceInfoExpanded by remember { mutableStateOf(false) }
+    var addressFocused by remember { mutableStateOf(false) }
+
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    var columnTop by remember { mutableStateOf(0f) }
+    var descriptionTop by remember { mutableStateOf(0f) }
+    var tenantInfoTop by remember { mutableStateOf(0f) }
+    var serviceInfoTop by remember { mutableStateOf(0f) }
+
     // Photos
     var photoUris by remember { mutableStateOf(listOf<String>()) }
-    var showPhotoMenuIndex by remember { mutableIntStateOf(-1) }
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
         if (uris.isNotEmpty()) {
-            photoUris = photoUris + uris.map { it.toString() }
+            photoUris = uris.map { it.toString() } + photoUris
         }
     }
 
@@ -213,7 +236,8 @@ fun CreatePropertyScreen(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
+                    .onGloballyPositioned { coords -> columnTop = coords.localToRoot(Offset.Zero).y }
                     .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -244,16 +268,13 @@ fun CreatePropertyScreen(
                 } else {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(photoUris.size) { index ->
-                            @OptIn(ExperimentalFoundationApi::class)
                             Box(
                                 modifier = Modifier
-                                    .size(88.dp)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .width(183.dp)
+                                    .height(130.dp)
+                                    .clip(RoundedCornerShape(30.dp))
                                     .background(Color(0xFFD3D3D3))
-                                    .combinedClickable(
-                                        onClick = { },
-                                        onLongClick = { showPhotoMenuIndex = index }
-                                    ),
+                                    .border(1.dp, Color.Black, RoundedCornerShape(30.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 AsyncImage(
@@ -262,41 +283,23 @@ fun CreatePropertyScreen(
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
                                 )
-                                if (index == 0) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomCenter)
-                                            .fillMaxWidth()
-                                            .background(Color(0x99000000)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            "Основное",
-                                            fontSize = 9.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                                DropdownMenu(
-                                    expanded = showPhotoMenuIndex == index,
-                                    onDismissRequest = { showPhotoMenuIndex = -1 }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Сделать основным") },
-                                        onClick = {
-                                            if (index > 0) {
-                                                photoUris = listOf(photoUris[index]) + photoUris.filterIndexed { i, _ -> i != index }
-                                            }
-                                            showPhotoMenuIndex = -1
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Удалить", color = ErrorRed) },
-                                        onClick = {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(6.dp)
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(CardBackground)
+                                        .clickable {
                                             photoUris = photoUris.filterIndexed { i, _ -> i != index }
-                                            showPhotoMenuIndex = -1
-                                        }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Удалить фото",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = Graphite
                                     )
                                 }
                             }
@@ -304,17 +307,24 @@ fun CreatePropertyScreen(
                         item {
                             Box(
                                 modifier = Modifier
-                                    .size(88.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF5F5F5))
+                                    .width(183.dp)
+                                    .height(130.dp)
+                                    .clip(RoundedCornerShape(30.dp))
+                                    .background(CardBackground)
                                     .clickable { galleryLauncher.launch("image/*") },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Image(
-                                    painter = painterResource(R.drawable.ic_add_photo),
-                                    contentDescription = "Добавить фото",
-                                    modifier = Modifier.size(32.dp)
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Image(
+                                        painter = painterResource(R.drawable.ic_add_photo),
+                                        contentDescription = "Добавить фото",
+                                        modifier = Modifier.size(50.dp)
+                                    )
+                                    Text("Добавить фото", style = FieldLabelStyle)
+                                }
                             }
                         }
                     }
@@ -332,6 +342,7 @@ fun CreatePropertyScreen(
                     },
                     label = "Адрес",
                     onFocusChanged = { focused ->
+                        addressFocused = focused
                         if (!focused) {
                             viewModel.commitAddress(address.text)
                         }
@@ -391,6 +402,19 @@ fun CreatePropertyScreen(
                         }
                     }
                 }
+                // Карта — появляется при фокусе на адресе, когда координаты уже выбраны
+                if (addressFocused && uiState.selectedLatitude != null && uiState.selectedLongitude != null) {
+                    AddressMapPicker(
+                        latitude = uiState.selectedLatitude!!,
+                        longitude = uiState.selectedLongitude!!,
+                        onLocationSelected = { lat, lon -> viewModel.onMapTapped(lat, lon) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .padding(top = 12.dp)
+                    )
+                }
+
                 // 4. Количество комнат
                 InfoDropdown(
                     selected = rooms,
@@ -436,12 +460,18 @@ fun CreatePropertyScreen(
                 }
 
                 // 7. Описание объявления (аккордеон)
-                DescriptionCard(
-                    value = description,
-                    onValueChange = { description = it },
-                    expanded = descriptionExpanded,
-                    onToggle = { descriptionExpanded = !descriptionExpanded }
-                )
+                Box(Modifier.onGloballyPositioned { coords -> descriptionTop = coords.localToRoot(Offset.Zero).y }) {
+                    DescriptionCard(
+                        value = description,
+                        onValueChange = { description = it },
+                        expanded = descriptionExpanded,
+                        onToggle = {
+                            val willExpand = !descriptionExpanded
+                            descriptionExpanded = willExpand
+                            if (willExpand) scope.launch { delay(300); scrollState.animateScrollTo((scrollState.value + (descriptionTop - columnTop)).toInt()) }
+                        }
+                    )
+                }
 
                 // 8. Стоимость за сутки
                 InfoTextField(
@@ -450,6 +480,89 @@ fun CreatePropertyScreen(
                     label = "Стоимость за сутки, ₽",
                     keyboardType = KeyboardType.Decimal
                 )
+
+                // 9. График платежей и реквизиты
+                BlackButtonWithIcon(
+                    text = "График платежей и реквизиты",
+                    iconRes = R.drawable.ic_calendar_edit,
+                    onClick = {
+                        if (propertyId != null) {
+                            onPaymentSchedule(propertyId)
+                        } else if (canCreate) {
+                            viewModel.createProperty(
+                                name = name,
+                                address = address.text,
+                                area = area,
+                                rentAmount = price,
+                                description = description,
+                                photoUris = photoUris,
+                                serviceInfo = serviceInfo,
+                                phone = phoneNumber,
+                                wifiPassword = wifiPassword,
+                                houseRules = rulesText,
+                                latitude = uiState.selectedLatitude,
+                                longitude = uiState.selectedLongitude,
+                                onSuccess = { newId -> onPaymentSchedule(newId) }
+                            )
+                        }
+                    }
+                )
+
+                // 10. Информация об объекте
+                Box(Modifier.onGloballyPositioned { coords -> tenantInfoTop = coords.localToRoot(Offset.Zero).y }) {
+                    InfoAccordionCard(
+                        title = "Информация об объекте",
+                        subtitle = "Эта информация будет видна арендатору",
+                        expanded = tenantInfoExpanded,
+                        onToggle = {
+                            val willExpand = !tenantInfoExpanded
+                            tenantInfoExpanded = willExpand
+                            if (willExpand) scope.launch { delay(300); scrollState.animateScrollTo((scrollState.value + (tenantInfoTop - columnTop)).toInt()) }
+                        }
+                    ) {
+                        LabeledField(
+                            icon = Icons.Filled.Phone,
+                            caption = "Номер телефона",
+                            value = phoneNumber,
+                            onValueChange = { phoneNumber = it },
+                            placeholder = "+7 "
+                        )
+                        LabeledField(
+                            icon = Icons.Filled.Wifi,
+                            caption = "Пароль WiFi",
+                            value = wifiPassword,
+                            onValueChange = { wifiPassword = it },
+                            placeholder = "Rsjuff6749"
+                        )
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(start = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("Правила объекта", style = FieldTextStyle)
+                            MultilineTextField(
+                                value = rulesText,
+                                onValueChange = { rulesText = it },
+                                placeholder = "Использовать помещение исключительно в целях, указанных в договоре"
+                            )
+                        }
+                    }
+                }
+
+                // 11. Служебная информация
+                Box(Modifier.onGloballyPositioned { coords -> serviceInfoTop = coords.localToRoot(Offset.Zero).y }) {
+                    InfoAccordionCard(
+                        title = "Служебная информация",
+                        subtitle = "Эта информация будет видна только вам",
+                        expanded = serviceInfoExpanded,
+                        onToggle = {
+                            val willExpand = !serviceInfoExpanded
+                            serviceInfoExpanded = willExpand
+                            if (willExpand) scope.launch { delay(300); scrollState.animateScrollTo((scrollState.value + (serviceInfoTop - columnTop)).toInt()) }
+                        }
+                    ) {
+                        MultilineTextField(value = serviceInfo, onValueChange = { serviceInfo = it }, placeholder = "")
+                    }
+                }
 
                 Spacer(Modifier.height(8.dp))
             }
@@ -472,15 +585,19 @@ fun CreatePropertyScreen(
                             rentAmount = price,
                             description = description,
                             photoUris = photoUris,
+                            serviceInfo = serviceInfo,
+                            phone = phoneNumber,
+                            wifiPassword = wifiPassword,
+                            houseRules = rulesText,
                             latitude = uiState.selectedLatitude,
                             longitude = uiState.selectedLongitude,
-                            onSuccess = onCreated
+                            onSuccess = { onCreated() }
                         )
                     }
                 )
                 FilledButton(
                     text = "Создать и опубликовать объявление",
-                    enabled = canCreate,
+                    enabled = false,
                     onClick = {
                         viewModel.createProperty(
                             name = name,
@@ -489,9 +606,13 @@ fun CreatePropertyScreen(
                             rentAmount = price,
                             description = description,
                             photoUris = photoUris,
+                            serviceInfo = serviceInfo,
+                            phone = phoneNumber,
+                            wifiPassword = wifiPassword,
+                            houseRules = rulesText,
                             latitude = uiState.selectedLatitude,
                             longitude = uiState.selectedLongitude,
-                            onSuccess = onCreated
+                            onSuccess = { onCreated() }
                         )
                     }
                 )
@@ -707,7 +828,9 @@ private fun DescriptionCard(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text("Описание объявления", style = FieldTextStyle)
-                    Text("Эта информация будет видна в объявлении", style = CardSubtitleStyle)
+                    if (!expanded) {
+                        Text("Эта информация будет видна в объявлении", style = CardSubtitleStyle)
+                    }
                 }
                 Icon(
                     if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -731,7 +854,7 @@ private fun DescriptionCard(
                     decorationBox = { innerTextField ->
                         Box {
                             if (value.isEmpty()) {
-                                Text("Описание", style = FieldLabelStyle.copy(fontWeight = FontWeight.Normal))
+                                Text("Опишите свою недвижимость", style = FieldLabelStyle.copy(fontWeight = FontWeight.Normal))
                             }
                             innerTextField()
                         }
@@ -782,5 +905,153 @@ private fun FilledButton(
         contentAlignment = Alignment.Center
     ) {
         Text(text, style = ButtonTextStyle.copy(color = Color.White))
+    }
+}
+
+// Аккордеон с заголовком и подзаголовком («Информация об объекте», «Служебная информация»)
+@Composable
+private fun InfoAccordionCard(
+    title: String,
+    subtitle: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = CardShape,
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .clickable { onToggle() }
+                    .padding(horizontal = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(title, style = FieldTextStyle)
+                    if (!expanded) {
+                        Text(subtitle, style = CardSubtitleStyle)
+                    }
+                }
+                Icon(
+                    if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = Graphite
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 10.dp, end = 10.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    content()
+                }
+            }
+        }
+    }
+}
+
+// Поле с подписью и иконкой (телефон/WiFi) — карточка с рамкой
+@Composable
+private fun LabeledField(
+    icon: ImageVector,
+    caption: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .border(1.dp, GreyText, CardShape),
+        shape = CardShape,
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = Graphite
+            )
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f),
+                textStyle = FieldTextStyle,
+                cursorBrush = SolidColor(Graphite),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+                decorationBox = { innerTextField ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(caption, style = CardSubtitleStyle)
+                        Box {
+                            if (value.isEmpty()) {
+                                Text(placeholder, style = FieldLabelStyle)
+                            }
+                            innerTextField()
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+// Многострочное текстовое поле в карточке
+@Composable
+private fun MultilineTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = CardShape,
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 12.dp)
+                .heightIn(min = 80.dp),
+            textStyle = FieldTextStyle.copy(fontWeight = FontWeight.Normal),
+            cursorBrush = SolidColor(Graphite),
+            singleLine = false,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Default),
+            decorationBox = { innerTextField ->
+                Box {
+                    if (value.isEmpty() && placeholder.isNotEmpty()) {
+                        Text(placeholder, style = FieldLabelStyle.copy(fontWeight = FontWeight.Normal))
+                    }
+                    innerTextField()
+                }
+            }
+        )
     }
 }
