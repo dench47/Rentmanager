@@ -213,8 +213,8 @@ fun CreatePropertyScreen(
                 }
             }
 
-            // Progress indicator (4 шага)
-            CreationProgressBar()
+            // Прогресс-индикатор (шаг 3 из 3)
+            CreationProgressBar(currentStep = 3)
 
             Spacer(Modifier.height(10.dp))
 
@@ -679,9 +679,9 @@ fun CreatePropertyScreen(
         }
     }
 }
-// 4 плоских сегмента-индикатора (Progress indicator / Width 4)
+// Прогресс-индикатор из 3 сегментов (закрашено currentStep штук)
 @Composable
-fun CreationProgressBar(modifier: Modifier = Modifier) {
+fun CreationProgressBar(currentStep: Int = 1, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -689,7 +689,7 @@ fun CreationProgressBar(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        repeat(3) {
+        repeat(3) { index ->
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -701,7 +701,7 @@ fun CreationProgressBar(modifier: Modifier = Modifier) {
                         .fillMaxWidth()
                         .height(4.dp)
                         .background(
-                            Graphite,
+                            if (index < currentStep) Graphite else InactiveGray,
                             RoundedCornerShape(24.dp)
                         )
                 )

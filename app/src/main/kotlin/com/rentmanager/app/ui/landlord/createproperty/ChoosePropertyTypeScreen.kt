@@ -37,7 +37,7 @@ fun ChoosePropertyTypeScreen(
                 .padding(paddingValues)
         ) {
             ScreenToolbar(title = "Новый объект", onBack = onBack)
-            CreationProgressBar()
+            CreationProgressBar(currentStep = 1)
             Spacer(Modifier.height(12.dp))
 
             Column(

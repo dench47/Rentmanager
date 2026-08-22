@@ -30,7 +30,7 @@ fun ChooseRentTypeScreen(
                 .padding(paddingValues)
         ) {
             ScreenToolbar(title = "Новый объект", onBack = onBack)
-            CreationProgressBar()
+            CreationProgressBar(currentStep = 2)
             Spacer(Modifier.height(12.dp))
 
             Column(
