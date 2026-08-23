@@ -122,7 +122,7 @@ class UpdateManager @Inject constructor(
         val contentLength = body.contentLength()
         val inputStream = body.byteStream()
 
-        val dir = context.externalCacheDir ?: context.cacheDir
+        val dir = context.cacheDir
         val outFile = File(dir, "app-update.apk")
         if (outFile.exists()) outFile.delete()
 
