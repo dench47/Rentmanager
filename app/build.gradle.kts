@@ -32,7 +32,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "API_BASE_URL", "\"http://45.11.92.171:8080/api/v1/\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://менеджераренды.рф/api/v1/\"")
     }
 
     signingConfigs {
@@ -143,7 +143,7 @@ tasks.register("generateVersionJson") {
     group = "deploy"
     description = "Generates version.json for server-side version check (use after release build)"
     doLast {
-        val apkUrl = "http://45.11.92.171:8080/downloads/app-release.apk"
+        val apkUrl = "https://менеджераренды.рф/downloads/app-release.apk"
         val json = """
             {
               "version_code": $autoVersionCode,
