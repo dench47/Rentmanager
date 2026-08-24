@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.SetPasswordRequest
+import com.rentmanager.app.data.api.TrustedDeviceDto
 import com.rentmanager.app.data.api.VerifyPasswordRequest
 import com.rentmanager.app.data.local.CryptoManager
+import com.rentmanager.app.data.local.DeviceIdManager
+import com.rentmanager.app.data.local.LoginApprovalEvents
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +28,13 @@ data class PinSetupUiState(
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
     val isPasswordSet: Boolean = false,
+    // Локальный тумблер «Требовать PIN на этом устройстве».
+    // Выключение НЕ удаляет серверный PIN — он нужен для входа с новых устройств.
+    val localPinEnabled: Boolean = true,
+    // Вход по отпечатку (локальная настройка устройства, работает при установленном PIN)
+    val useBiometric: Boolean = false,
+    // Доверенные устройства (Device Trust)
+    val trustedDevices: List<TrustedDeviceDto> = emptyList(),
     val attemptsLeft: Int? = null  // null = ещё грузим с сервера
 )
 
@@ -32,15 +42,28 @@ data class PinSetupUiState(
 class PinSetupViewModel @Inject constructor(
     private val authApi: AuthApi,
     private val tokenManager: TokenManager,
-    private val cryptoManager: CryptoManager
+    private val cryptoManager: CryptoManager,
+    private val deviceIdManager: DeviceIdManager,
+    private val loginApprovalEvents: LoginApprovalEvents
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(PinSetupUiState())
+    private val _uiState = MutableStateFlow(
+        PinSetupUiState(
+            localPinEnabled = tokenManager.localPinEnabled,
+            useBiometric = tokenManager.useBiometric
+        )
+    )
     val uiState: StateFlow<PinSetupUiState> = _uiState.asStateFlow()
 
     init {
         checkPasswordStatus()
         fetchAttempts()
+        loadTrustedDevices()
+        // Мгновенное обновление списка устройств: событие приходит локально
+        // (после «Подтвердить» в диалоге входа) или по push type=devices_changed.
+        viewModelScope.launch {
+            loginApprovalEvents.devicesChanged.collect { loadTrustedDevices() }
+        }
     }
 
     private fun fetchAttempts() {
@@ -66,7 +89,13 @@ class PinSetupViewModel @Inject constructor(
                 val resp = authApi.getMe()
                 if (resp.isSuccessful) {
                     val hasPassword = resp.body()?.hasPassword ?: false
-                    _uiState.update { it.copy(isPasswordSet = hasPassword, step = if (hasPassword) PinSetupStep.VERIFY_CURRENT else PinSetupStep.ENTER) }
+                    _uiState.update {
+                        it.copy(
+                            isPasswordSet = hasPassword,
+                            localPinEnabled = tokenManager.localPinEnabled,
+                            step = if (hasPassword && tokenManager.localPinEnabled) PinSetupStep.VERIFY_CURRENT else PinSetupStep.ENTER
+                        )
+                    }
                 }
             } catch (_: Exception) { }
         }
@@ -181,7 +210,11 @@ class PinSetupViewModel @Inject constructor(
                 val resp = authApi.setPassword(SetPasswordRequest(password))
                 if (resp.isSuccessful) {
                     tokenManager.hasPassword = true
-                    _uiState.update { it.copy(isLoading = false, isSuccess = true) }
+                    tokenManager.localPinEnabled = true
+                    // Сохраняем PIN локально сразу — чтобы биометрия работала
+                    // без повторного входа по коду.
+                    cryptoManager.savePin(password)
+                    _uiState.update { it.copy(isLoading = false, isSuccess = true, isPasswordSet = true, localPinEnabled = true) }
                 } else {
                     _uiState.update { it.copy(isLoading = false, step = PinSetupStep.ENTER, pin = "", confirmPin = "", errorMessage = "Ошибка сохранения") }
                 }
@@ -191,34 +224,55 @@ class PinSetupViewModel @Inject constructor(
         }
     }
 
-    // Тумблер «Вход без PIN»
+    // Тумблер «Требовать PIN на этом устройстве».
+    // Выключение: локальный флаг + очистка сохранённого PIN для биометрии.
+    // Серверный PIN НЕ удаляется — он нужен для подтверждения входа с новых устройств.
+    // Включение: если серверный PIN есть — просто включаем флаг; если нет — задаём новый код.
     fun onTogglePinWithoutPin(disable: Boolean) {
         if (disable) {
-            // Выключаем PIN сразу (пользователь уже авторизован)
-            clearPassword()
+            tokenManager.localPinEnabled = false
+            cryptoManager.clearPin()
+            _uiState.update { it.copy(isLoading = false, localPinEnabled = false, useBiometric = false) }
         } else {
-            // Включаем PIN: задаём новый код
-            _uiState.update {
-                it.copy(step = PinSetupStep.ENTER, pin = "", confirmPin = "", errorMessage = null)
+            if (tokenManager.hasPassword) {
+                tokenManager.localPinEnabled = true
+                _uiState.update { it.copy(localPinEnabled = true) }
+            } else {
+                // Серверного PIN нет — предлагаем придумать
+                _uiState.update {
+                    it.copy(step = PinSetupStep.ENTER, pin = "", confirmPin = "", errorMessage = null)
+                }
             }
         }
     }
 
-    private fun clearPassword() {
-        _uiState.update { it.copy(isLoading = true) }
+    /** Тумблер «Вход по отпечатку» — локальная настройка устройства. */
+    fun toggleBiometric(enabled: Boolean) {
+        tokenManager.useBiometric = enabled
+        _uiState.update { it.copy(useBiometric = enabled) }
+    }
+
+    // ===== Доверенные устройства (Device Trust) =====
+
+    fun loadTrustedDevices() {
         viewModelScope.launch {
             try {
-                val resp = authApi.setPassword(SetPasswordRequest(""))
+                val resp = authApi.listDevices(deviceIdManager.deviceId)
                 if (resp.isSuccessful) {
-                    tokenManager.hasPassword = false
-                    cryptoManager.clearPin()
-                    _uiState.update { it.copy(isLoading = false, isPasswordSet = false, isSuccess = true) }
-                } else {
-                    _uiState.update { it.copy(isLoading = false, errorMessage = "Ошибка отключения PIN") }
+                    _uiState.update { it.copy(trustedDevices = resp.body() ?: emptyList()) }
                 }
-            } catch (_: Exception) {
-                _uiState.update { it.copy(isLoading = false, errorMessage = "Нет связи с сервером") }
-            }
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Отзыв доверенного устройства — при следующем входе оно потребует подтверждения. */
+    fun revokeTrustedDevice(deviceRowId: String, onDone: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val ok = try {
+                authApi.revokeDevice(deviceRowId).isSuccessful
+            } catch (_: Exception) { false }
+            if (ok) loadTrustedDevices()
+            onDone(ok)
         }
     }
 }

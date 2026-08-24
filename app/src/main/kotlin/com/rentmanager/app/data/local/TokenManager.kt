@@ -48,6 +48,15 @@ class TokenManager @Inject constructor(
         get() = prefs.getBoolean("has_password", false)
         set(value) = prefs.edit().putBoolean("has_password", value).apply()
 
+    /**
+     * Локальный тумблер «Требовать PIN на этом устройстве».
+     * НЕ удаляет серверный PIN — тот остаётся для входа с новых устройств.
+     * При выключенном флаге приложение не спрашивает PIN при открытии на этом устройстве.
+     */
+    var localPinEnabled: Boolean
+        get() = prefs.getBoolean("local_pin_enabled", true)
+        set(value) = prefs.edit().putBoolean("local_pin_enabled", value).apply()
+
     var selectedRole: String?
         get() = prefs.getString("selected_role", null)
         set(value) {

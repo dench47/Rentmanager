@@ -13,7 +13,12 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Query
 
-data class SendCodeRequest(val phone: String, @SerializedName("fcm_token") val fcmToken: String? = null)
+data class SendCodeRequest(
+    val phone: String,
+    @SerializedName("fcm_token") val fcmToken: String? = null,
+    @SerializedName("device_id") val deviceId: String? = null,
+    @SerializedName("device_name") val deviceName: String? = null
+)
 data class SaveNameRequest(val name: String)
 
 data class LoginResponse(
@@ -24,6 +29,8 @@ data class LoginResponse(
     val token: String?,
     val user: UserDto?,
     @SerializedName("has_password") val hasPassword: Boolean?,
+    @SerializedName("is_trusted_device") val isTrustedDevice: Boolean? = null,
+    @SerializedName("can_push") val canPush: Boolean? = null,
     val name: String?,
     val phone: String?,
     @SerializedName("default_start_screen") val defaultStartScreen: String?
@@ -38,10 +45,43 @@ data class CallCheckAddResponse(
 
 data class CallCheckStatusResponse(
     val verified: Boolean,
+    @SerializedName("is_new_user") val isNewUser: Boolean? = null,
+    @SerializedName("has_password") val hasPassword: Boolean? = null,
     @SerializedName("access_token") val accessToken: String?,
     @SerializedName("refresh_token") val refreshToken: String?,
     val token: String?,
     val user: UserDto?
+)
+
+// ===== Device Trust: подтверждение входа с нового устройства =====
+
+data class RequestApprovalRequest(
+    val phone: String,
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("device_name") val deviceName: String
+)
+
+data class RequestApprovalResponse(
+    @SerializedName("request_id") val requestId: String,
+    @SerializedName("expires_in") val expiresIn: Long
+)
+
+data class LoginStatusResponse(
+    val status: String, // pending / approved / denied / expired
+    @SerializedName("access_token") val accessToken: String? = null,
+    @SerializedName("refresh_token") val refreshToken: String? = null,
+    val user: UserDto? = null,
+    @SerializedName("has_password") val hasPassword: Boolean? = null
+)
+
+data class ApproveLoginRequest(@SerializedName("request_id") val requestId: String)
+
+data class TrustedDeviceDto(
+    val id: String,
+    val name: String?,
+    @SerializedName("created_at") val createdAt: Long,
+    @SerializedName("last_used_at") val lastUsedAt: Long,
+    @SerializedName("current_device") val currentDevice: Boolean = false
 )
 
 data class UpdateProfileRequest(
@@ -130,6 +170,29 @@ interface AuthApi {
 
     @POST("auth/callcheck/status")
     suspend fun callCheckStatus(@Body request: SendCodeRequest): Response<CallCheckStatusResponse>
+
+    // ===== Device Trust: подтверждение входа =====
+
+    @POST("auth/login/request_approval")
+    suspend fun requestLoginApproval(@Body request: RequestApprovalRequest): Response<RequestApprovalResponse>
+
+    @GET("auth/login/status")
+    suspend fun loginStatus(
+        @retrofit2.http.Query("request_id") requestId: String,
+        @retrofit2.http.Query("device_id") deviceId: String
+    ): Response<LoginStatusResponse>
+
+    @POST("auth/login/approve")
+    suspend fun approveLogin(@Body request: ApproveLoginRequest): Response<MessageResponse>
+
+    @POST("auth/login/deny")
+    suspend fun denyLogin(@Body request: ApproveLoginRequest): Response<MessageResponse>
+
+    @GET("auth/devices")
+    suspend fun listDevices(@retrofit2.http.Query("current_device_id") currentDeviceId: String): Response<List<TrustedDeviceDto>>
+
+    @DELETE("auth/devices/{deviceId}")
+    suspend fun revokeDevice(@retrofit2.http.Path("deviceId") deviceId: String): Response<MessageResponse>
 
     @GET("users/me")
     suspend fun getMe(): Response<UserDto>

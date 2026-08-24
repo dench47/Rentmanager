@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.CallCheckAddResponse
 import com.rentmanager.app.data.api.RegisterDeviceRequest
+import com.rentmanager.app.data.api.RequestApprovalRequest
 import com.rentmanager.app.data.api.SendCodeRequest
+import com.rentmanager.app.data.local.DeviceIdManager
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -26,19 +28,23 @@ data class VerifyUiState(
     val callPhonePretty: String = "",
     val isVerified: Boolean = false,
     val isNewUser: Boolean = false,
+    // ===== Device Trust: ожидание push-одобрения с доверенного устройства =====
+    val awaitingApproval: Boolean = false,
     val errorMessage: String? = null
 )
 
 @HiltViewModel
 class VerifyViewModel @Inject constructor(
     private val authApi: AuthApi,
-    private val tokenManager: TokenManager
+    private val tokenManager: TokenManager,
+    private val deviceIdManager: DeviceIdManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(VerifyUiState())
     val uiState: StateFlow<VerifyUiState> = _uiState.asStateFlow()
 
     private var callCheckJob: Job? = null
+    private var approvalJob: Job? = null
 
     /**
      * Принимает чистые цифры (только 0-9), максимум из selectedCountry.maxDigits.
@@ -67,8 +73,10 @@ class VerifyViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
             try {
-                // 1. Проверяем, есть ли пользователь в БД
-                val loginResp = authApi.login(SendCodeRequest(phone, tokenManager.fcmToken))
+                // 1. Проверяем пользователя в БД и доверено ли это устройство
+                val loginResp = authApi.login(
+                    SendCodeRequest(phone, tokenManager.fcmToken, deviceIdManager.deviceId, deviceIdManager.deviceName)
+                )
                 if (loginResp.isSuccessful) {
                     val body = loginResp.body()
                     if (body?.exists == true) {
@@ -76,24 +84,36 @@ class VerifyViewModel @Inject constructor(
                         body.name?.let { tokenManager.userName = it }
                         body.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
 
+                        // Доверенное устройство без PIN — сервер сразу выдал токены
                         if (body.accessToken != null) {
-                            // Тестовый режим (сервер выдал токены без PIN, AUTH_BYPASS_PIN=true) — входим сразу
                             tokenManager.accessToken = body.accessToken
                             body.refreshToken?.let { tokenManager.refreshToken = it }
                             body.token?.let { tokenManager.accessToken = it }
                             body.user?.name?.let { tokenManager.userName = it }
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
-                            tokenManager.hasPassword = false // bypass: не требовать PIN при следующем запуске
-                            // Регистрируем FCM-токен
-                            tokenManager.fcmToken?.let { fcm ->
-                                launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
-                            }
+                            tokenManager.hasPassword = false
+                            registerFcm()
                             _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false) }
                             onSuccess(phone)
                             return@launch
                         }
 
-                        // Продакшн: вход только по PIN — идём на экран ввода PIN
+                        // Новое устройство + есть доверенные → push-подтверждение входа
+                        if (body.isTrustedDevice == false && body.canPush == true) {
+                            tokenManager.hasPassword = body.hasPassword ?: true
+                            startApprovalFlow(phone)
+                            return@launch
+                        }
+
+                        // Новое устройство, PIN не установлен, подтверждать нечем —
+                        // единственный путь: звонок (владение SIM). Иначе пользователь
+                        // попал бы на экран PIN, который заведомо не пройдёт.
+                        if (body.isTrustedDevice == false && body.hasPassword != true) {
+                            fallbackToCall()
+                            return@launch
+                        }
+
+                        // Доверенное устройство с PIN / нет push-возможности — ввод PIN или звонок
                         tokenManager.hasPassword = body.hasPassword ?: true
                         _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false) }
                         onSuccess(phone)
@@ -101,7 +121,7 @@ class VerifyViewModel @Inject constructor(
                     }
                 }
 
-                // 2. Пользователя нет — инициируем звонок
+                // 2. Пользователя нет (или login упал) — инициируем звонок
                 val callResp = authApi.callCheckAdd(SendCodeRequest(phone))
                 if (callResp.isSuccessful) {
                     val callBody = callResp.body()
@@ -126,6 +146,113 @@ class VerifyViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Запрос подтверждения входа на доверенные устройства + поллинг статуса.
+     * Push уходит на все доверенные устройства; пользователь тапает «Подтвердить».
+     */
+    fun startApprovalFlow(phone: String) {
+        viewModelScope.launch {
+            try {
+                val resp = authApi.requestLoginApproval(
+                    RequestApprovalRequest(phone, deviceIdManager.deviceId, deviceIdManager.deviceName)
+                )
+                val requestId = resp.body()?.requestId
+                if (!resp.isSuccessful || requestId == null) {
+                    // Не удалось запросить одобрение — откатываемся на звонок
+                    fallbackToCall()
+                    return@launch
+                }
+                _uiState.update { it.copy(awaitingApproval = true, isLoading = false) }
+                pollApprovalStatus(requestId, phone)
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isLoading = false, errorMessage = "Нет связи с сервером") }
+            }
+        }
+    }
+
+    private fun pollApprovalStatus(requestId: String, phone: String) {
+        approvalJob?.cancel()
+        approvalJob = viewModelScope.launch {
+            var attempts = 0
+            while (attempts < 100 && _uiState.value.awaitingApproval) { // ~5 мин, как TTL на сервере
+                delay(3000)
+                attempts++
+                try {
+                    val resp = authApi.loginStatus(requestId, deviceIdManager.deviceId)
+                    val body = resp.body()
+                    when (body?.status) {
+                        "approved" -> {
+                            body.accessToken?.let { tokenManager.accessToken = it }
+                            body.refreshToken?.let { tokenManager.refreshToken = it }
+                            body.user?.name?.let { tokenManager.userName = it }
+                            body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
+                            tokenManager.phone = phone
+                            tokenManager.hasPassword = body.hasPassword ?: true
+                            registerFcm()
+                            _uiState.update { it.copy(awaitingApproval = false, isVerified = true, isNewUser = false) }
+                            return@launch
+                        }
+                        "denied" -> {
+                            _uiState.update { it.copy(awaitingApproval = false, errorMessage = "Вход отклонён на другом устройстве") }
+                            return@launch
+                        }
+                        "expired" -> {
+                            _uiState.update { it.copy(awaitingApproval = false, errorMessage = "Время подтверждения истекло") }
+                            return@launch
+                        }
+                    }
+                } catch (_: Exception) { /* сеть мигнула — продолжаем поллинг */ }
+            }
+            if (_uiState.value.awaitingApproval) {
+                _uiState.update { it.copy(awaitingApproval = false, errorMessage = "Время подтверждения истекло") }
+            }
+        }
+    }
+
+    /** Отмена ожидания одобрения — возврат к вводу номера. */
+    fun cancelApproval() {
+        approvalJob?.cancel()
+        approvalJob = null
+        _uiState.update { it.copy(awaitingApproval = false) }
+    }
+
+    /**
+     * Fallback: push недоступен/отклонён запрос невозможен — верификация звонком,
+     * если SIM при пользователе.
+     */
+    fun fallbackToCall() {
+        cancelApproval()
+        viewModelScope.launch {
+            try {
+                val callResp = authApi.callCheckAdd(SendCodeRequest(_uiState.value.phone))
+                val callBody = callResp.body()
+                if (callResp.isSuccessful && callBody?.status == "OK") {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            awaitingApproval = false,
+                            isCalling = true,
+                            callPhone = callBody.callPhone,
+                            callPhonePretty = callBody.callPhonePretty
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(isLoading = false, errorMessage = "Ошибка сервиса звонков") }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isLoading = false, errorMessage = "Сервер недоступен") }
+            }
+        }
+    }
+
+    private fun registerFcm() {
+        tokenManager.fcmToken?.let { fcm ->
+            viewModelScope.launch {
+                try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {}
+            }
+        }
+    }
+
     fun startCallChecking(onSuccess: (String) -> Unit) {
         val phone = _uiState.value.phone
         callCheckJob?.cancel()
@@ -135,7 +262,9 @@ class VerifyViewModel @Inject constructor(
                 delay(3000)
                 attempts++
                 try {
-                    val resp = authApi.callCheckStatus(SendCodeRequest(phone, tokenManager.fcmToken))
+                    val resp = authApi.callCheckStatus(
+                        SendCodeRequest(phone, tokenManager.fcmToken, deviceIdManager.deviceId, deviceIdManager.deviceName)
+                    )
                     if (resp.isSuccessful) {
                         val body = resp.body()
                         if (body?.verified == true) {
@@ -145,11 +274,13 @@ class VerifyViewModel @Inject constructor(
                             body.user?.name?.let { tokenManager.userName = it }
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                             tokenManager.phone = phone
+                            tokenManager.hasPassword = body.hasPassword ?: false
                             // Регистрируем FCM-токен
-                            tokenManager.fcmToken?.let { fcm ->
-                                launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                            registerFcm()
+                            // isNewUser приходит с сервера — клиент больше не угадывает
+                            _uiState.update {
+                                it.copy(isVerified = true, isCalling = false, isNewUser = body.isNewUser ?: false)
                             }
-                            _uiState.update { it.copy(isVerified = true, isCalling = false, isNewUser = true) }
                             onSuccess(phone)
                             return@launch
                         }
@@ -163,6 +294,8 @@ class VerifyViewModel @Inject constructor(
     fun reset() {
         callCheckJob?.cancel()
         callCheckJob = null
+        approvalJob?.cancel()
+        approvalJob = null
         _uiState.value = VerifyUiState()
     }
 }

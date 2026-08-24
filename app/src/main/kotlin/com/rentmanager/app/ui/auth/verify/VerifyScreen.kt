@@ -4,6 +4,11 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -226,6 +231,17 @@ fun VerifyScreen(
         if (uiState.isCalling) {
             viewModel.startCallChecking(onSuccess = { })
         }
+    }
+
+    // ===== Device Trust: ожидание подтверждения входа на доверенном устройстве =====
+    if (uiState.awaitingApproval) {
+        ApprovalWaitingScreen(
+            phone = uiState.phone,
+            errorMessage = uiState.errorMessage,
+            onUseCall = { viewModel.fallbackToCall() },
+            onCancel = { viewModel.reset() }
+        )
+        return
     }
 
     // Country picker bottom sheet
@@ -594,6 +610,119 @@ fun VerifyScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Экран ожидания подтверждения входа с доверенного устройства (Device Trust).
+ * Push уже отправлен; пользователь может подождать, отклонить или войти через звонок.
+ */
+@Composable
+fun ApprovalWaitingScreen(
+    phone: String,
+    errorMessage: String?,
+    onUseCall: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5))
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(60.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_arrow_left),
+                contentDescription = "Назад",
+                tint = Color(0xFF000000),
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable { onCancel() }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Card(
+            modifier = Modifier.width(343.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("📱", fontSize = 44.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Подтвердите вход",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF151515),
+                    letterSpacing = (-0.4).sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Мы отправили запрос на ваш телефон.\nОткройте приложение и подтвердите вход.",
+                    fontSize = 14.sp,
+                    color = Color(0x993C3C43),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = phone,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF151515)
+                )
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(errorMessage!!, color = Color(0xFFE53935), fontSize = 13.sp, textAlign = TextAlign.Center)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Пульсирующий индикатор ожидания
+                val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                val alpha by infiniteTransition.animateFloat(
+                    initialValue = 0.3f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(800),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "alpha"
+                )
+                Text(
+                    text = "⏳ Ожидаем подтверждения…",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF007AFF).copy(alpha = alpha)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        TextButton(onClick = onUseCall) {
+            Text(
+                text = "Нет доступа к телефону? Войти по звонку",
+                color = Color(0xFF007AFF),
+                fontSize = 14.sp
+            )
         }
     }
 }

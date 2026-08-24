@@ -38,10 +38,16 @@ fun RentManagerNavGraph(
 
     val accessToken by tokenManager.accessTokenFlow.collectAsState()
     val requirePin by tokenManager.requirePinFlow.collectAsState()
-    val startDestination = remember(accessToken, tokenManager.hasPassword, tokenManager.defaultStartScreen, requirePin) {
-        if (accessToken == null) {
+
+    // ВАЖНО: startDestination вычисляется ОДИН раз при создании графа.
+    // Раньше он реактивно пересчитывался от accessToken — из-за этого после верификации
+    // номера NavHost пересоздавался и сбрасывал пользователя на MainScreen раньше,
+    // чем срабатывала навигация на PinSetup (баг «пропуск экрана создания PIN»).
+    // Последующие переходы выполняются только через navController.navigate(...).
+    val startDestination = remember {
+        if (tokenManager.accessToken == null) {
             Screen.Verify.route
-        } else if (requirePin || tokenManager.hasPassword) {
+        } else if ((requirePin || tokenManager.hasPassword) && tokenManager.localPinEnabled) {
             Screen.PinEntry.route
         } else {
             tokenManager.startRoute()

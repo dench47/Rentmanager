@@ -21,12 +21,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.Color
+import com.rentmanager.app.data.api.ApproveLoginRequest
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.TokenRefresher
 import com.rentmanager.app.data.api.UpdateManager
 import com.rentmanager.app.data.api.UpdateResult
 import com.rentmanager.app.data.api.VersionResponse
+import com.rentmanager.app.data.local.DeviceIdManager
+import com.rentmanager.app.data.local.LoginApprovalEvents
 import com.rentmanager.app.data.local.TokenManager
 import com.rentmanager.app.ui.components.UpdateDialog
 import com.rentmanager.app.ui.navigation.RentManagerNavGraph
@@ -50,6 +56,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var tokenRefresher: TokenRefresher
     @Inject lateinit var updateManager: UpdateManager
     @Inject lateinit var authApi: AuthApi
+    @Inject lateinit var loginApprovalEvents: LoginApprovalEvents
 
     private val retryDownloadSignal = mutableIntStateOf(0)
 
@@ -81,7 +88,8 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (tokenManager.hasPassword && tokenManager.accessToken != null) {
+        // Фоновая блокировка PIN'ом — только если локально включён запрос PIN
+        if (tokenManager.hasPassword && tokenManager.localPinEnabled && tokenManager.accessToken != null) {
             val now = System.currentTimeMillis()
             val elapsed = now - tokenManager.lastPauseTimestamp
             if (tokenManager.lastPauseTimestamp > 0L && elapsed > BACKGROUND_TIMEOUT_MS) {
@@ -252,6 +260,48 @@ class MainActivity : FragmentActivity() {
                 }
 
                 RentManagerNavGraph(tokenManager = tokenManager)
+
+                // ===== Device Trust: диалог подтверждения входа с нового устройства =====
+                var pendingLoginRequest by remember { mutableStateOf<LoginApprovalEvents.LoginRequest?>(null) }
+                LaunchedEffect(Unit) {
+                    loginApprovalEvents.requests.collect { pendingLoginRequest = it }
+                }
+                pendingLoginRequest?.let { req ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { },
+                        title = { Text("Подтвердите вход") },
+                        text = {
+                            Text(
+                                "Попытка входа с устройства " +
+                                    (req.deviceName?.takeIf { it.isNotBlank() } ?: "неизвестного устройства") +
+                                    ". Это вы?"
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                scope.launch {
+                                    try {
+                                        if (authApi.approveLogin(ApproveLoginRequest(req.requestId)).isSuccessful) {
+                                            // Мгновенно обновляем список устройств на открытых экранах
+                                            loginApprovalEvents.emitDevicesChanged()
+                                        }
+                                    } catch (_: Exception) {}
+                                }
+                                pendingLoginRequest = null
+                            }) { Text("Подтвердить", color = Color(0xFF007AFF)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                scope.launch {
+                                    try { authApi.denyLogin(ApproveLoginRequest(req.requestId)) } catch (_: Exception) {}
+                                    // Отклонённая попытка тоже меняет состояние — синхронизируем UI
+                                    loginApprovalEvents.emitDevicesChanged()
+                                }
+                                pendingLoginRequest = null
+                            }) { Text("Отклонить", color = Color(0xFFE53935)) }
+                        }
+                    )
+                }
 
                 if (updateInfo != null) {
                     if (updateForced) {

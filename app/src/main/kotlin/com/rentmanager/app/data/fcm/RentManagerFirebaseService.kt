@@ -12,6 +12,8 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.RegisterDeviceRequest
+import com.rentmanager.app.data.local.CryptoManager
+import com.rentmanager.app.data.local.LoginApprovalEvents
 import com.rentmanager.app.data.local.TenantEvents
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -34,6 +36,9 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
 
     @Inject
     lateinit var tenantEvents: TenantEvents
+
+    @Inject
+    lateinit var loginApprovalEvents: LoginApprovalEvents
 
     @Suppress("DEPRECATION") // FCM token API: миграция на register()/onRegistered(FID) — отдельная задача
     override fun onCreate() {
@@ -122,6 +127,20 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
                 val title = message.data["title"] ?: "Новый вход в аккаунт"
                 val body = buildNewLoginBody(message)
                 showNotification(title, body)
+            }
+            // Device Trust: кто-то пытается войти с нового устройства — показываем диалог
+            "login_request" -> {
+                Log.d("FCM", "Received login_request")
+                loginApprovalEvents.emit(
+                    requestId = message.data["request_id"],
+                    deviceName = message.data["device_name"]
+                )
+            }
+            // Device Trust: список доверенных устройств изменился (новое устройство
+            // подтверждено/отозвано) — открытые экраны обновляют список мгновенно
+            "devices_changed" -> {
+                Log.d("FCM", "Received devices_changed")
+                loginApprovalEvents.emitDevicesChanged()
             }
             "tenant_attached", "tenant_detached" -> {
                 val title = message.data["title"] ?: "Обновление доступа к объекту"

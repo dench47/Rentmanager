@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -314,16 +313,13 @@ fun SettingsScreen(
                 }
                 item { SettingsField("Почтовый ящик", uiState.email ?: "", Icons.Default.Email, isOptional = true, onClick = { showEditEmailDialog = true; editEmail = uiState.email ?: "" }) }
                 item { SettingsField("Название юридического лица", uiState.legalName ?: "", Icons.Default.Business, isOptional = true, onClick = { showEditLegalDialog = true; editLegalName = uiState.legalName ?: "" }) }
-                item { SettingsAction("Установить пароль", Icons.Default.Lock, onClick = onPinSetupClick) }
                 item {
-                    Column(Modifier.fillMaxWidth()) {
-                        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Icon(Icons.Default.Fingerprint, "Вход по отпечатку", Modifier.size(24.dp), tint = Color(0xFF212121))
-                            Column(Modifier.weight(1f)) { Text("Вход по отпечатку", fontSize = 16.sp, color = Color(0xFF212121)); Text("Использовать отпечаток пальца для входа", fontSize = 13.sp, color = Color(0x993C3C43)) }
-                            Switch(checked = uiState.useBiometric, onCheckedChange = { viewModel.toggleBiometric(it) }, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF007AFF)))
-                        }
-                        HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
-                    }
+                    SettingsAction(
+                        "Безопасность",
+                        Icons.Default.Lock,
+                        subtitle = if (uiState.localPinEnabled) "PIN-код, вход по отпечатку" else "PIN отключён на этом устройстве",
+                        onClick = onPinSetupClick
+                    )
                 }
                 item { SettingsAction("Начальный экран", Icons.Default.Home, subtitle = when (uiState.defaultStartScreen) { "landlord" -> "Арендодатель"; "tenant" -> "Арендатор"; else -> "Главный экран" }, onClick = { viewModel.showStartScreenDialog() }) }
                 item {

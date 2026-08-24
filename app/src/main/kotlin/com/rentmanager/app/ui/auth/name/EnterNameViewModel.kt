@@ -29,7 +29,10 @@ class EnterNameViewModel @Inject constructor(
     val uiState: StateFlow<EnterNameUiState> = _uiState.asStateFlow()
 
     fun onNameChange(newName: String) {
-        _uiState.update { it.copy(name = newName, errorMessage = null) }
+        // Автоматически поднимаем первую букву: «иван» → «Иван» на лету
+        val capitalized = if (newName.isEmpty()) newName
+        else newName[0].uppercaseChar() + newName.substring(1)
+        _uiState.update { it.copy(name = capitalized, errorMessage = null) }
     }
 
     fun onContinue(onSuccess: () -> Unit) {

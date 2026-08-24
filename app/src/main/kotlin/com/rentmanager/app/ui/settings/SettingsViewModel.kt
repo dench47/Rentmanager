@@ -46,7 +46,9 @@ data class SettingsUiState(
     val showLogoutDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
     // Начальный экран
-    val showStartScreenDialog: Boolean = false
+    val showStartScreenDialog: Boolean = false,
+    // Локальный флаг «Требовать PIN на этом устройстве» (для подзаголовка «Безопасность»)
+    val localPinEnabled: Boolean = true
 )
 
 @HiltViewModel
@@ -60,7 +62,8 @@ class SettingsViewModel @Inject constructor(
         phone = tokenManager.phone ?: "",
         defaultStartScreen = tokenManager.defaultStartScreen,
         avatarUrl = tokenManager.avatarUrl,
-        useBiometric = tokenManager.useBiometric
+        useBiometric = tokenManager.useBiometric,
+        localPinEnabled = tokenManager.localPinEnabled
     ))
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -262,11 +265,6 @@ class SettingsViewModel @Inject constructor(
                 authApi.updateProfile(UpdateProfileRequest(defaultStartScreen = screen))
             } catch (_: Exception) { }
         }
-    }
-
-    fun toggleBiometric(enabled: Boolean) {
-        tokenManager.useBiometric = enabled
-        _uiState.update { it.copy(useBiometric = enabled) }
     }
 
     fun dismissDialogs() {
