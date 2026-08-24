@@ -12,7 +12,6 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.RegisterDeviceRequest
-import com.rentmanager.app.data.local.CryptoManager
 import com.rentmanager.app.data.local.LoginApprovalEvents
 import com.rentmanager.app.data.local.TenantEvents
 import com.rentmanager.app.data.local.TokenManager
@@ -104,12 +103,16 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
         Log.d("FCM", "New token: $token")
         tokenManager.fcmToken = token
 
-        // Отправляем токен на сервер (если не залогинен — 401, токен останется в prefs и уйдёт при логине)
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                authApi.registerDevice(RegisterDeviceRequest(token))
-            } catch (e: Exception) {
-                Log.e("FCM", "Failed to register device: ${e.message}")
+        // Отправляем токен на сервер только при активной сессии:
+        // после logout/delete_account токена нет — регистрация уйдёт
+        // вместе с логином (см. VerifyViewModel.registerFcm), иначе получаем 401-шум.
+        if (tokenManager.accessToken != null) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    authApi.registerDevice(RegisterDeviceRequest(token))
+                } catch (e: Exception) {
+                    Log.e("FCM", "Failed to register device: ${e.message}")
+                }
             }
         }
     }
