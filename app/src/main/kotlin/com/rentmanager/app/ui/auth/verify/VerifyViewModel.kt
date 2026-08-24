@@ -7,6 +7,8 @@ import com.rentmanager.app.data.api.CallCheckAddResponse
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.RequestApprovalRequest
 import com.rentmanager.app.data.api.SendCodeRequest
+import com.rentmanager.app.data.api.TelegramCodeRequest
+import com.rentmanager.app.data.api.TelegramVerifyRequest
 import com.rentmanager.app.data.local.DeviceIdManager
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +32,11 @@ data class VerifyUiState(
     val isNewUser: Boolean = false,
     // ===== Device Trust: ожидание push-одобрения с доверенного устройства =====
     val awaitingApproval: Boolean = false,
+    // ===== Telegram-вход =====
+    val canTelegram: Boolean = false,
+    val telegramCodeSent: Boolean = false,
+    val telegramAttemptsLeft: Int = 5,
+    val telegramCodeError: String? = null,
     val errorMessage: String? = null
 )
 
@@ -83,6 +90,9 @@ class VerifyViewModel @Inject constructor(
                         tokenManager.phone = phone
                         body.name?.let { tokenManager.userName = it }
                         body.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
+
+                        // Telegram — вариант входа для НЕдоверенного устройства
+                        _uiState.update { it.copy(canTelegram = body.canTelegram == true && body.isTrustedDevice == false) }
 
                         // Доверенное устройство без PIN — сервер сразу выдал токены
                         if (body.accessToken != null) {
@@ -289,6 +299,75 @@ class VerifyViewModel @Inject constructor(
             }
             _uiState.update { it.copy(isCalling = false, errorMessage = "Время истекло. Попробуйте снова.") }
         }
+    }
+
+    // ===== Telegram-вход =====
+
+    /** Отправляет код входа в Telegram (для недоверенного устройства). */
+    fun onTelegramLogin() {
+        val phone = _uiState.value.phone
+        _uiState.update { it.copy(telegramCodeError = null, telegramCodeSent = false) }
+        viewModelScope.launch {
+            try {
+                val resp = authApi.telegramCode(TelegramCodeRequest(phone))
+                val body = resp.body()
+                if (resp.isSuccessful && body != null) {
+                    _uiState.update { it.copy(telegramCodeSent = true, telegramAttemptsLeft = body.attemptsLeft) }
+                } else {
+                    val err = resp.errorBody()?.string()
+                    _uiState.update { it.copy(telegramCodeError = err ?: "Не удалось отправить код") }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(telegramCodeError = "Нет связи с сервером") }
+            }
+        }
+    }
+
+    /** Проверяет введённый код из Telegram. */
+    fun onVerifyTelegramCode(code: String, onSuccess: (String) -> Unit) {
+        val phone = _uiState.value.phone
+        if (code.length != 8) {
+            _uiState.update { it.copy(telegramCodeError = "Введите 8 цифр кода") }
+            return
+        }
+        _uiState.update { it.copy(telegramCodeError = null) }
+        viewModelScope.launch {
+            try {
+                val resp = authApi.telegramVerify(
+                    TelegramVerifyRequest(
+                        phone = phone,
+                        code = code,
+                        fcmToken = tokenManager.fcmToken,
+                        deviceId = deviceIdManager.deviceId,
+                        deviceName = deviceIdManager.deviceName
+                    )
+                )
+                val body = resp.body()
+                if (resp.isSuccessful && body?.verified == true) {
+                    body.accessToken?.let { tokenManager.accessToken = it }
+                    body.refreshToken?.let { tokenManager.refreshToken = it }
+                    body.token?.let { tokenManager.accessToken = it }
+                    body.user?.name?.let { tokenManager.userName = it }
+                    body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
+                    tokenManager.phone = phone
+                    tokenManager.hasPassword = body.hasPassword ?: false
+                    registerFcm()
+                    _uiState.update {
+                        it.copy(isVerified = true, isNewUser = false, telegramCodeSent = false, canTelegram = false)
+                    }
+                    onSuccess(phone)
+                } else {
+                    _uiState.update { it.copy(telegramCodeError = "Неверный или истёкший код") }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(telegramCodeError = "Нет связи с сервером") }
+            }
+        }
+    }
+
+    /** Закрывает окно ввода Telegram-кода. */
+    fun cancelTelegramCode() {
+        _uiState.update { it.copy(telegramCodeSent = false, telegramCodeError = null) }
     }
 
     fun reset() {

@@ -31,6 +31,7 @@ data class LoginResponse(
     @SerializedName("has_password") val hasPassword: Boolean?,
     @SerializedName("is_trusted_device") val isTrustedDevice: Boolean? = null,
     @SerializedName("can_push") val canPush: Boolean? = null,
+    @SerializedName("can_telegram") val canTelegram: Boolean? = null,
     val name: String?,
     val phone: String?,
     @SerializedName("default_start_screen") val defaultStartScreen: String?
@@ -154,6 +155,45 @@ data class PinAttemptsResponse(
     @com.google.gson.annotations.SerializedName("attempts_left") val attemptsLeft: Int
 )
 
+// ===== Telegram-вход =====
+
+data class TelegramLinkResponse(
+    val token: String,
+    @SerializedName("bot_url") val botUrl: String
+)
+
+data class TelegramStatusResponse(
+    val linked: Boolean,
+    val username: String? = null,
+    @SerializedName("first_name") val firstName: String? = null,
+    @SerializedName("chat_id") val chatId: Long? = null
+)
+
+data class TelegramCodeRequest(
+    val phone: String
+)
+
+data class TelegramCodeResponse(
+    @SerializedName("attempts_left") val attemptsLeft: Int
+)
+
+data class TelegramVerifyRequest(
+    val phone: String,
+    val code: String,
+    @SerializedName("fcm_token") val fcmToken: String? = null,
+    @SerializedName("device_id") val deviceId: String? = null,
+    @SerializedName("device_name") val deviceName: String? = null
+)
+
+data class TelegramVerifyResponse(
+    val verified: Boolean,
+    @SerializedName("has_password") val hasPassword: Boolean? = null,
+    @SerializedName("access_token") val accessToken: String? = null,
+    @SerializedName("refresh_token") val refreshToken: String? = null,
+    val token: String? = null,
+    val user: UserDto? = null
+)
+
 interface AuthApi {
 
     @POST("auth/save_name")
@@ -243,4 +283,21 @@ interface AuthApi {
 
     @GET("version")
     suspend fun getVersion(): Response<VersionResponse>
+
+    // ===== Telegram =====
+
+    @POST("auth/telegram/link")
+    suspend fun telegramLink(): Response<TelegramLinkResponse>
+
+    @GET("auth/telegram/status")
+    suspend fun telegramStatus(): Response<TelegramStatusResponse>
+
+    @POST("auth/telegram/unlink")
+    suspend fun telegramUnlink(): Response<MessageResponse>
+
+    @POST("auth/login/telegram_code")
+    suspend fun telegramCode(@Body request: TelegramCodeRequest): Response<TelegramCodeResponse>
+
+    @POST("auth/login/telegram_verify")
+    suspend fun telegramVerify(@Body request: TelegramVerifyRequest): Response<TelegramVerifyResponse>
 }

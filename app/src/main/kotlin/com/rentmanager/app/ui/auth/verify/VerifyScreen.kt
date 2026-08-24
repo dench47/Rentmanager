@@ -221,16 +221,29 @@ fun VerifyScreen(
         PhoneMaskTransformation.placeholderForCountry(uiState.selectedCountry)
     }
 
+    LaunchedEffect(uiState.isCalling) {
+        if (uiState.isCalling) {
+            viewModel.startCallChecking(onSuccess = { })
+        }
+    }
+
+    // ===== Навигация после верификации =====
     LaunchedEffect(uiState.isVerified) {
         if (uiState.isVerified) {
             onVerified(uiState.isNewUser)
         }
     }
 
-    LaunchedEffect(uiState.isCalling) {
-        if (uiState.isCalling) {
-            viewModel.startCallChecking(onSuccess = { })
-        }
+    // ===== Telegram: ввод кода входа =====
+    if (uiState.telegramCodeSent) {
+        TelegramCodeScreen(
+            phone = uiState.phone,
+            errorMessage = uiState.telegramCodeError,
+            attemptsLeft = uiState.telegramAttemptsLeft,
+            onBack = { viewModel.cancelTelegramCode() },
+            onConfirm = { code -> viewModel.onVerifyTelegramCode(code, onSuccess = { }) }
+        )
+        return
     }
 
     // ===== Device Trust: ожидание подтверждения входа на доверенном устройстве =====
@@ -239,7 +252,9 @@ fun VerifyScreen(
             phone = uiState.phone,
             errorMessage = uiState.errorMessage,
             onUseCall = { viewModel.fallbackToCall() },
-            onCancel = { viewModel.reset() }
+            onCancel = { viewModel.reset() },
+            canTelegram = uiState.canTelegram,
+            onTelegram = { viewModel.onTelegramLogin() }
         )
         return
     }
@@ -427,6 +442,19 @@ fun VerifyScreen(
                         enabled = uiState.phone.removePrefix(uiState.selectedCountry.phonePrefix).length == uiState.selectedCountry.maxDigits,
                         isLoading = uiState.isLoading
                     )
+
+                    // ===== Telegram: альтернативный вход для недоверенного устройства =====
+                    if (uiState.canTelegram) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        TextButton(onClick = { viewModel.onTelegramLogin() }) {
+                            Text(
+                                text = "Войти через Telegram",
+                                color = Color(0xFF007AFF),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 } else {
                     // ============================================================
                     // Calling screen
@@ -608,6 +636,19 @@ fun VerifyScreen(
                             )
                         }
                     }
+
+                    // ===== Telegram: альтернативный вход =====
+                    if (uiState.canTelegram) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(onClick = { viewModel.onTelegramLogin() }) {
+                            Text(
+                                text = "Войти через Telegram",
+                                color = Color(0xFF007AFF),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -623,7 +664,9 @@ fun ApprovalWaitingScreen(
     phone: String,
     errorMessage: String?,
     onUseCall: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    canTelegram: Boolean = false,
+    onTelegram: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -723,6 +766,144 @@ fun ApprovalWaitingScreen(
                 color = Color(0xFF007AFF),
                 fontSize = 14.sp
             )
+        }
+
+        if (canTelegram) {
+            Spacer(modifier = Modifier.height(4.dp))
+            TextButton(onClick = onTelegram) {
+                Text(
+                    text = "Войти через Telegram",
+                    color = Color(0xFF007AFF),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+// ===== Telegram: ввод кода входа =====
+
+@Composable
+private fun TelegramCodeScreen(
+    phone: String,
+    errorMessage: String?,
+    attemptsLeft: Int,
+    onBack: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var code by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5))
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(60.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_arrow_left),
+                contentDescription = "Назад",
+                tint = Color(0xFF000000),
+                modifier = Modifier.size(24.dp).clickable { onBack() }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Card(
+            modifier = Modifier.width(343.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("✈️", fontSize = 44.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Введите код из Telegram",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF151515),
+                    letterSpacing = (-0.4).sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Мы отправили 8-значный код в ваш Telegram.\nОсталось попыток сегодня: $attemptsLeft",
+                    fontSize = 14.sp,
+                    color = Color(0x993C3C43),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFDF5E6)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    BasicTextField(
+                        value = code,
+                        onValueChange = { raw ->
+                            code = raw.filter { it.isDigit() }.take(8)
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF151515),
+                            letterSpacing = 8.sp,
+                            textAlign = TextAlign.Center
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 18.dp),
+                        decorationBox = { innerTextField ->
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (code.isEmpty()) {
+                                    Text(
+                                        "• • • • • • • •",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xCCA6A6A6),
+                                        letterSpacing = 4.sp
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
+                }
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(errorMessage, color = Color(0xFFE53935), fontSize = 13.sp, textAlign = TextAlign.Center)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                PrimaryButton(
+                    text = "Подтвердить",
+                    onClick = { onConfirm(code) },
+                    enabled = code.length == 8
+                )
+            }
         }
     }
 }

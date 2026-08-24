@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.home
 
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,7 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -32,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,6 +57,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     var showNameDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isProfileLoaded) {
@@ -66,6 +73,54 @@ fun HomeScreen(
                 viewModel.updateUserName(name)
                 showNameDialog = false
             }
+        )
+    }
+
+    // ===== Telegram: предложение привязки =====
+    if (uiState.showTelegramPrompt) {
+        AlertDialog(
+            onDismissRequest = { if (!uiState.telegramLinkLoading) viewModel.dismissTelegramPrompt() },
+            title = {
+                Text(
+                    "Вход через Telegram",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF212121),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Text(
+                    "Привяжите Telegram, чтобы получать коды входа в мессенджер — это удобно, если под рукой нет вашего основного устройства.",
+                    fontSize = 15.sp,
+                    color = Color(0x993C3C43),
+                    textAlign = TextAlign.Center
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.onLinkTelegram { url ->
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
+                        }
+                    },
+                    enabled = !uiState.telegramLinkLoading
+                ) {
+                    Text(
+                        if (uiState.telegramLinkLoading) "Ожидание привязки…" else "Привязать",
+                        color = Color(0xFF007AFF),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissTelegramPrompt() }, enabled = !uiState.telegramLinkLoading) {
+                    Text("Позже", color = Color(0x993C3C43))
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp)
         )
     }
 

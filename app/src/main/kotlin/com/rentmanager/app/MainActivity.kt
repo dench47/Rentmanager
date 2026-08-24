@@ -266,6 +266,11 @@ class MainActivity : FragmentActivity() {
                 LaunchedEffect(Unit) {
                     loginApprovalEvents.requests.collect { pendingLoginRequest = it }
                 }
+                // При devices_changed (например, вход через Telegram с другого устройства)
+                // сбрасываем диалог — запрос больше не актуален.
+                LaunchedEffect(Unit) {
+                    loginApprovalEvents.devicesChanged.collect { pendingLoginRequest = null }
+                }
                 pendingLoginRequest?.let { req ->
                     androidx.compose.material3.AlertDialog(
                         onDismissRequest = { },
