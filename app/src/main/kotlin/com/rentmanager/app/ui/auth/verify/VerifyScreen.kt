@@ -444,7 +444,7 @@ fun VerifyScreen(
                     )
 
                     // ===== Telegram: альтернативный вход для недоверенного устройства =====
-                    if (uiState.canTelegram) {
+                    if (uiState.canTelegram && !uiState.isVerified) {
                         Spacer(modifier = Modifier.height(16.dp))
                         TextButton(onClick = { viewModel.onTelegramLogin() }) {
                             Text(
@@ -638,7 +638,7 @@ fun VerifyScreen(
                     }
 
                     // ===== Telegram: альтернативный вход =====
-                    if (uiState.canTelegram) {
+                    if (uiState.canTelegram && !uiState.isVerified) {
                         Spacer(modifier = Modifier.height(8.dp))
                         TextButton(onClick = { viewModel.onTelegramLogin() }) {
                             Text(

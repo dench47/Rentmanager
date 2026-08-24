@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -262,14 +263,22 @@ class MainActivity : FragmentActivity() {
                 RentManagerNavGraph(tokenManager = tokenManager)
 
                 // ===== Device Trust: диалог подтверждения входа с нового устройства =====
-                var pendingLoginRequest by remember { mutableStateOf<LoginApprovalEvents.LoginRequest?>(null) }
+                // При холодном старте с нотификации — восстанавливаем requestId/deviceName из Intent extras.
+                // StateFlow в Hilt-синглтоне создаётся заново при убитом процессе — Intent extras спасают.
                 LaunchedEffect(Unit) {
-                    loginApprovalEvents.requests.collect { pendingLoginRequest = it }
+                    val requestId = intent.getStringExtra("request_id")
+                    val deviceName = intent.getStringExtra("device_name")
+                    if (!requestId.isNullOrBlank()) {
+                        loginApprovalEvents.emit(requestId = requestId, deviceName = deviceName)
+                    }
                 }
+                // StateFlow — диалог появляется сразу при холодном старте,
+                // даже если push пришёл пока приложение было в фоне/убито.
+                val pendingLoginRequest by loginApprovalEvents.requests.collectAsState()
                 // При devices_changed (например, вход через Telegram с другого устройства)
                 // сбрасываем диалог — запрос больше не актуален.
                 LaunchedEffect(Unit) {
-                    loginApprovalEvents.devicesChanged.collect { pendingLoginRequest = null }
+                    loginApprovalEvents.devicesChanged.collect { loginApprovalEvents.clearPending() }
                 }
                 pendingLoginRequest?.let { req ->
                     androidx.compose.material3.AlertDialog(
@@ -292,7 +301,7 @@ class MainActivity : FragmentActivity() {
                                         }
                                     } catch (_: Exception) {}
                                 }
-                                pendingLoginRequest = null
+                                loginApprovalEvents.clearPending()
                             }) { Text("Подтвердить", color = Color(0xFF007AFF)) }
                         },
                         dismissButton = {
@@ -302,7 +311,7 @@ class MainActivity : FragmentActivity() {
                                     // Отклонённая попытка тоже меняет состояние — синхронизируем UI
                                     loginApprovalEvents.emitDevicesChanged()
                                 }
-                                pendingLoginRequest = null
+                                loginApprovalEvents.clearPending()
                             }) { Text("Отклонить", color = Color(0xFFE53935)) }
                         }
                     )

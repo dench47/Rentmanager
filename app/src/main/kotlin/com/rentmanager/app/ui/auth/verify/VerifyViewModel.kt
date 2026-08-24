@@ -103,7 +103,7 @@ class VerifyViewModel @Inject constructor(
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                             tokenManager.hasPassword = false
                             registerFcm()
-                            _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false) }
+                            _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false, canTelegram = false) }
                             onSuccess(phone)
                             return@launch
                         }
@@ -125,7 +125,7 @@ class VerifyViewModel @Inject constructor(
 
                         // Доверенное устройство с PIN / нет push-возможности — ввод PIN или звонок
                         tokenManager.hasPassword = body.hasPassword ?: true
-                        _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false) }
+                        _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false, canTelegram = false) }
                         onSuccess(phone)
                         return@launch
                     }
@@ -199,7 +199,7 @@ class VerifyViewModel @Inject constructor(
                             tokenManager.phone = phone
                             tokenManager.hasPassword = body.hasPassword ?: true
                             registerFcm()
-                            _uiState.update { it.copy(awaitingApproval = false, isVerified = true, isNewUser = false) }
+                            _uiState.update { it.copy(awaitingApproval = false, isVerified = true, isNewUser = false, canTelegram = false) }
                             return@launch
                         }
                         "denied" -> {
@@ -289,7 +289,7 @@ class VerifyViewModel @Inject constructor(
                             registerFcm()
                             // isNewUser приходит с сервера — клиент больше не угадывает
                             _uiState.update {
-                                it.copy(isVerified = true, isCalling = false, isNewUser = body.isNewUser ?: false)
+                                it.copy(isVerified = true, isCalling = false, isNewUser = body.isNewUser ?: false, canTelegram = false)
                             }
                             onSuccess(phone)
                             return@launch
