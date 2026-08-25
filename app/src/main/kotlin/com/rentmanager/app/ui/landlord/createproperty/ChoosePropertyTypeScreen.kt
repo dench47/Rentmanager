@@ -1,4 +1,4 @@
-package com.rentmanager.app.ui.landlord.createproperty
+﻿package com.rentmanager.app.ui.landlord.createproperty
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,10 +18,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.rentmanager.app.ui.theme.ScreenBackground
+import com.rentmanager.app.R
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 
+// Шаг 1: выбор типа недвижимости (Figma 2533:17735)
 @Composable
 fun ChoosePropertyTypeScreen(
     onBack: () -> Unit,
@@ -29,16 +31,23 @@ fun ChoosePropertyTypeScreen(
 ) {
     var showStubAlert by remember { mutableStateOf(false) }
 
-    Scaffold(containerColor = ScreenBackground) { paddingValues ->
+    Scaffold(containerColor = Color.White) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(ScreenBackground)
+                .background(Color.White)
                 .padding(paddingValues)
         ) {
-            ScreenToolbar(title = "Новый объект", onBack = onBack)
+            ScreenToolbar(title = "Новый объект", onBack = onBack, showClose = true)
             CreationProgressBar(currentStep = 1)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                "Выберите тип недвижимости",
+                style = ToolbarTitleStyle,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+            Spacer(Modifier.height(30.dp))
 
             Column(
                 modifier = Modifier
@@ -46,16 +55,11 @@ fun ChoosePropertyTypeScreen(
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    "Выберите тип недвижимости",
-                    style = ToolbarTitleStyle,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-                ChoiceCard("Квартира") { onApartmentSelected() }
-                ChoiceCard("Комната") { showStubAlert = true }
-                ChoiceCard("Дом") { showStubAlert = true }
-                ChoiceCard("Гараж") { showStubAlert = true }
-                ChoiceCard("Коммерческая") { showStubAlert = true }
+                ChoiceCard("Квартира", R.drawable.ic_pt_apartment) { onApartmentSelected() }
+                ChoiceCard("Комната", R.drawable.ic_pt_room) { showStubAlert = true }
+                ChoiceCard("Дом", R.drawable.ic_pt_house) { showStubAlert = true }
+                ChoiceCard("Гараж", R.drawable.ic_pt_garage) { showStubAlert = true }
+                ChoiceCard("Коммерческая", R.drawable.ic_pt_commercial) { showStubAlert = true }
             }
         }
     }
@@ -64,10 +68,11 @@ fun ChoosePropertyTypeScreen(
         AlertDialog(
             onDismissRequest = { showStubAlert = false },
             title = { Text("Экран еще не готов") },
-            text = { Text("Ждем Вику") },
+            text = { Text("Пока реализован путь для квартиры") },
             confirmButton = {
                 TextButton(onClick = { showStubAlert = false }) { Text("ОК") }
             }
         )
     }
 }
+

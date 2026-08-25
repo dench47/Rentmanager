@@ -137,3 +137,14 @@ val ButtonTextStyle = TextStyle(
     fontSize = 15.sp,
     letterSpacing = (-0.4).sp
 )
+// Figma "Headline 2 mob" — 15 SemiBold, -0.4sp, #212121
+val Headline2MobStyle = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 15.sp,
+    letterSpacing = (-0.4).sp,
+    color = Graphite
+)
+
+// Плейсхолдер полей (Headline 2 mob в цвете Grey/Text)
+val Headline2MobPlaceholderStyle = Headline2MobStyle.copy(color = GreyText)

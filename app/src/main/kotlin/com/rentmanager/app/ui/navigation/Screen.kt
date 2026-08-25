@@ -1,4 +1,4 @@
-package com.rentmanager.app.ui.navigation
+﻿package com.rentmanager.app.ui.navigation
 
 /**
  * Маршруты экранов приложения.
@@ -41,10 +41,27 @@ sealed class Screen(val route: String) {
     data object ChooseRentType : Screen("landlord/choose_rent_type?propertyType={propertyType}") {
         fun createRoute(propertyType: String) = "landlord/choose_rent_type?propertyType=$propertyType"
     }
-    data object CreateProperty : Screen("landlord/create_property?propertyType={propertyType}&rentType={rentType}") {
+
+    // Шаг 3 создания объекта: адрес + карта (Figma 2533:17784)
+    data object CreatePropertyAddress : Screen("landlord/create_property_address?propertyType={propertyType}&rentType={rentType}") {
         fun createRoute(propertyType: String, rentType: String) =
-            "landlord/create_property?propertyType=$propertyType&rentType=$rentType"
+            "landlord/create_property_address?propertyType=$propertyType&rentType=$rentType"
     }
+
+    // Шаг 4 создания объекта: карточка объекта (Figma 2533:18104)
+    data object CreateProperty : Screen("landlord/create_property?propertyType={propertyType}&rentType={rentType}&address={address}&latitude={latitude}&longitude={longitude}") {
+        fun createRoute(
+            propertyType: String,
+            rentType: String,
+            address: String = "",
+            latitude: Double? = null,
+            longitude: Double? = null
+        ) = "landlord/create_property?propertyType=$propertyType&rentType=$rentType" +
+            "&address=" + android.net.Uri.encode(address) +
+            "&latitude=" + (latitude?.toString() ?: "") +
+            "&longitude=" + (longitude?.toString() ?: "")
+    }
+
     data object TenantsList : Screen("landlord/tenants")
     data object TenantDetail : Screen("landlord/tenant_detail/{tenantId}") {
         fun createRoute(tenantId: String) = "landlord/tenant_detail/$tenantId"

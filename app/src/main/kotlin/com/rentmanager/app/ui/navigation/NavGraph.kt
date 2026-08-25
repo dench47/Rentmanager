@@ -1,4 +1,4 @@
-package com.rentmanager.app.ui.navigation
+﻿package com.rentmanager.app.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -213,14 +213,14 @@ fun RentManagerNavGraph(
                 propertyType = propertyType,
                 onBack = { navController.popBackStack() },
                 onRentTypeSelected = { rentType ->
-                    navController.navigate(Screen.CreateProperty.createRoute(propertyType, rentType))
+                    navController.navigate(Screen.CreatePropertyAddress.createRoute(propertyType, rentType))
                 }
             )
         }
 
-        // ========== Create Property (шаг 3) ==========
+        // ========== Create Property Address (шаг 3) ==========
         composable(
-            route = Screen.CreateProperty.route,
+            route = Screen.CreatePropertyAddress.route,
             arguments = listOf(
                 navArgument("propertyType") { type = NavType.StringType; defaultValue = "Квартира" },
                 navArgument("rentType") { type = NavType.StringType; defaultValue = "посуточно" }
@@ -228,9 +228,40 @@ fun RentManagerNavGraph(
         ) { backStackEntry ->
             val propertyType = backStackEntry.arguments?.getString("propertyType") ?: "Квартира"
             val rentType = backStackEntry.arguments?.getString("rentType") ?: "посуточно"
+            com.rentmanager.app.ui.landlord.createproperty.CreatePropertyAddressScreen(
+                propertyType = propertyType,
+                rentType = rentType,
+                onBack = { navController.popBackStack() },
+                onAddressConfirmed = { address, lat, lon ->
+                    navController.navigate(
+                        Screen.CreateProperty.createRoute(propertyType, rentType, address, lat, lon)
+                    )
+                },
+            )
+        }
+
+        // ========== Create Property (шаг 4) ==========
+        composable(
+            route = Screen.CreateProperty.route,
+            arguments = listOf(
+                navArgument("propertyType") { type = NavType.StringType; defaultValue = "Квартира" },
+                navArgument("rentType") { type = NavType.StringType; defaultValue = "посуточно" },
+                navArgument("address") { type = NavType.StringType; defaultValue = "" },
+                navArgument("latitude") { type = NavType.StringType; defaultValue = "" },
+                navArgument("longitude") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val propertyType = backStackEntry.arguments?.getString("propertyType") ?: "Квартира"
+            val rentType = backStackEntry.arguments?.getString("rentType") ?: "посуточно"
+            val address = backStackEntry.arguments?.getString("address") ?: ""
+            val latitude = backStackEntry.arguments?.getString("latitude")?.toDoubleOrNull()
+            val longitude = backStackEntry.arguments?.getString("longitude")?.toDoubleOrNull()
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyScreen(
                 propertyType = propertyType,
                 rentType = rentType,
+                initialAddress = address,
+                initialLatitude = latitude,
+                initialLongitude = longitude,
                 onBack = { navController.popBackStack() },
                 onCreated = {
                     propertiesViewModel.refresh()

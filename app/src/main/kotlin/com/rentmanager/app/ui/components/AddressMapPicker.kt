@@ -1,4 +1,4 @@
-package com.rentmanager.app.ui.components
+﻿package com.rentmanager.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -30,13 +31,16 @@ import org.osmdroid.views.overlay.Marker
 /**
  * Карта OpenStreetMap (osmdroid) с одной меткой.
  * Бесплатно, без API-ключей. Требует атрибуции © OpenStreetMap contributors.
+ *
+ * markerIconRes — кастомная иконка маркера (например, пин из макета); null — системная.
  */
 @Composable
 fun AddressMapPicker(
     latitude: Double,
     longitude: Double,
     onLocationSelected: (Double, Double) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    markerIconRes: Int? = null
 ) {
     val context = LocalContext.current
 
@@ -49,10 +53,13 @@ fun AddressMapPicker(
             controller.setZoom(16.0)
         }
     }
-    val marker = remember {
+    val marker = remember(markerIconRes) {
         Marker(mapView).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             title = "Объект"
+            markerIconRes?.let { resId ->
+                icon = ContextCompat.getDrawable(context, resId)
+            }
         }
     }
 
