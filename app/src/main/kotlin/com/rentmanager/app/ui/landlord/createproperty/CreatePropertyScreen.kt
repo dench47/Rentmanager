@@ -444,14 +444,12 @@ private fun AddPhotoTile(onClick: () -> Unit) {
     }
 }
 
-// Чипы количества комнат (Figma: сетка 5 колонок, gap 6; ряд 1: «Студия» по тексту + равные колонки;
-// ряд 2: «5» — ширина колонки, «6+ комнат» — по тексту, остальные колонки пустые)
+// Чипы количества комнат (Figma: сетка 5 равных колонок, gap 6; «6+ комнат» — по ширине текста, ряд 2 пустые колонки справа)
 @Composable
 private fun RoomsChips(selected: String?, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            RoomChip(label = "Студия", selected = selected == "Студия") { onSelect("Студия") }
-            listOf("1", "2", "3", "4").forEach { option ->
+            listOf("Студия", "1", "2", "3", "4").forEach { option ->
                 RoomChip(
                     label = option,
                     selected = selected == option,
@@ -486,7 +484,7 @@ private fun RoomChip(
                 if (selected) Modifier.border(1.dp, Graphite, RoundedCornerShape(30.dp)) else Modifier
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -791,3 +789,6 @@ private fun MultilineTextField(
         )
     }
 }
+
+
+
