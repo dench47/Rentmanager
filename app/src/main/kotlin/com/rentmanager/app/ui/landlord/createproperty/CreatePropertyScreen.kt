@@ -145,6 +145,7 @@ fun CreatePropertyScreen(
         ) {
             ScreenToolbar(title = "Новый объект", onBack = onBack, showClose = false)
             CreationProgressBar(currentStep = 4)
+            Spacer(Modifier.height(20.dp))
 
             Column(
                 modifier = Modifier
@@ -200,6 +201,108 @@ fun CreatePropertyScreen(
                         }
                     }
                 }
+
+                // 2. О квартире (Figma: заголовок + 12, чипы комнат r30, gap 6)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FlowSectionTitle("О квартире")
+                    RoomsChips(selected = rooms, onSelect = { rooms = it })
+                }
+
+                // 3. Поля (Figma: gap 6; Название/Адрес 64, сетка 2x2 по 65)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CardInput(value = name, onValueChange = { name = it }, placeholder = "Название")
+                    // Адрес перенесён на шаг 3 — здесь только отображение
+                    CardAddressDisplay(address = initialAddress)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(65.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        CardInput(
+                            value = area,
+                            onValueChange = { area = it },
+                            placeholder = "Площадь, м2",
+                            keyboardType = KeyboardType.Decimal,
+                            modifier = Modifier.weight(1f)
+                        )
+                        CardDropdown(
+                            selected = sleepingPlaces,
+                            options = SleepingOptions,
+                            placeholder = "Спальные места",
+                            onSelect = { sleepingPlaces = it },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(65.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        CardDropdown(
+                            selected = floor,
+                            options = FloorOptions,
+                            placeholder = "Этаж",
+                            onSelect = { floor = it },
+                            modifier = Modifier.weight(1f)
+                        )
+                        CardDropdown(
+                            selected = floorsInHouse,
+                            options = FloorsInHouseOptions,
+                            placeholder = "Этажей в доме",
+                            onSelect = { floorsInHouse = it },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // 4. Описание объявления (Figma: заголовок + 12, карточка 155, padding 10)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FlowSectionTitle("Описание объявления")
+                    DescriptionCard(
+                        value = description,
+                        onValueChange = { description = it }
+                    )
+                }
+
+                // 5. Стоимость (Figma: заголовок + 12, карточка 64)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FlowSectionTitle("Стоимость")
+                    CardInput(
+                        value = price,
+                        onValueChange = { price = it },
+                        placeholder = if (rentType == "длительно") "Цена за месяц, ₽" else "Цена за сутки, ₽",
+                        keyboardType = KeyboardType.Decimal
+                    )
+                }
+
+                // 6. Дополнительно (Figma: заголовок + 12, контурные кнопки 55 r100, gap 6)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FlowSectionTitle("Дополнительно")
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlineCtaButton(
+                            text = "График платежей и реквизиты",
+                            iconRes = R.drawable.ic_payment_schedule,
+                            borderColor = Color(0xD9212121)
+                        ) {
+                            if (propertyId != null) {
+                                onPaymentSchedule(propertyId)
+                            } else if (canCreate) {
+                                submitCreate(
+                                    viewModel, name, initialAddress, area, price, description,
+                                    photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
+                                    propertyType, rentType, rooms, sleepingPlaces, floor,
+                                    floorsInHouse, initialLatitude, initialLongitude
+                                ) { newId -> onPaymentSchedule(newId) }
+                            }
+                        }
+                        OutlineCtaButton(
+                            text = "Добавить счетчики",
+                            iconRes = R.drawable.ic_add_counter,
+                            borderColor = Graphite
+                        ) {
+                            // Заглушка: экран счетчиков будет добавлен позже
+                        }
+                    }
+                }
+
 
                 // 7. Аккордеоны (Figma: карточки 64, r20, подзаголовок Text 1 mob, шеврон 40)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -341,12 +444,14 @@ private fun AddPhotoTile(onClick: () -> Unit) {
     }
 }
 
-// Чипы количества комнат (Figma: сетка 5 колонок, gap 6, чип r30 padding 10, ряд 2: «5» + «6+ комнат»)
+// Чипы количества комнат (Figma: сетка 5 колонок, gap 6; ряд 1: «Студия» по тексту + равные колонки;
+// ряд 2: «5» — ширина колонки, «6+ комнат» — по тексту, остальные колонки пустые)
 @Composable
 private fun RoomsChips(selected: String?, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Студия", "1", "2", "3", "4").forEach { option ->
+            RoomChip(label = "Студия", selected = selected == "Студия") { onSelect("Студия") }
+            listOf("1", "2", "3", "4").forEach { option ->
                 RoomChip(
                     label = option,
                     selected = selected == option,
@@ -361,6 +466,7 @@ private fun RoomsChips(selected: String?, onSelect: (String) -> Unit) {
                 modifier = Modifier.weight(1f)
             ) { onSelect("5") }
             RoomChip(label = "6+ комнат", selected = selected == "6+") { onSelect("6+") }
+            Spacer(Modifier.weight(3f))
         }
     }
 }
