@@ -100,7 +100,7 @@ fun DashboardCard(@DrawableRes iconRes: Int, title: String, showBadge: Boolean =
                 if (showBadge) Box(Modifier.size(12.dp).clip(CircleShape).background(Color(0xFF9ED091)).align(Alignment.TopEnd))
             }
             Spacer(Modifier.height(8.dp))
-            Text(title, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium, fontFamily = InterFontFamily, color = Color(0xFF000000), letterSpacing = (-0.4).sp, textAlign = TextAlign.Center, maxLines = 2)
+            Text(title, fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily, color = Color(0xFF212121), letterSpacing = (-0.4).sp, textAlign = TextAlign.Center, maxLines = 2)
         }
     }
 }

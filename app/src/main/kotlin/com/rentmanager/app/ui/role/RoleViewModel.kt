@@ -52,12 +52,12 @@ class RoleViewModel @Inject constructor(
     private var loadedRole: UserRole? = null
 
     private val landlordCards = listOf(
-        RoleCard("1", "Моя\nнедвижимость", R.drawable.ic_card_my_properties),
-        RoleCard("2", "Арендаторы", R.drawable.ic_card_tenants),
-        RoleCard("3", "Другие объекты", R.drawable.ic_card_other),
-        RoleCard("4", "Финансы", R.drawable.ic_card_finance),
-        RoleCard("5", "Сообщения", R.drawable.ic_card_messages_unread),
-        RoleCard("6", "Заказать услугу", R.drawable.ic_card_service)
+        RoleCard("1", "Моя\nнедвижимость", R.drawable.ic_menu_my_properties),
+        RoleCard("2", "Арендаторы", R.drawable.ic_menu_tenants),
+        RoleCard("3", "Другие объекты", R.drawable.ic_menu_other_objects),
+        RoleCard("4", "Финансы", R.drawable.ic_menu_finance),
+        RoleCard("5", "Сообщения", R.drawable.ic_menu_messages),
+        RoleCard("6", "Заказать услугу", R.drawable.ic_menu_order_service)
     )
 
     private val tenantCards = listOf(

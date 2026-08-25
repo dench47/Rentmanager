@@ -160,6 +160,15 @@ fun RentManagerNavGraph(
                 onNavigateToTenantProperties = {
                     navController.navigate(Screen.TenantProperties.route)
                 },
+                onNavigateToCreateProperty = {
+                    navController.navigate(Screen.ChoosePropertyType.route)
+                },
+                onNavigateToSubscription = {
+                    navController.navigate(Screen.Subscription.route)
+                },
+                onNavigateToServices = {
+                    navController.navigate(Screen.Services.route)
+                },
                 onBackToMain = {
                     navController.navigate(Screen.MainScreen.route) {
                         popUpTo(Screen.MainScreen.route) { inclusive = true }

@@ -1,7 +1,8 @@
 package com.rentmanager.app.ui.role
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +58,9 @@ fun RoleScreen(
     onNavigateToMessages: () -> Unit = {},
     onNavigateToLandlordsList: () -> Unit = {},
     onNavigateToTenantProperties: () -> Unit = {},
+    onNavigateToCreateProperty: () -> Unit = {},
+    onNavigateToSubscription: () -> Unit = {},
+    onNavigateToServices: () -> Unit = {},
     onBackToMain: () -> Unit = {},
     onPay: () -> Unit = {},
     viewModel: RoleViewModel = hiltViewModel()
@@ -78,42 +84,45 @@ fun RoleScreen(
 
                 // Header with back arrow
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 0.dp, bottom = 12.dp, end = 0.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 0.dp, bottom = 24.dp, end = 0.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
                         modifier = Modifier.clickable { onBackToMain() },
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Image(
-                            painter = painterResource(R.drawable.ic_arrow_left),
+                            painter = painterResource(R.drawable.ic_landlord_back),
                             contentDescription = "Назад",
                             modifier = Modifier.size(24.dp),
                             contentScale = ContentScale.Fit
                         )
-                        Text(uiState.title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily, color = Color.Black, letterSpacing = (-0.3).sp)
+                        Text(uiState.title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
                     }
                 }
 
-                // Reduced gap between title and stats (Figma: itemSpacing=28 → 12dp saves space)
-                Spacer(Modifier.height(12.dp))
-
-                // Секция статистики: 3 состояния — нет сделок / всё хорошо / задолженность (Figma INF: 104dp)
-                Box(modifier = Modifier.fillMaxWidth().height(104.dp)) {
-                    when {
-                        uiState.isLoading -> { }
-                        !uiState.hasDeals -> EmptyStateBlock(
-                            role = uiState.role,
-                            onAction = {
-                                if (uiState.role == UserRole.LANDLORD) onNavigateToMyProperties() else onNavigateToOtherProperties()
-                            }
-                        )
-                        uiState.role == UserRole.LANDLORD -> LandlordStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.monthlyIncome, uiState.hasDebt)
-                        else -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.hasDebt, onPay = { viewModel.pay() })
+                // Пустое состояние (Figma «Арендодатель_1»): инфо-текст + чёрная CTA «Добавить первый объект»
+                if (uiState.role == UserRole.LANDLORD && !uiState.hasDeals && !uiState.isLoading) {
+                    LandlordInfBlock(onAddFirstObject = onNavigateToCreateProperty)
+                    Spacer(Modifier.height(14.dp))
+                } else {
+                    // Секция статистики: 3 состояния — нет сделок / всё хорошо / задолженность (Figma INF: 104dp)
+                    Box(modifier = Modifier.fillMaxWidth().height(104.dp)) {
+                        when {
+                            uiState.isLoading -> { }
+                            !uiState.hasDeals -> EmptyStateBlock(
+                                role = uiState.role,
+                                onAction = {
+                                    if (uiState.role == UserRole.LANDLORD) onNavigateToMyProperties() else onNavigateToOtherProperties()
+                                }
+                            )
+                            uiState.role == UserRole.LANDLORD -> LandlordStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.monthlyIncome, uiState.hasDebt)
+                            else -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.hasDebt, onPay = { viewModel.pay() })
+                        }
                     }
+                    Spacer(Modifier.height(12.dp))
                 }
-                Spacer(Modifier.height(12.dp))
 
                 // Cards grid
                 LazyVerticalGrid(
@@ -127,25 +136,33 @@ fun RoleScreen(
                         DashboardCard(
                             iconRes = card.iconRes,
                             title = card.title,
-                         onClick = { handleCardClick(card.id, uiState.role, onNavigateToMyProperties, onNavigateToTenants, onNavigateToOtherProperties, onNavigateToFinance, onNavigateToMessages, onNavigateToLandlordsList, onNavigateToTenantProperties) }
+                         onClick = { handleCardClick(card.id, uiState.role, onNavigateToMyProperties, onNavigateToTenants, onNavigateToOtherProperties, onNavigateToFinance, onNavigateToMessages, onNavigateToLandlordsList, onNavigateToTenantProperties, onNavigateToServices) }
                         )
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
-                CtaButton(
-                    iconRes = R.drawable.ic_subscription_diamond,
-                    text = "Управление подпиской",
-                    onClick = { /* TODO: подписка */ }
-                )
-                Spacer(Modifier.height(12.dp))
                 if (uiState.role == UserRole.LANDLORD) {
-                    CtaButton(
-                        iconRes = R.drawable.ic_post_listing,
+                    // Figma «Арендодатель_1»: градиентная кнопка подписки + контурная кнопка объявления
+                    Spacer(Modifier.height(if (uiState.hasDeals) 12.dp else 22.dp))
+                    GradientCtaButton(
+                        iconRes = R.drawable.ic_cta_diamond,
+                        text = "Управление подпиской",
+                        onClick = onNavigateToSubscription
+                    )
+                    Spacer(Modifier.height(if (uiState.hasDeals) 12.dp else 16.dp))
+                    OutlineCtaButton(
+                        iconRes = R.drawable.ic_cta_pin,
                         text = "Разместить объявление о сдаче",
                         onClick = onNavigateToMyProperties
                     )
                 } else {
+                    Spacer(Modifier.height(12.dp))
+                    CtaButton(
+                        iconRes = R.drawable.ic_subscription_diamond,
+                        text = "Управление подпиской",
+                        onClick = { /* TODO: подписка */ }
+                    )
+                    Spacer(Modifier.height(12.dp))
                     CtaButton(
                         iconRes = R.drawable.ic_find_rent,
                         text = "Найти и арендовать",
@@ -195,11 +212,140 @@ private fun CtaButton(
     }
 }
 
+/**
+ * Инфо-блок пустого состояния экрана «Арендодатель» (Figma node 2533:17798, фрейм Inf):
+ * центрированный текст + чёрная pill-кнопка «Добавить первый объект».
+ */
+@Composable
+private fun LandlordInfBlock(onAddFirstObject: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Ведите аренду, платежи, договоры и показания\nсчётчиков в одном месте.",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = InterFontFamily,
+            color = Color(0xFF212121),
+            letterSpacing = (-0.4).sp,
+            lineHeight = 19.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(100.dp))
+                .background(Color(0xFF212121))
+                .clickable { onAddFirstObject() },
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_cta_plus),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "Добавить первый объект",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = InterFontFamily,
+                color = Color.White,
+                letterSpacing = (-0.4).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * Градиентная CTA-кнопка (Figma: linear-gradient 136°, #F6D85E 19% → #E89B5A 60% → #D97D5D 100%).
+ */
+@Composable
+private fun GradientCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .background(
+                brush = Brush.linearGradient(
+                    0.19f to Color(0xFFF6D85E),
+                    0.60f to Color(0xFFE89B5A),
+                    1.00f to Color(0xFFD97D5D),
+                    start = Offset.Zero,
+                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                )
+            )
+            .clickable { onClick() },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = InterFontFamily,
+            color = Color(0xFF212121),
+            letterSpacing = (-0.4).sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * Контурная CTA-кнопка (Figma: белый фон, рамка 1px Graphite #212121, радиус 100).
+ */
+@Composable
+private fun OutlineCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFF212121), RoundedCornerShape(100.dp))
+            .clickable { onClick() },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = InterFontFamily,
+            color = Color(0xFF212121),
+            letterSpacing = (-0.4).sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 private fun handleCardClick(
     cardId: String, role: UserRole,
     onMyProperties: () -> Unit, onTenants: () -> Unit, onOther: () -> Unit,
     onFinance: () -> Unit, onMessages: () -> Unit, onLandlords: () -> Unit,
-    onTenantProperties: () -> Unit
+    onTenantProperties: () -> Unit, onServices: () -> Unit
 ) {
     when (role) {
         UserRole.LANDLORD -> when (cardId) {
@@ -208,7 +354,7 @@ private fun handleCardClick(
             "3" -> onOther()
             "4" -> onFinance()
             "5" -> onMessages()
-            "6" -> onOther()
+            "6" -> onServices()
         }
         UserRole.TENANT -> when (cardId) {
             "1" -> onTenantProperties()
