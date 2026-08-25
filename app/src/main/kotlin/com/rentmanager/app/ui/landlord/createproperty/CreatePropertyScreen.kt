@@ -461,10 +461,9 @@ private fun RoomsChips(selected: String?, onSelect: (String) -> Unit) {
             RoomChip(
                 label = "5",
                 selected = selected == "5",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.width(69.6.dp)
             ) { onSelect("5") }
             RoomChip(label = "6+ комнат", selected = selected == "6+") { onSelect("6+") }
-            Spacer(Modifier.weight(3f))
         }
     }
 }
@@ -789,6 +788,7 @@ private fun MultilineTextField(
         )
     }
 }
+
 
 
 
