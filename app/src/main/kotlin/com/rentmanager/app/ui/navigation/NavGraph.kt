@@ -21,6 +21,7 @@ import com.rentmanager.app.ui.role.RoleScreen
 import com.rentmanager.app.ui.role.UserRole
 import com.rentmanager.app.ui.pin.PinEntryScreen
 import com.rentmanager.app.ui.pin.PinSetupScreen
+import com.rentmanager.app.ui.settings.SecurityScreen
 import com.rentmanager.app.ui.settings.SettingsScreen
 import com.rentmanager.app.ui.services.ServicesScreen
 import com.rentmanager.app.ui.tenant.properties.TenantPropertiesScreen
@@ -122,6 +123,9 @@ fun RentManagerNavGraph(
                 },
                 onSettingsClick = {
                     navController.navigate(Screen.Settings.route)
+                },
+                onNavigateToSecurity = {
+                    navController.navigate(Screen.Security.route)
                 }
             )
         }
@@ -406,7 +410,7 @@ fun RentManagerNavGraph(
                             popUpTo(0) { inclusive = true }
                         }
                     } else {
-                        navController.navigate(Screen.Settings.route)
+                        navController.popBackStack()
                     }
                 }
             )
@@ -451,13 +455,23 @@ fun RentManagerNavGraph(
                         popUpTo(0) { inclusive = true }
                     }
                 },
-                onPinSetupClick = {
-                    navController.navigate(Screen.PinSetup.createRoute())
+                onSecurityClick = {
+                    navController.navigate(Screen.Security.route)
                 },
                 onNavigateToPhoneVerify = { phone ->
                     navController.navigate(Screen.Verify.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                }
+            )
+        }
+
+        // ========== Security ==========
+        composable(Screen.Security.route) {
+            SecurityScreen(
+                onBack = { navController.popBackStack() },
+                onChangePin = {
+                    navController.navigate(Screen.PinSetup.createRoute(onboarding = false))
                 }
             )
         }

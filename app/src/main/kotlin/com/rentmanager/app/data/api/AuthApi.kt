@@ -138,7 +138,8 @@ data class RefreshTokenResponseWithUser(
 )
 
 data class RegisterDeviceRequest(
-    val token: String
+    val token: String,
+    @SerializedName("device_id") val deviceId: String? = null
 )
 
 data class MessageResponse(val message: String)
@@ -300,4 +301,22 @@ interface AuthApi {
 
     @POST("auth/login/telegram_verify")
     suspend fun telegramVerify(@Body request: TelegramVerifyRequest): Response<TelegramVerifyResponse>
+
+    // ===== Email =====
+
+    @POST("auth/email/send_code")
+    suspend fun emailSendCode(): Response<EmailCodeResponse>
+
+    @POST("auth/email/verify")
+    suspend fun emailVerify(@Body request: EmailVerifyRequest): Response<MessageResponse>
+
+    @GET("auth/email/status")
+    suspend fun emailStatus(): Response<EmailStatusResponse>
 }
+
+data class EmailCodeResponse(@SerializedName("attempts_left") val attemptsLeft: Int)
+data class EmailVerifyRequest(val code: String)
+data class EmailStatusResponse(
+    val email: String?,
+    val verified: Boolean?
+)

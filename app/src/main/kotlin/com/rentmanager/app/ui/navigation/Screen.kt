@@ -7,7 +7,9 @@ sealed class Screen(val route: String) {
     // Auth flow
     data object Verify : Screen("auth/verify")
 
-    // Pin
+    // Security
+    data object Security : Screen("settings/security")
+    data object PinChange : Screen("settings/security/pin_change")
     data object PinEntry : Screen("pin/entry")
     data object PinSetup : Screen("pin/setup?onboarding={onboarding}") {
         fun createRoute(onboarding: Boolean = false) = "pin/setup?onboarding=$onboarding"

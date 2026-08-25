@@ -258,7 +258,7 @@ class VerifyViewModel @Inject constructor(
     private fun registerFcm() {
         tokenManager.fcmToken?.let { fcm ->
             viewModelScope.launch {
-                try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {}
+                try { authApi.registerDevice(RegisterDeviceRequest(fcm, deviceIdManager.deviceId)) } catch (_: Exception) {}
             }
         }
     }

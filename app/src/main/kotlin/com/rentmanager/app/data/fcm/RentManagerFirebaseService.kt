@@ -137,7 +137,7 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
         if (tokenManager.accessToken != null) {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    authApi.registerDevice(RegisterDeviceRequest(token))
+                    authApi.registerDevice(RegisterDeviceRequest(token, deviceIdManager.deviceId))
                 } catch (e: Exception) {
                     Log.e("FCM", "Failed to register device: ${e.message}")
                 }

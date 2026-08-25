@@ -1,6 +1,5 @@
 package com.rentmanager.app.ui.home
 
-import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,7 +27,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -37,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -54,10 +51,10 @@ import com.rentmanager.app.ui.role.UserRole
 fun HomeScreen(
     onRoleSelected: (UserRole) -> Unit,
     onSettingsClick: () -> Unit,
+    onNavigateToSecurity: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
     var showNameDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isProfileLoaded) {
@@ -76,13 +73,13 @@ fun HomeScreen(
         )
     }
 
-    // ===== Telegram: предложение привязки =====
+    // ===== Безопасный вход: предложение настроить 2FA =====
     if (uiState.showTelegramPrompt) {
         AlertDialog(
-            onDismissRequest = { if (!uiState.telegramLinkLoading) viewModel.dismissTelegramPrompt() },
+            onDismissRequest = { viewModel.dismissTelegramPrompt() },
             title = {
                 Text(
-                    "Вход через Telegram",
+                    "Безопасный вход",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF212121),
@@ -92,7 +89,7 @@ fun HomeScreen(
             },
             text = {
                 Text(
-                    "Привяжите Telegram, чтобы получать коды входа в мессенджер — это удобно, если под рукой нет вашего основного устройства.",
+                    "Настройте подтверждение входа в аккаунт удобным способом: по электронной почте, в Telegram или через Макс. Это подтвердит, что аккаунт принадлежит вам, и защитит от входа посторонних.",
                     fontSize = 15.sp,
                     color = Color(0x993C3C43),
                     textAlign = TextAlign.Center
@@ -101,21 +98,19 @@ fun HomeScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.onLinkTelegram { url ->
-                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
-                        }
-                    },
-                    enabled = !uiState.telegramLinkLoading
+                        viewModel.dismissTelegramPrompt()
+                        onNavigateToSecurity()
+                    }
                 ) {
                     Text(
-                        if (uiState.telegramLinkLoading) "Ожидание привязки…" else "Привязать",
+                        "Настроить",
                         color = Color(0xFF007AFF),
                         fontWeight = FontWeight.Bold
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissTelegramPrompt() }, enabled = !uiState.telegramLinkLoading) {
+                TextButton(onClick = { viewModel.dismissTelegramPrompt() }) {
                     Text("Позже", color = Color(0x993C3C43))
                 }
             },

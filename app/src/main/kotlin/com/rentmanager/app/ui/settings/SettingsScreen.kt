@@ -63,7 +63,7 @@ import com.rentmanager.app.R
 fun SettingsScreen(
     onBack: () -> Unit,
     onLoggedOut: () -> Unit,
-    onPinSetupClick: () -> Unit,
+    onSecurityClick: () -> Unit,
     onNavigateToPhoneVerify: (String) -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
@@ -318,7 +318,7 @@ fun SettingsScreen(
                         "Безопасность",
                         Icons.Default.Lock,
                         subtitle = if (uiState.localPinEnabled) "PIN-код, вход по отпечатку" else "PIN отключён на этом устройстве",
-                        onClick = onPinSetupClick
+                        onClick = onSecurityClick
                     )
                 }
                 item { SettingsAction("Начальный экран", Icons.Default.Home, subtitle = when (uiState.defaultStartScreen) { "landlord" -> "Арендодатель"; "tenant" -> "Арендатор"; else -> "Главный экран" }, onClick = { viewModel.showStartScreenDialog() }) }

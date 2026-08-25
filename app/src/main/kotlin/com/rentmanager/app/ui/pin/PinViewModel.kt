@@ -36,7 +36,8 @@ data class VerifyPasswordErrorResponse(
 class PinViewModel @Inject constructor(
     private val authApi: AuthApi,
     private val tokenManager: TokenManager,
-    private val cryptoManager: CryptoManager
+    private val cryptoManager: CryptoManager,
+    private val deviceIdManager: com.rentmanager.app.data.local.DeviceIdManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PinUiState())
@@ -99,7 +100,7 @@ class PinViewModel @Inject constructor(
                     cryptoManager.savePin(pin)
                     // Регистрируем FCM-токен, если сохранён ранее
                     tokenManager.fcmToken?.let { fcm ->
-                        launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                        launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm, deviceIdManager.deviceId)) } catch (_: Exception) {} }
                     }
                     _uiState.update { it.copy(isLoading = false, isVerified = true, attemptsLeft = 5) }
                 } else {

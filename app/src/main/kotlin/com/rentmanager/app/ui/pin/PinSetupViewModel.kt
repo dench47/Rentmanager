@@ -136,7 +136,7 @@ class PinSetupViewModel @Inject constructor(
                 tokenManager.refreshToken = body.refreshToken
                 // Регистрируем FCM-токен
                 tokenManager.fcmToken?.let { fcm ->
-                    launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm)) } catch (_: Exception) {} }
+                    launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm, deviceIdManager.deviceId)) } catch (_: Exception) {} }
                 }
                 _uiState.update { it.copy(isLoading = false, step = PinSetupStep.ENTER, pin = "", currentPin = "", errorMessage = null) }
                 } else {

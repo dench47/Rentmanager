@@ -58,6 +58,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var updateManager: UpdateManager
     @Inject lateinit var authApi: AuthApi
     @Inject lateinit var loginApprovalEvents: LoginApprovalEvents
+    @Inject lateinit var deviceIdManager: DeviceIdManager
 
     private val retryDownloadSignal = mutableIntStateOf(0)
 
@@ -130,7 +131,7 @@ class MainActivity : FragmentActivity() {
     private fun registerDeviceOnServer(token: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                authApi.registerDevice(RegisterDeviceRequest(token))
+                authApi.registerDevice(RegisterDeviceRequest(token, deviceIdManager.deviceId))
             } catch (e: Exception) {
                 Log.e("FCM", "Failed to register device: ${e.message}")
             }

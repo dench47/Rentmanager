@@ -80,6 +80,12 @@ class TokenManager @Inject constructor(
         get() = prefs.getLong("last_pause_ts", 0L)
         set(value) = prefs.edit().putLong("last_pause_ts", value).apply()
 
+    /** После нажатия «Позже» на промпте Telegram — не показываем его повторно
+     *  даже при пересоздании ViewModel (смена экрана и возврат). */
+    var telegramPromptDismissed: Boolean
+        get() = prefs.getBoolean("telegram_prompt_dismissed", false)
+        set(value) = prefs.edit().putBoolean("telegram_prompt_dismissed", value).apply()
+
     private val _requirePin = MutableStateFlow(prefs.getBoolean("require_pin", false))
     val requirePinFlow: StateFlow<Boolean> = _requirePin.asStateFlow()
 
