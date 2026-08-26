@@ -29,6 +29,7 @@ object CreateDraftHolder {
     var serviceInfo: String = ""
 
     private var entryRequested = false
+    private var autoContinue = false
 
     /** Черновик существует, если заполнено хотя бы одно поле шага 4 */
     fun hasDraft(): Boolean =
@@ -46,6 +47,17 @@ object CreateDraftHolder {
     fun consumeEntryRequested(): Boolean {
         val wasRequested = entryRequested
         entryRequested = false
+        return wasRequested
+    }
+
+    /** Шаг 3 должен сразу продолжить на шаг 4 (после диалога «Продолжить создание?») */
+    fun markAutoContinue() {
+        autoContinue = true
+    }
+
+    fun consumeAutoContinue(): Boolean {
+        val wasRequested = autoContinue
+        autoContinue = false
         return wasRequested
     }
 
@@ -69,5 +81,6 @@ object CreateDraftHolder {
         rulesText = ""
         serviceInfo = ""
         entryRequested = false
+        autoContinue = false
     }
 }

@@ -206,13 +206,11 @@ fun RentManagerNavGraph(
                 },
                 onClose = { navController.popBackStack(Screen.ChoosePropertyType.route, inclusive = true) },
                 onContinueDraft = {
+                    CreateDraftHolder.markAutoContinue()
                     navController.navigate(
-                        Screen.CreateProperty.createRoute(
+                        Screen.CreatePropertyAddress.createRoute(
                             CreateDraftHolder.propertyType,
-                            CreateDraftHolder.rentType,
-                            CreateDraftHolder.address,
-                            CreateDraftHolder.latitude,
-                            CreateDraftHolder.longitude
+                            CreateDraftHolder.rentType
                         )
                     ) {
                         popUpTo(Screen.ChoosePropertyType.route) { inclusive = true }

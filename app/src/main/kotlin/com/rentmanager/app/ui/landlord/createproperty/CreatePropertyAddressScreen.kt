@@ -61,9 +61,23 @@ fun CreatePropertyAddressScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    // Восстановление адреса/метки после возврата с шага 4
+    // Восстановление адреса/метки после возврата с шага 4,
+    // либо автопродолжение после диалога «Продолжить создание?»
     LaunchedEffect(Unit) {
-        if (CreateDraftHolder.latitude != null && CreateDraftHolder.longitude != null) {
+        if (CreateDraftHolder.consumeAutoContinue() &&
+            CreateDraftHolder.latitude != null && CreateDraftHolder.longitude != null
+        ) {
+            viewModel.restoreSelection(
+                CreateDraftHolder.address,
+                CreateDraftHolder.latitude,
+                CreateDraftHolder.longitude
+            )
+            onAddressConfirmed(
+                CreateDraftHolder.address,
+                CreateDraftHolder.latitude,
+                CreateDraftHolder.longitude
+            )
+        } else if (CreateDraftHolder.latitude != null && CreateDraftHolder.longitude != null) {
             viewModel.restoreSelection(
                 CreateDraftHolder.address,
                 CreateDraftHolder.latitude,
