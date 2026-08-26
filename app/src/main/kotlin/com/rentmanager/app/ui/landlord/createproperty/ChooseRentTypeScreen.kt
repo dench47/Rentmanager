@@ -1,4 +1,4 @@
-﻿package com.rentmanager.app.ui.landlord.createproperty
+package com.rentmanager.app.ui.landlord.createproperty
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -22,7 +22,8 @@ import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 fun ChooseRentTypeScreen(
     propertyType: String = "Квартира",
     onBack: () -> Unit,
-    onRentTypeSelected: (String) -> Unit
+    onRentTypeSelected: (String) -> Unit,
+    onClose: () -> Unit
 ) {
     Scaffold(containerColor = Color.White) { paddingValues ->
         Column(
@@ -31,7 +32,7 @@ fun ChooseRentTypeScreen(
                 .background(Color.White)
                 .padding(paddingValues)
         ) {
-            ScreenToolbar(title = "Новый объект", onBack = onBack, showClose = true)
+            ScreenToolbar(title = "Новый объект", onBack = onBack, showClose = true, onClose = onClose)
             CreationProgressBar(currentStep = 2)
             Spacer(Modifier.height(20.dp))
 

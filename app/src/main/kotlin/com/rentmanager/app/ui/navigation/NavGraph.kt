@@ -1,4 +1,4 @@
-﻿package com.rentmanager.app.ui.navigation
+package com.rentmanager.app.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +28,7 @@ import com.rentmanager.app.ui.tenant.properties.TenantPropertiesScreen
 import com.rentmanager.app.ui.landlord.payment.PaymentScheduleScreen
 import com.rentmanager.app.ui.finance.FinanceScreen
 import com.rentmanager.app.ui.finance.SubscriptionScreen
+import com.rentmanager.app.ui.landlord.createproperty.CreateDraftHolder
 
 @Composable
 fun RentManagerNavGraph(
@@ -161,6 +162,7 @@ fun RentManagerNavGraph(
                     navController.navigate(Screen.TenantProperties.route)
                 },
                 onNavigateToCreateProperty = {
+                    CreateDraftHolder.markEntryRequested()
                     navController.navigate(Screen.ChoosePropertyType.route)
                 },
                 onNavigateToSubscription = {
@@ -184,6 +186,7 @@ fun RentManagerNavGraph(
                     navController.navigate(Screen.PropertyDetail.createRoute(propertyId))
                 },
                 onCreateProperty = {
+                    CreateDraftHolder.markEntryRequested()
                     navController.navigate(Screen.ChoosePropertyType.route)
                 },
                 onBack = { navController.popBackStack() },
@@ -198,7 +201,22 @@ fun RentManagerNavGraph(
             com.rentmanager.app.ui.landlord.createproperty.ChoosePropertyTypeScreen(
                 onBack = { navController.popBackStack() },
                 onApartmentSelected = {
+                    CreateDraftHolder.propertyType = "Квартира"
                     navController.navigate(Screen.ChooseRentType.createRoute("Квартира"))
+                },
+                onClose = { navController.popBackStack(Screen.ChoosePropertyType.route, inclusive = true) },
+                onContinueDraft = {
+                    navController.navigate(
+                        Screen.CreateProperty.createRoute(
+                            CreateDraftHolder.propertyType,
+                            CreateDraftHolder.rentType,
+                            CreateDraftHolder.address,
+                            CreateDraftHolder.latitude,
+                            CreateDraftHolder.longitude
+                        )
+                    ) {
+                        popUpTo(Screen.ChoosePropertyType.route) { inclusive = true }
+                    }
                 }
             )
         }
@@ -213,8 +231,11 @@ fun RentManagerNavGraph(
                 propertyType = propertyType,
                 onBack = { navController.popBackStack() },
                 onRentTypeSelected = { rentType ->
+                    CreateDraftHolder.propertyType = propertyType
+                    CreateDraftHolder.rentType = rentType
                     navController.navigate(Screen.CreatePropertyAddress.createRoute(propertyType, rentType))
-                }
+                },
+                onClose = { navController.popBackStack(Screen.ChoosePropertyType.route, inclusive = true) }
             )
         }
 
@@ -237,6 +258,7 @@ fun RentManagerNavGraph(
                         Screen.CreateProperty.createRoute(propertyType, rentType, address, lat, lon)
                     )
                 },
+                onClose = { navController.popBackStack(Screen.ChoosePropertyType.route, inclusive = true) }
             )
         }
 
@@ -264,6 +286,7 @@ fun RentManagerNavGraph(
                 initialLongitude = longitude,
                 onBack = { navController.popBackStack() },
                 onCreated = {
+                    CreateDraftHolder.clear()
                     propertiesViewModel.refresh()
                     navController.popBackStack(Screen.MyProperties.route, inclusive = false)
                 },

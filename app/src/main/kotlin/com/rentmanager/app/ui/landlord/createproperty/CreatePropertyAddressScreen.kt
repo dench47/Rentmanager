@@ -1,4 +1,4 @@
-﻿package com.rentmanager.app.ui.landlord.createproperty
+package com.rentmanager.app.ui.landlord.createproperty
 
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -54,11 +54,23 @@ fun CreatePropertyAddressScreen(
     rentType: String,
     onBack: () -> Unit,
     onAddressConfirmed: (String, Double?, Double?) -> Unit,
+    onClose: () -> Unit,
     viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
-    var address by remember { mutableStateOf(TextFieldValue("")) }
+    var address by remember { mutableStateOf(TextFieldValue(CreateDraftHolder.address)) }
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // Восстановление адреса/метки после возврата с шага 4
+    LaunchedEffect(Unit) {
+        if (CreateDraftHolder.latitude != null && CreateDraftHolder.longitude != null) {
+            viewModel.restoreSelection(
+                CreateDraftHolder.address,
+                CreateDraftHolder.latitude,
+                CreateDraftHolder.longitude
+            )
+        }
+    }
 
     LaunchedEffect(uiState.addressToSet) {
         uiState.addressToSet?.let { text ->
@@ -103,6 +115,7 @@ fun CreatePropertyAddressScreen(
                     title = "Новый объект",
                     onBack = onBack,
                     showClose = true,
+                    onClose = onClose,
                     modifier = Modifier.background(Color(0x99EDEDED))
                 )
                 CreationProgressBar(currentStep = 3)
@@ -202,6 +215,9 @@ fun CreatePropertyAddressScreen(
                     text = "Продолжить",
                     enabled = canContinue
                 ) {
+                    CreateDraftHolder.address = address.text.trim()
+                    CreateDraftHolder.latitude = uiState.selectedLatitude
+                    CreateDraftHolder.longitude = uiState.selectedLongitude
                     onAddressConfirmed(
                         address.text.trim(),
                         uiState.selectedLatitude,

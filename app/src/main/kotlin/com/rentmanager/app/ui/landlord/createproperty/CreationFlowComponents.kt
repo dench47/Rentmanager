@@ -1,4 +1,4 @@
-﻿package com.rentmanager.app.ui.landlord.createproperty
+package com.rentmanager.app.ui.landlord.createproperty
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -43,7 +43,8 @@ fun ScreenToolbar(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    showClose: Boolean = false
+    showClose: Boolean = false,
+    onClose: (() -> Unit)? = null
 ) {
     Row(
         modifier = modifier
@@ -69,7 +70,9 @@ fun ScreenToolbar(
             Image(
                 painter = painterResource(R.drawable.ic_toolbar_close),
                 contentDescription = "Закрыть",
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(onClickLabel = "Закрыть") { onClose?.invoke() },
                 contentScale = ContentScale.Fit
             )
         }

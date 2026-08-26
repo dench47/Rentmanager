@@ -129,6 +129,21 @@ class CreatePropertyViewModel @Inject constructor(
         )
     }
 
+    /** Восстановление адреса/метки после возврата с шага 4 */
+    fun restoreSelection(address: String, lat: Double?, lon: Double?) {
+        if (lat != null && lon != null) {
+            baseAddress = address
+            scopeBbox = null
+            refinePrefix = null
+            _uiState.value = _uiState.value.copy(
+                selectedLatitude = lat,
+                selectedLongitude = lon,
+                addressSuggestions = emptyList(),
+                addressError = null
+            )
+        }
+    }
+
     fun onMapTapped(lat: Double, lon: Double) {
         _uiState.value = _uiState.value.copy(
             selectedLatitude = lat,

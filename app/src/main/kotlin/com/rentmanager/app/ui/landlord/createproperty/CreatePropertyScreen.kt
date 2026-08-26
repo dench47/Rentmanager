@@ -1,4 +1,4 @@
-﻿package com.rentmanager.app.ui.landlord.createproperty
+package com.rentmanager.app.ui.landlord.createproperty
 
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -94,30 +94,38 @@ fun CreatePropertyScreen(
     onPaymentSchedule: (String) -> Unit = {},
     viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
-    var name by remember { mutableStateOf("") }
-    var area by remember { mutableStateOf("") }
-    var price by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(CreateDraftHolder.name) }
+    var area by remember { mutableStateOf(CreateDraftHolder.area) }
+    var price by remember { mutableStateOf(CreateDraftHolder.price) }
+    var description by remember { mutableStateOf(CreateDraftHolder.description) }
 
-    var rooms by remember { mutableStateOf<String?>(null) }
-    var sleepingPlaces by remember { mutableStateOf<String?>(null) }
-    var floor by remember { mutableStateOf<String?>(null) }
-    var floorsInHouse by remember { mutableStateOf<String?>(null) }
+    var rooms by remember { mutableStateOf(CreateDraftHolder.rooms) }
+    var sleepingPlaces by remember { mutableStateOf(CreateDraftHolder.sleepingPlaces) }
+    var floor by remember { mutableStateOf(CreateDraftHolder.floor) }
+    var floorsInHouse by remember { mutableStateOf(CreateDraftHolder.floorsInHouse) }
 
-    var phoneNumber by remember { mutableStateOf("") }
-    var wifiPassword by remember { mutableStateOf("") }
-    var rulesText by remember { mutableStateOf("") }
-    var serviceInfo by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf(CreateDraftHolder.phoneNumber) }
+    var wifiPassword by remember { mutableStateOf(CreateDraftHolder.wifiPassword) }
+    var rulesText by remember { mutableStateOf(CreateDraftHolder.rulesText) }
+    var serviceInfo by remember { mutableStateOf(CreateDraftHolder.serviceInfo) }
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
 
-    var photoUris by remember { mutableStateOf(listOf<String>()) }
+    // Ошибки валидации обязательных полей (подсвечиваются при нажатии «Создать объект»)
+    var nameError by remember { mutableStateOf(false) }
+    var roomsError by remember { mutableStateOf(false) }
+    var addressError by remember { mutableStateOf(false) }
+    var areaError by remember { mutableStateOf(false) }
+    var priceError by remember { mutableStateOf(false) }
+
+    var photoUris by remember { mutableStateOf(CreateDraftHolder.photoUris) }
     var showPhotoMenuIndex by remember { mutableIntStateOf(-1) }
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
         if (uris.isNotEmpty()) {
             photoUris = uris.map { it.toString() } + photoUris
+            CreateDraftHolder.photoUris = photoUris
         }
     }
 
@@ -182,6 +190,7 @@ fun CreatePropertyScreen(
                                         onClick = {
                                             if (index > 0) {
                                                 photoUris = listOf(photoUris[index]) + photoUris.filterIndexed { i, _ -> i != index }
+                                                CreateDraftHolder.photoUris = photoUris
                                             }
                                             showPhotoMenuIndex = -1
                                         }
@@ -190,6 +199,7 @@ fun CreatePropertyScreen(
                                         text = { Text("Удалить", color = ErrorRed) },
                                         onClick = {
                                             photoUris = photoUris.filterIndexed { i, _ -> i != index }
+                                            CreateDraftHolder.photoUris = photoUris
                                             showPhotoMenuIndex = -1
                                         }
                                     )
@@ -205,30 +215,55 @@ fun CreatePropertyScreen(
                 // 2. О квартире (Figma: заголовок + 12, чипы комнат r30, gap 6)
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     FlowSectionTitle("О квартире")
-                    RoomsChips(selected = rooms, onSelect = { rooms = it })
+                    RoomsChips(
+                        selected = rooms,
+                        onSelect = {
+                            rooms = it
+                            roomsError = false
+                            CreateDraftHolder.rooms = it
+                        },
+                        isError = roomsError
+                    )
                 }
 
                 // 3. Поля (Figma: gap 6; Название/Адрес 64, сетка 2x2 по 65)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CardInput(value = name, onValueChange = { name = it }, placeholder = "Название")
+                    CardInput(
+                        value = name,
+                        onValueChange = {
+                            name = it
+                            nameError = false
+                            CreateDraftHolder.name = it
+                        },
+                        placeholder = "Название",
+                        isError = nameError
+                    )
                     // Адрес перенесён на шаг 3 — здесь только отображение
-                    CardAddressDisplay(address = initialAddress)
+                    CardAddressDisplay(address = initialAddress, isError = addressError)
                     Row(
                         modifier = Modifier.fillMaxWidth().height(65.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         CardInput(
                             value = area,
-                            onValueChange = { area = it },
+                            onValueChange = {
+                                area = it
+                                areaError = false
+                                CreateDraftHolder.area = it
+                            },
                             placeholder = "Площадь, м2",
                             keyboardType = KeyboardType.Decimal,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            isError = areaError
                         )
                         CardDropdown(
                             selected = sleepingPlaces,
                             options = SleepingOptions,
                             placeholder = "Спальные места",
-                            onSelect = { sleepingPlaces = it },
+                            onSelect = {
+                                sleepingPlaces = it
+                                CreateDraftHolder.sleepingPlaces = it
+                            },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -240,14 +275,20 @@ fun CreatePropertyScreen(
                             selected = floor,
                             options = FloorOptions,
                             placeholder = "Этаж",
-                            onSelect = { floor = it },
+                            onSelect = {
+                                floor = it
+                                CreateDraftHolder.floor = it
+                            },
                             modifier = Modifier.weight(1f)
                         )
                         CardDropdown(
                             selected = floorsInHouse,
                             options = FloorsInHouseOptions,
                             placeholder = "Этажей в доме",
-                            onSelect = { floorsInHouse = it },
+                            onSelect = {
+                                floorsInHouse = it
+                                CreateDraftHolder.floorsInHouse = it
+                            },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -258,7 +299,10 @@ fun CreatePropertyScreen(
                     FlowSectionTitle("Описание объявления")
                     DescriptionCard(
                         value = description,
-                        onValueChange = { description = it }
+                        onValueChange = {
+                            description = it
+                            CreateDraftHolder.description = it
+                        }
                     )
                 }
 
@@ -267,9 +311,14 @@ fun CreatePropertyScreen(
                     FlowSectionTitle("Стоимость")
                     CardInput(
                         value = price,
-                        onValueChange = { price = it },
+                        onValueChange = {
+                            price = it
+                            priceError = false
+                            CreateDraftHolder.price = it
+                        },
                         placeholder = if (rentType == "длительно") "Цена за месяц, ₽" else "Цена за сутки, ₽",
-                        keyboardType = KeyboardType.Decimal
+                        keyboardType = KeyboardType.Decimal,
+                        isError = priceError
                     )
                 }
 
@@ -316,14 +365,20 @@ fun CreatePropertyScreen(
                             icon = Icons.Filled.Phone,
                             caption = "Номер телефона",
                             value = phoneNumber,
-                            onValueChange = { phoneNumber = it },
+                            onValueChange = {
+                                phoneNumber = it
+                                CreateDraftHolder.phoneNumber = it
+                            },
                             placeholder = "+7 "
                         )
                         LabeledField(
                             icon = Icons.Filled.Wifi,
                             caption = "Пароль WiFi",
                             value = wifiPassword,
-                            onValueChange = { wifiPassword = it },
+                            onValueChange = {
+                                wifiPassword = it
+                                CreateDraftHolder.wifiPassword = it
+                            },
                             placeholder = "Rsjuff6749"
                         )
                         Column(
@@ -333,7 +388,10 @@ fun CreatePropertyScreen(
                             Text("Правила объекта", style = Headline2MobStyle)
                             MultilineTextField(
                                 value = rulesText,
-                                onValueChange = { rulesText = it },
+                                onValueChange = {
+                                    rulesText = it
+                                    CreateDraftHolder.rulesText = it
+                                },
                                 placeholder = "Использовать помещение исключительно в целях, указанных в договоре"
                             )
                         }
@@ -346,7 +404,10 @@ fun CreatePropertyScreen(
                     ) {
                         MultilineTextField(
                             value = serviceInfo,
-                            onValueChange = { serviceInfo = it },
+                            onValueChange = {
+                                serviceInfo = it
+                                CreateDraftHolder.serviceInfo = it
+                            },
                             placeholder = ""
                         )
                     }
@@ -354,13 +415,23 @@ fun CreatePropertyScreen(
 
                 // 8. Кнопки (Figma: «Создать объект» контур + «Создать и опубликовать» градиент)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlineCtaButton(text = "Создать объект", enabled = canCreate) {
-                        submitCreate(
-                            viewModel, name, initialAddress, area, price, description,
-                            photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
-                            propertyType, rentType, rooms, sleepingPlaces, floor,
-                            floorsInHouse, initialLatitude, initialLongitude
-                        ) { onCreated() }
+                    OutlineCtaButton(text = "Создать объект") {
+                        // Валидация обязательных полей: кнопка всегда чёрная, но создание
+                        // запускается только когда все обязательные поля заполнены
+                        nameError = name.isBlank()
+                        roomsError = rooms == null
+                        addressError = initialAddress.isBlank()
+                        areaError = area.isBlank()
+                        priceError = price.isBlank()
+                        val hasErrors = nameError || roomsError || addressError || areaError || priceError
+                        if (!hasErrors) {
+                            submitCreate(
+                                viewModel, name, initialAddress, area, price, description,
+                                photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
+                                propertyType, rentType, rooms, sleepingPlaces, floor,
+                                floorsInHouse, initialLatitude, initialLongitude
+                            ) { onCreated() }
+                        }
                     }
                     // Публикация — отдельный шаг (как и раньше, неактивна)
                     GradientCtaButton(text = "Создать и опубликовать", enabled = false) {}
@@ -446,14 +517,15 @@ private fun AddPhotoTile(onClick: () -> Unit) {
 
 // Чипы количества комнат (Figma: сетка 5 равных колонок, gap 6; «6+ комнат» — по ширине текста, ряд 2 пустые колонки справа)
 @Composable
-private fun RoomsChips(selected: String?, onSelect: (String) -> Unit) {
+private fun RoomsChips(selected: String?, onSelect: (String) -> Unit, isError: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("Студия", "1", "2", "3", "4").forEach { option ->
                 RoomChip(
                     label = option,
                     selected = selected == option,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    showError = isError && selected == null
                 ) { onSelect(option) }
             }
         }
@@ -461,9 +533,14 @@ private fun RoomsChips(selected: String?, onSelect: (String) -> Unit) {
             RoomChip(
                 label = "5",
                 selected = selected == "5",
-                modifier = Modifier.width(69.6.dp)
+                modifier = Modifier.width(69.6.dp),
+                showError = isError && selected == null
             ) { onSelect("5") }
-            RoomChip(label = "6+ комнат", selected = selected == "6+") { onSelect("6+") }
+            RoomChip(
+                label = "6+ комнат",
+                selected = selected == "6+",
+                showError = isError && selected == null
+            ) { onSelect("6+") }
         }
     }
 }
@@ -473,6 +550,7 @@ private fun RoomChip(
     label: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
+    showError: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(
@@ -480,7 +558,11 @@ private fun RoomChip(
             .clip(RoundedCornerShape(30.dp))
             .background(if (selected) Color.White else CardBackground)
             .then(
-                if (selected) Modifier.border(1.dp, Graphite, RoundedCornerShape(30.dp)) else Modifier
+                when {
+                    selected -> Modifier.border(1.dp, Graphite, RoundedCornerShape(30.dp))
+                    showError -> Modifier.border(1.dp, ErrorRed, RoundedCornerShape(30.dp))
+                    else -> Modifier
+                }
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
@@ -488,7 +570,7 @@ private fun RoomChip(
     ) {
         Text(
             label,
-            style = Headline2MobStyle,
+            style = Headline2MobStyle.copy(color = if (showError) ErrorRed else Graphite),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -502,7 +584,8 @@ private fun CardInput(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    isError: Boolean = false
 ) {
     Box(
         modifier = modifier
@@ -510,6 +593,7 @@ private fun CardInput(
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
+            .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
             .padding(start = 20.dp, end = 10.dp),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -526,7 +610,8 @@ private fun CardInput(
                     if (value.isEmpty()) {
                         Text(
                             placeholder,
-                            style = Headline2MobPlaceholderStyle,
+                            style = if (isError) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                            else Headline2MobPlaceholderStyle,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -540,18 +625,27 @@ private fun CardInput(
 
 // Адрес — только отображение (карта на шаге 3)
 @Composable
-private fun CardAddressDisplay(address: String, modifier: Modifier = Modifier) {
+private fun CardAddressDisplay(
+    address: String,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false
+) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
+            .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
             .padding(start = 20.dp, end = 10.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         if (address.isBlank()) {
-            Text("Адрес", style = Headline2MobPlaceholderStyle)
+            Text(
+                "Адрес",
+                style = if (isError) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                else Headline2MobPlaceholderStyle
+            )
         } else {
             Text(
                 address,
@@ -570,7 +664,8 @@ private fun CardDropdown(
     options: List<String>,
     placeholder: String,
     onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isError: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
@@ -580,6 +675,7 @@ private fun CardDropdown(
                 .height(65.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(CardBackground)
+                .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
                 .clickable { expanded = true }
                 .padding(start = 20.dp, end = 10.dp),
             contentAlignment = Alignment.CenterStart
@@ -591,7 +687,11 @@ private fun CardDropdown(
             ) {
                 Text(
                     text = selected ?: placeholder,
-                    style = if (selected == null) Headline2MobPlaceholderStyle else Headline2MobStyle,
+                    style = when {
+                        selected == null && isError -> Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                        selected == null -> Headline2MobPlaceholderStyle
+                        else -> Headline2MobStyle
+                    },
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)

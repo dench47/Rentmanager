@@ -1,4 +1,4 @@
-﻿package com.rentmanager.app.ui.landlord.createproperty
+package com.rentmanager.app.ui.landlord.createproperty
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +13,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,9 +28,19 @@ import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 @Composable
 fun ChoosePropertyTypeScreen(
     onBack: () -> Unit,
-    onApartmentSelected: () -> Unit
+    onApartmentSelected: () -> Unit,
+    onClose: () -> Unit,
+    onContinueDraft: () -> Unit
 ) {
     var showStubAlert by remember { mutableStateOf(false) }
+    var showContinueDialog by remember { mutableStateOf(false) }
+
+    // Если новый вход во флоу, а черновик уже есть — предложить продолжить или начать заново
+    LaunchedEffect(Unit) {
+        if (CreateDraftHolder.consumeEntryRequested() && CreateDraftHolder.hasDraft()) {
+            showContinueDialog = true
+        }
+    }
 
     Scaffold(containerColor = Color.White) { paddingValues ->
         Column(
@@ -38,7 +49,7 @@ fun ChoosePropertyTypeScreen(
                 .background(Color.White)
                 .padding(paddingValues)
         ) {
-            ScreenToolbar(title = "Новый объект", onBack = onBack, showClose = true)
+            ScreenToolbar(title = "Новый объект", onBack = onBack, showClose = true, onClose = onClose)
             CreationProgressBar(currentStep = 1)
             Spacer(Modifier.height(20.dp))
 
@@ -71,6 +82,26 @@ fun ChoosePropertyTypeScreen(
             text = { Text("Пока реализован путь для квартиры") },
             confirmButton = {
                 TextButton(onClick = { showStubAlert = false }) { Text("ОК") }
+            }
+        )
+    }
+
+    if (showContinueDialog) {
+        AlertDialog(
+            onDismissRequest = { showContinueDialog = false },
+            title = { Text("Продолжить создание?") },
+            text = { Text("У вас есть незавершённый объект. Продолжить заполнение с того места, где вы остановились, или начать заново?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showContinueDialog = false
+                    onContinueDraft()
+                }) { Text("Продолжить") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    CreateDraftHolder.clear()
+                    showContinueDialog = false
+                }) { Text("Начать заново") }
             }
         )
     }
