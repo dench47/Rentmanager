@@ -125,7 +125,11 @@ private fun ContinueDraftDialog(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = false,
+            dismissOnBackPress = false
+        )
     ) {
         Box(
             modifier = Modifier.fillMaxWidth(),
@@ -133,7 +137,7 @@ private fun ContinueDraftDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .width(380.dp)
+                    .width(320.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White)
                     .padding(20.dp),

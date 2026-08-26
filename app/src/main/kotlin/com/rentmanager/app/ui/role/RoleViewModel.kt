@@ -56,17 +56,17 @@ class RoleViewModel @Inject constructor(
         RoleCard("2", "Арендаторы", R.drawable.ic_menu_tenants),
         RoleCard("3", "Другие объекты", R.drawable.ic_menu_other_objects),
         RoleCard("4", "Финансы", R.drawable.ic_menu_finance),
-        RoleCard("5", "Сообщения", R.drawable.ic_menu_messages),
+        RoleCard("5", "Сообщения", R.drawable.ic_menu_messages_no_badge),
         RoleCard("6", "Заказать услугу", R.drawable.ic_menu_order_service)
     )
 
     private val tenantCards = listOf(
-        RoleCard("1", "Недвижимость\nв пользовании", R.drawable.ic_card_my_properties),
-        RoleCard("2", "Арендодатели", R.drawable.ic_card_tenants),
-        RoleCard("3", "Другие объекты\nв пользовании", R.drawable.ic_card_other),
-        RoleCard("4", "Финансы", R.drawable.ic_card_finance),
-        RoleCard("5", "Сообщения", R.drawable.ic_card_messages_no_badge),
-        RoleCard("6", "Заказать услугу", R.drawable.ic_card_service)
+        RoleCard("1", "Недвижимость\nв пользовании", R.drawable.ic_menu_my_properties),
+        RoleCard("2", "Арендодатели", R.drawable.ic_menu_tenants),
+        RoleCard("3", "Другие объекты\nв пользовании", R.drawable.ic_menu_other_objects),
+        RoleCard("4", "Финансы", R.drawable.ic_menu_finance),
+        RoleCard("5", "Сообщения", R.drawable.ic_menu_messages_no_badge),
+        RoleCard("6", "Заказать услугу", R.drawable.ic_menu_order_service)
     )
 
     private val _uiState = MutableStateFlow(

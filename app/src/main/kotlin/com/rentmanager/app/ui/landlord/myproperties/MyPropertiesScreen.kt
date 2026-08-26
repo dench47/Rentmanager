@@ -701,7 +701,7 @@ private fun BottomTabBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TabItem(
-                iconRes = R.drawable.ic_card_finance,
+                iconRes = R.drawable.ic_menu_finance,
                 label = "Финансы",
                 onClick = onFinanceClick
             )
