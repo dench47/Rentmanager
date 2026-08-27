@@ -251,27 +251,27 @@ fun PropertyCardScreen(
                     )
                 }
 
-                // Аккордеоны
-                AccordionCard(
-                    "Информация об объекте",
-                    "Эта информация будет видна арендатору",
-                    tenantExpanded,
-                    onToggle = { tenantExpanded = !tenantExpanded }
-                ) {
-                    DetailsContent(property)
-                }
-                Spacer(Modifier.size(12.dp))
-                AccordionCard(
-                    "Служебная информация",
-                    "Эта информация видна только вам",
-                    serviceExpanded,
-                    onToggle = { serviceExpanded = !serviceExpanded }
-                ) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp)) {
-                        Text(property?.serviceInfo?.ifBlank { "—" } ?: "—", style = CardSubtitleStyle.copy(color = Graphite))
+                // Аккордеоны (Figma 20741: между ними gap 12, до «Счетчиков» — вплотную, без отступа)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AccordionCard(
+                        "Информация об объекте",
+                        "Эта информация будет видна арендатору",
+                        tenantExpanded,
+                        onToggle = { tenantExpanded = !tenantExpanded }
+                    ) {
+                        DetailsContent(property)
+                    }
+                    AccordionCard(
+                        "Служебная информация",
+                        "Эта информация видна только вам",
+                        serviceExpanded,
+                        onToggle = { serviceExpanded = !serviceExpanded }
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp)) {
+                            Text(property?.serviceInfo?.ifBlank { "—" } ?: "—", style = CardSubtitleStyle.copy(color = Graphite))
+                        }
                     }
                 }
-                Spacer(Modifier.size(20.dp))
             }
 
             // Счетчики
@@ -285,32 +285,41 @@ fun PropertyCardScreen(
                     .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SectionHeader("Счетчики")
+                SectionHeader("Счетчики", pencilRes = R.drawable.ic_edit_pencil_white)
                 BlackCtaButton(text = "Добавить счетчики", iconRes = R.drawable.ic_plus_circle, onClick = {})
             }
+        }
 
-            // Таббар (скроллится вместе с контентом, как в макете)
+        // Таббар — статичный (закреплён внизу, не скроллится).
+        // Фон rgba(237,237,237,0.6) и скругление верхних углов 30dp — как в макете (Figma 2574:20590);
+        // системная навигация (#F5F5F5) — того же тона, «в один цвет» с таббаром (Figma 2574:20589).
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFF5F5F5))
+                .navigationBarsPadding()
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFEDEDED))
-                    .navigationBarsPadding()
+                    .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                    .background(Color(0x99EDEDED))
                     .padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(54.dp)
+                        .width(196.dp)
+                        .height(55.dp)
                         .clip(RoundedCornerShape(100.dp))
                         .background(Graphite),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("Финансовый отчет объекта", style = CardSubtitleStyle.copy(color = Color.White))
                 }
-                TabButton("Позвонить", R.drawable.ic_call_phone) {}
-                TabButton("Написать", R.drawable.ic_chat_message) {}
+                TabButton("Позвонить", R.drawable.ic_tab_call) {}
+                TabButton("Написать", R.drawable.ic_tab_email) {}
             }
         }
     }
@@ -328,36 +337,6 @@ private fun PhotoSlider(property: PropertyDto?) {
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
     ) {
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 12.dp, top = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(Color(0x99FFFFFF))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
-                    Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF212121))
-                )
-                Text("Не опубликовано", style = Headline2MobStyle.copy(color = Color(0xFF212121)))
-            }
-            Image(
-                painter = painterResource(R.drawable.ic_edit_pencil),
-                contentDescription = "Редактировать",
-                modifier = Modifier.size(40.dp)
-            )
-        }
         if (photos.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Нет фотографий", style = Headline2MobStyle.copy(color = GreyText))
@@ -370,8 +349,9 @@ private fun PhotoSlider(property: PropertyDto?) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
+            // Pager (Figma 20667): активная точка 20x8 #FFFFFF, неактивные 8x8 белые 50%, снизу 39
             Row(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 39.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -379,9 +359,9 @@ private fun PhotoSlider(property: PropertyDto?) {
                     Box(
                         modifier = Modifier
                             .height(8.dp)
-                            .width(if (i == safePage) 24.dp else 8.dp)
+                            .width(if (i == safePage) 20.dp else 8.dp)
                             .clip(RoundedCornerShape(100.dp))
-                            .background(White50)
+                            .background(if (i == safePage) Color.White else White50)
                     )
                 }
             }
@@ -408,11 +388,44 @@ private fun PhotoSlider(property: PropertyDto?) {
                     .clickable { if (safePage < photos.size - 1) page = safePage + 1 }
             )
         }
+
+        // Плашка «Не опубликовано» и карандаш — ПОВЕРХ фото (Figma 20675/20676/20679):
+        // отступы top/start/end = 20, плашка на белом фоне radius 10, карандаш на белом круге.
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White)
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF212121))
+                )
+                Text("Не опубликовано", style = Headline2MobStyle.copy(color = Color(0xFF212121)))
+            }
+            Image(
+                painter = painterResource(R.drawable.ic_edit_pencil_white),
+                contentDescription = "Редактировать",
+                modifier = Modifier.size(40.dp)
+            )
+        }
     }
 }
 
 @Composable
-private fun SectionHeader(text: String) {
+private fun SectionHeader(text: String, pencilRes: Int = R.drawable.ic_edit_pencil) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -420,7 +433,7 @@ private fun SectionHeader(text: String) {
     ) {
         Text(text, style = ToolbarTitleStyle)
         Image(
-            painter = painterResource(R.drawable.ic_edit_pencil),
+            painter = painterResource(pencilRes),
             contentDescription = "Редактировать",
             modifier = Modifier.size(40.dp)
         )
@@ -473,7 +486,7 @@ private fun TabButton(label: String, iconRes: Int, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .width(90.dp)
-            .height(54.dp)
+            .height(55.dp)
             .clip(RoundedCornerShape(30.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp, horizontal = 6.dp),

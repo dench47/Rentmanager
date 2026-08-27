@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Карандаш «edit» на белом фоне 40x40 (Figma: White/Icon, radius 30) — блок «Счетчики» и фото -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,0L20,0A20,20 0,0 1,40 20L40,20A20,20 0,0 1,20 40L20,40A20,20 0,0 1,0 20L0,20A20,20 0,0 1,20 0Z"/>
+    <path
+        android:pathData="M12.8293,22.93L22.9293,12.83C23.0223,12.7362 23.1329,12.6619 23.2547,12.6111C23.3766,12.5603 23.5073,12.5342 23.6393,12.5342C23.7713,12.5342 23.902,12.5603 24.0239,12.6111C24.1457,12.6619 24.2563,12.7362 24.3493,12.83L27.1693,15.65C27.263,15.7429 27.3374,15.8535 27.3882,15.9754C27.439,16.0973 27.4651,16.228 27.4651,16.36C27.4651,16.492 27.439,16.6227 27.3882,16.7446C27.3374,16.8664 27.263,16.977 27.1693,17.07L17.0693,27.17C16.9767,27.2645 16.8662,27.3396 16.7444,27.3911C16.6225,27.4426 16.4916,27.4694 16.3593,27.47H13.5293C13.2641,27.47 13.0097,27.3646 12.8222,27.1771C12.6347,26.9895 12.5293,26.7352 12.5293,26.47V23.64C12.5298,23.5077 12.5566,23.3768 12.6081,23.2549C12.6596,23.133 12.7348,23.0226 12.8293,22.93Z"
+        android:strokeColor="#212121"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+    <path
+        android:pathData="M20.5,15.2598L24.74,19.4998"
+        android:strokeColor="#212121"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+</vector>
