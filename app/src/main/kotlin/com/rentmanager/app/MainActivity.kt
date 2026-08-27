@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import androidx.fragment.app.FragmentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -151,7 +152,18 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Прозрачная системная навигация: убираем дефолтный полупрозрачно-белый скрим edge-to-edge,
+        // чтобы зона под кнопками не выглядела белее таббара (цвет задаёт сам экран)
+        enableEdgeToEdge(
+            navigationBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
+        )
+        // Отключаем системный контрастный скрим навигации (API 29+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
 
         // Холодный старт — сбрасываем состояние фона, чтобы не требовать PIN повторно после обновления
         if (savedInstanceState == null) {

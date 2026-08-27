@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,9 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +60,7 @@ import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.launch
 
 private val GreenIcon = Color(0xFFE5F2E7)
 private val GreenText = Color(0xFF2F7D4D)
@@ -291,19 +294,19 @@ fun PropertyCardScreen(
         }
 
         // Таббар — статичный (закреплён внизу, не скроллится).
-        // Фон rgba(237,237,237,0.6) и скругление верхних углов 30dp — как в макете (Figma 2574:20590);
-        // системная навигация (#F5F5F5) — того же тона, «в один цвет» с таббаром (Figma 2574:20589).
+        // ОДИН слой rgba(237,237,237,0.6) (Figma 2574:20590) на весь блок — и на строку таббара,
+        // и на зону системной навигации ниже, поэтому они всегда «в один цвет» (Figma 2574:20589);
+        // скругление верхних углов 30dp — через clip на Box.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFF5F5F5))
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .background(Color(0x99EDEDED))
                 .navigationBarsPadding()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                    .background(Color(0x99EDEDED))
                     .padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -329,7 +332,8 @@ fun PropertyCardScreen(
 @Composable
 private fun PhotoSlider(property: PropertyDto?) {
     val photos = property?.photos?.mapNotNull { it.url } ?: emptyList()
-    var page by remember { mutableIntStateOf(0) }
+    val pagerState = rememberPagerState { photos.size }
+    val scope = rememberCoroutineScope()
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -342,13 +346,18 @@ private fun PhotoSlider(property: PropertyDto?) {
                 Text("Нет фотографий", style = Headline2MobStyle.copy(color = GreyText))
             }
         } else {
-            val safePage = page.coerceIn(0, photos.size - 1)
-            AsyncImage(
-                model = photos[safePage],
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            // Свайп фотографий (Figma 2574:20665): горизонтальный пейджер на всю площадь фото
+            HorizontalPager(
+                state = pagerState,
                 modifier = Modifier.fillMaxSize()
-            )
+            ) { idx ->
+                AsyncImage(
+                    model = photos[idx],
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
             // Pager (Figma 20667): активная точка 20x8 #FFFFFF, неактивные 8x8 белые 50%, снизу 39
             Row(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 39.dp),
@@ -359,12 +368,14 @@ private fun PhotoSlider(property: PropertyDto?) {
                     Box(
                         modifier = Modifier
                             .height(8.dp)
-                            .width(if (i == safePage) 20.dp else 8.dp)
+                            .width(if (i == pagerState.currentPage) 20.dp else 8.dp)
                             .clip(RoundedCornerShape(100.dp))
-                            .background(if (i == safePage) Color.White else White50)
+                            .background(if (i == pagerState.currentPage) Color.White else White50)
                     )
                 }
             }
+            // Стрелки (Figma 20673/20674): белый шеврон 40x40, отступ 20 от краёв, по центру вертикали;
+            // подложка — лёгкое затемнение 8% (в макете подложки нет; компромисс для читаемости на светлых фото)
             Image(
                 painter = painterResource(R.drawable.ic_slider_arrow_left),
                 contentDescription = "Назад",
@@ -373,8 +384,11 @@ private fun PhotoSlider(property: PropertyDto?) {
                     .padding(start = 20.dp)
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color(0x66000000))
-                    .clickable { if (safePage > 0) page = safePage - 1 }
+                    .background(Color(0x14000000))
+                    .clickable {
+                        val current = pagerState.currentPage
+                        if (current > 0) scope.launch { pagerState.animateScrollToPage(current - 1) }
+                    }
             )
             Image(
                 painter = painterResource(R.drawable.ic_slider_arrow_right),
@@ -384,8 +398,11 @@ private fun PhotoSlider(property: PropertyDto?) {
                     .padding(end = 20.dp)
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color(0x66000000))
-                    .clickable { if (safePage < photos.size - 1) page = safePage + 1 }
+                    .background(Color(0x14000000))
+                    .clickable {
+                        val current = pagerState.currentPage
+                        if (current < photos.size - 1) scope.launch { pagerState.animateScrollToPage(current + 1) }
+                    }
             )
         }
 
