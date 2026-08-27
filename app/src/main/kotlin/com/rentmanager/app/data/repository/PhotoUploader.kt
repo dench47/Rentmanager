@@ -30,7 +30,10 @@ class PhotoUploader @Inject constructor(
         val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
         val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
 
-        val resp = authApi.uploadPhoto(part)
+        // Ретрай при сетевых сбоях/таймаутах — загрузка идемпотентна (новый ключ каждый раз)
+        val resp = retryOnNetworkError {
+            authApi.uploadPhoto(part)
+        }
         if (!resp.isSuccessful) throw Exception("Ошибка загрузки фото")
         return resp.body()!!.url
     }

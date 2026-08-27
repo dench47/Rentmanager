@@ -148,3 +148,21 @@ val Headline2MobStyle = TextStyle(
 
 // Плейсхолдер полей (Headline 2 mob в цвете Grey/Text)
 val Headline2MobPlaceholderStyle = Headline2MobStyle.copy(color = GreyText)
+
+// Название объекта на карточке (Figma "Headline 1mob" 22 SemiBold, -0.3sp)
+val PropertyNameStyle = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 22.sp,
+    letterSpacing = (-0.3).sp,
+    color = Graphite
+)
+
+// Микроподписи под иконками таббара (Figma "Text Icone" — 9.5 Regular, -0.2sp)
+val TextIconeStyle = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.Normal,
+    fontSize = 9.5.sp,
+    letterSpacing = (-0.2).sp,
+    color = Graphite
+)

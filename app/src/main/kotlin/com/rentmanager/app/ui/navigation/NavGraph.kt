@@ -183,7 +183,7 @@ fun RentManagerNavGraph(
         composable(Screen.MyProperties.route) {
             com.rentmanager.app.ui.landlord.myproperties.MyPropertiesScreen(
                 onPropertyClick = { propertyId ->
-                    navController.navigate(Screen.PropertyDetail.createRoute(propertyId))
+                    navController.navigate(Screen.PropertyCard.createRoute(propertyId))
                 },
                 onCreateProperty = {
                     CreateDraftHolder.markEntryRequested()
@@ -283,11 +283,26 @@ fun RentManagerNavGraph(
                 initialLatitude = latitude,
                 initialLongitude = longitude,
                 onBack = { navController.popBackStack() },
-                onCreated = {
+                onCreated = { newId ->
                     CreateDraftHolder.clear()
                     propertiesViewModel.refresh()
-                    navController.popBackStack(Screen.MyProperties.route, inclusive = false)
+                    navController.navigate(Screen.PropertyCard.createRoute(newId)) {
+                        popUpTo(Screen.MyProperties.route) { inclusive = false }
+                    }
                 },
+                onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) }
+            )
+        }
+
+        // ========== Property Card (карточка объекта) ==========
+        composable(
+            route = Screen.PropertyCard.route,
+            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
+            com.rentmanager.app.ui.landlord.propertycard.PropertyCardScreen(
+                propertyId = propertyId,
+                onBack = { navController.popBackStack() },
                 onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) }
             )
         }
@@ -319,29 +334,6 @@ fun RentManagerNavGraph(
                 propertyId = propertyId,
                 meterId = meterId,
                 onBack = { navController.popBackStack() }
-            )
-        }
-
-        // ========== Property Detail ==========
-        composable(
-            route = Screen.PropertyDetail.route,
-            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
-            com.rentmanager.app.ui.property.detail.PropertyDetailScreen(
-                propertyId = propertyId,
-                onBack = { navController.popBackStack() },
-                onAddMeter = { },
-                onCall = { },
-                onWrite = {
-                    navController.navigate(Screen.Chat.createRoute("landlord"))
-                },
-                onAttachTenant = {
-                    navController.navigate(Screen.AttachTenant.createRoute(propertyId))
-                },
-                onPaymentSchedule = {
-                    navController.navigate(Screen.PaymentSchedule.createRoute(propertyId))
-                }
             )
         }
 
@@ -384,7 +376,7 @@ fun RentManagerNavGraph(
                 tenantId = tenantId,
                 onBack = { navController.popBackStack() },
                 onPropertyClick = { propertyId ->
-                    navController.navigate(Screen.PropertyDetail.createRoute(propertyId))
+                    navController.navigate(Screen.PropertyCard.createRoute(propertyId))
                 }
             )
         }

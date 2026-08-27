@@ -19,6 +19,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -33,7 +34,7 @@ object NetworkModule {
     ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG)
-                HttpLoggingInterceptor.Level.BODY
+                HttpLoggingInterceptor.Level.BASIC
             else
                 HttpLoggingInterceptor.Level.NONE
         }
@@ -75,6 +76,13 @@ object NetworkModule {
         }
 
         return OkHttpClient.Builder()
+            // Большие таймауты: приложение должно работать и с плохой связью.
+            // 30с — соединение, 60с — между пакетами ответа, 120с — между пакетами тела
+            // запроса (загрузка фото), 300с — общий потолок на один вызов.
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(120, TimeUnit.SECONDS)
+            .callTimeout(300, TimeUnit.SECONDS)
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)
             .authenticator(authenticator)

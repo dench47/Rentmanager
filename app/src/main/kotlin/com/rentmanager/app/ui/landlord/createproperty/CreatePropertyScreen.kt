@@ -90,7 +90,7 @@ fun CreatePropertyScreen(
     initialLatitude: Double? = null,
     initialLongitude: Double? = null,
     onBack: () -> Unit,
-    onCreated: () -> Unit = {},
+    onCreated: (String) -> Unit = {},
     onPaymentSchedule: (String) -> Unit = {},
     viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
@@ -430,7 +430,7 @@ fun CreatePropertyScreen(
                                 photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
                                 propertyType, rentType, rooms, sleepingPlaces, floor,
                                 floorsInHouse, initialLatitude, initialLongitude
-                            ) { onCreated() }
+                            ) { onCreated(it) }
                         }
                     }
                     // Публикация — отдельный шаг (как и раньше, неактивна)

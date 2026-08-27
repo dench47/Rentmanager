@@ -174,6 +174,7 @@ fun BlackCtaButton(
     text: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    iconRes: Int? = null,
     onClick: () -> Unit
 ) {
     Box(
@@ -185,7 +186,19 @@ fun BlackCtaButton(
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(text, style = Headline2MobStyle.copy(color = Color.White))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (iconRes != null) {
+                Image(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Text(text, style = Headline2MobStyle.copy(color = Color.White))
+        }
     }
 }
 

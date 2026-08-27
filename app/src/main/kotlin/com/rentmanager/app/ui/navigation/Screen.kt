@@ -1,4 +1,4 @@
-﻿package com.rentmanager.app.ui.navigation
+package com.rentmanager.app.ui.navigation
 
 /**
  * Маршруты экранов приложения.
@@ -34,9 +34,6 @@ sealed class Screen(val route: String) {
     // Landlord tabs
     data object LandlordMain : Screen("landlord/main")
     data object MyProperties : Screen("landlord/my_properties")
-    data object PropertyDetail : Screen("landlord/property_detail/{propertyId}") {
-        fun createRoute(propertyId: String) = "landlord/property_detail/$propertyId"
-    }
     data object ChoosePropertyType : Screen("landlord/choose_property_type")
     data object ChooseRentType : Screen("landlord/choose_rent_type?propertyType={propertyType}") {
         fun createRoute(propertyType: String) = "landlord/choose_rent_type?propertyType=$propertyType"
@@ -62,6 +59,9 @@ sealed class Screen(val route: String) {
             "&longitude=" + (longitude?.toString() ?: "")
     }
 
+    data object PropertyCard : Screen("landlord/property_card/{propertyId}") {
+        fun createRoute(propertyId: String) = "landlord/property_card/$propertyId"
+    }
     data object TenantsList : Screen("landlord/tenants")
     data object TenantDetail : Screen("landlord/tenant_detail/{tenantId}") {
         fun createRoute(tenantId: String) = "landlord/tenant_detail/$tenantId"

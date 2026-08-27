@@ -10,6 +10,7 @@ import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.SendCodeRequest
 import com.rentmanager.app.data.api.UpdateProfileRequest
 import com.rentmanager.app.data.local.TokenManager
+import com.rentmanager.app.data.repository.retryOnNetworkError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -111,7 +112,10 @@ class SettingsViewModel @Inject constructor(
                 val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
                 val part = MultipartBody.Part.createFormData("file", fileName, requestBody)
 
-                val uploadResp = authApi.uploadAvatar(part)
+                // Ретрай при сетевых сбоях/таймаутах — загрузка идемпотентна (новый ключ каждый раз)
+                val uploadResp = retryOnNetworkError {
+                    authApi.uploadAvatar(part)
+                }
                 if (!uploadResp.isSuccessful) {
                     _uiState.update { it.copy(isUploading = false, errorMessage = "Ошибка загрузки файла") }
                     return@launch
