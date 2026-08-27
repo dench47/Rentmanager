@@ -137,35 +137,18 @@ private fun ContinueDraftDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .width(320.dp)
+                    .width(380.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White)
-                    .padding(20.dp),
+                    .padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                // Шапка: заголовок + подзаголовок + крестик закрытия
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text("Добавление объекта", style = ToolbarTitleStyle)
-                        Text(
-                            "Вы начали добавлять объект. Хотите продолжить?",
-                            style = Headline2MobStyle.copy(color = GreyText)
-                        )
-                    }
-                    Image(
-                        painter = painterResource(R.drawable.ic_toolbar_close),
-                        contentDescription = "Закрыть",
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable(onClickLabel = "Закрыть") { onDismiss() },
-                        contentScale = ContentScale.Fit
+                // Шапка: заголовок + подзаголовок
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Добавление объекта", style = ToolbarTitleStyle)
+                    Text(
+                        "Вы начали добавлять объект. Хотите продолжить?",
+                        style = Headline2MobStyle.copy(color = GreyText)
                     )
                 }
 

@@ -147,7 +147,7 @@ fun AttachTenantScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
-                        .height(52.dp),
+                        .height(55.dp),
                     shape = RoundedCornerShape(100.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF212121))
                 ) {

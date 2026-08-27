@@ -27,10 +27,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.theme.CardBackground
 import com.rentmanager.app.ui.theme.Graphite
+import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 import kotlin.math.abs
@@ -142,7 +144,7 @@ fun ChoiceCard(
 }
 
 // Градиент CTA (Figma: linear-gradient 136deg, #F6D85E 19% -> #E89B5A 60% -> #D97D5D 100%)
-private fun ctaGradientBrush(widthPx: Float, heightPx: Float): Brush {
+internal fun ctaGradientBrush(widthPx: Float, heightPx: Float): Brush {
     val angleRad = Math.toRadians(136.0)
     val dirX = sin(angleRad).toFloat()
     val dirY = (-cos(angleRad)).toFloat()
@@ -161,7 +163,7 @@ private fun ctaGradientBrush(widthPx: Float, heightPx: Float): Brush {
 }
 
 @Composable
-private fun rememberCtaGradient(): Brush {
+internal fun rememberCtaGradient(): Brush {
     val density = LocalDensity.current
     return remember(density) {
         with(density) { ctaGradientBrush(372.dp.toPx(), 55.dp.toPx()) }
@@ -208,7 +210,8 @@ fun OutlineCtaButton(
     text: String,
     modifier: Modifier = Modifier,
     iconRes: Int? = null,
-    borderColor: Color = Graphite,
+    borderColor: Color = GreyText,
+    iconSpacing: Dp = 10.dp,
     enabled: Boolean = true,
     onClick: () -> Unit
 ) {
@@ -225,7 +228,7 @@ fun OutlineCtaButton(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(iconSpacing)
         ) {
             iconRes?.let {
                 Image(

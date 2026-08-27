@@ -193,7 +193,7 @@ fun ForcedUpdateScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
+                        .height(55.dp)
                         .background(Color(0xFF212121), RoundedCornerShape(100.dp))
                         .clickable { if (errorMessage != null) onRetry() else onDownload() },
                     contentAlignment = Alignment.Center

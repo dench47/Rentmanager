@@ -31,8 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -46,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.ui.components.DashboardCard
 import com.rentmanager.app.ui.theme.InterFontFamily
+import com.rentmanager.app.ui.landlord.createproperty.rememberCtaGradient
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
 @Composable
@@ -184,10 +183,10 @@ private fun CtaButton(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(55.dp)
             .clip(RoundedCornerShape(100.dp))
             .background(Color(0xFF212121))
-            .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 20.dp),
+            .clickable { onClick() },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -202,7 +201,7 @@ private fun CtaButton(
         Text(
             text,
             fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             fontFamily = InterFontFamily,
             color = Color.White,
             letterSpacing = (-0.4).sp,
@@ -234,7 +233,7 @@ private fun LandlordInfBlock(onAddFirstObject: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(55.dp)
                 .clip(RoundedCornerShape(100.dp))
                 .background(Color(0xFF212121))
                 .clickable { onAddFirstObject() },
@@ -270,17 +269,9 @@ private fun GradientCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(55.dp)
             .clip(RoundedCornerShape(100.dp))
-            .background(
-                brush = Brush.linearGradient(
-                    0.19f to Color(0xFFF6D85E),
-                    0.60f to Color(0xFFE89B5A),
-                    1.00f to Color(0xFFD97D5D),
-                    start = Offset.Zero,
-                    end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
-                )
-            )
+            .background(brush = rememberCtaGradient())
             .clickable { onClick() },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
@@ -306,17 +297,17 @@ private fun GradientCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
 }
 
 /**
- * Контурная CTA-кнопка (Figma: белый фон, рамка 1px Graphite #212121, радиус 100).
+ * Контурная CTA-кнопка (Figma: белый фон, рамка 1px Grey/Text #727272, радиус 100).
  */
 @Composable
 private fun OutlineCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(55.dp)
             .clip(RoundedCornerShape(100.dp))
             .background(Color.White)
-            .border(1.dp, Color(0xFF212121), RoundedCornerShape(100.dp))
+            .border(1.dp, Color(0xFF727272), RoundedCornerShape(100.dp))
             .clickable { onClick() },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
@@ -440,7 +431,7 @@ private fun TenantStatsSection(paymentDate: String, paymentAmount: String, hasDe
             Box(
                 modifier = Modifier
                     .width(183.dp)
-                    .height(49.dp)
+                    .height(55.dp)
                     .clip(RoundedCornerShape(100.dp))
                     .background(Color(0xFF212121))
                     .clickable { onPay() },
@@ -475,7 +466,7 @@ private fun EmptyStateBlock(role: UserRole, onAction: () -> Unit) {
         Box(
             modifier = Modifier
                 .width(183.dp)
-                .height(49.dp)
+                .height(55.dp)
                 .clip(RoundedCornerShape(100.dp))
                 .background(Color(0xFF212121))
                 .clickable { onAction() },

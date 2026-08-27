@@ -179,9 +179,13 @@ class MyPropertiesViewModel @Inject constructor(
 private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
     id = id,
     name = name,
-    address = address,
+    // Макет «Моя недвижимость»: короткий адрес — последние 2 сегмента, без города
+    address = address.shortAddress(),
     photoUrl = photos?.firstOrNull()?.url
 )
+
+private fun String.shortAddress(): String =
+    split(',').map { it.trim() }.filter { it.isNotEmpty() }.takeLast(2).joinToString(", ")
 
 private fun BookingDto.toBookingRange(): BookingRange = BookingRange(
     id = id,

@@ -688,7 +688,7 @@ fun PaymentScheduleScreen(
                             viewModel.save(propertyId, day, amount, customJson)
                         },
                         enabled = !uiState.isLoading,
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        modifier = Modifier.fillMaxWidth().height(55.dp),
                         shape = RoundedCornerShape(100.dp)
                     ) {
                         Text(if (uiState.isLoading) "Сохранение…" else "Сохранить", fontSize = 16.sp, fontWeight = FontWeight.Medium)

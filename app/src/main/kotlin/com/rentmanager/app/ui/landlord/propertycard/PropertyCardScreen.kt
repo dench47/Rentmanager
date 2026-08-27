@@ -196,17 +196,19 @@ fun PropertyCardScreen(
                         Text("Договор", style = CardSubtitleStyle, modifier = Modifier.weight(1f))
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             OutlineCtaButton(
                                 text = "Позвонить",
-                                iconRes = R.drawable.ic_call_phone,
+                                iconRes = R.drawable.ic_tab_call,
                                 modifier = Modifier.weight(1f),
+                                iconSpacing = 4.dp,
                                 onClick = {}
                             )
                             OutlineCtaButton(
                                 text = "Написать",
                                 iconRes = R.drawable.ic_chat_message,
                                 modifier = Modifier.weight(1f),
+                                iconSpacing = 4.dp,
                                 onClick = {}
                             )
                         }
@@ -289,7 +291,7 @@ fun PropertyCardScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SectionHeader("Счетчики", pencilRes = R.drawable.ic_edit_pencil_white)
-                BlackCtaButton(text = "Добавить счетчики", iconRes = R.drawable.ic_plus_circle, onClick = {})
+                BlackCtaButton(text = "Добавить счетчики", iconRes = R.drawable.ic_plus_circle_white, onClick = {})
             }
         }
 
