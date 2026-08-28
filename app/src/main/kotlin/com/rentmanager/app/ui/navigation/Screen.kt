@@ -62,6 +62,11 @@ sealed class Screen(val route: String) {
     data object PropertyCard : Screen("landlord/property_card/{propertyId}") {
         fun createRoute(propertyId: String) = "landlord/property_card/$propertyId"
     }
+
+    // Редактирование объекта (шаг 4 флоу создания в режиме редактирования)
+    data object EditProperty : Screen("landlord/edit_property/{propertyId}") {
+        fun createRoute(propertyId: String) = "landlord/edit_property/$propertyId"
+    }
     data object TenantsList : Screen("landlord/tenants")
     data object TenantDetail : Screen("landlord/tenant_detail/{tenantId}") {
         fun createRoute(tenantId: String) = "landlord/tenant_detail/$tenantId"

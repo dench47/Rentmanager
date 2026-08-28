@@ -32,12 +32,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -84,6 +86,7 @@ private val FloorsInHouseOptions = (1..100).map { it.toString() }
 @Composable
 fun CreatePropertyScreen(
     propertyId: String? = null,
+    editPropertyId: String? = null,
     propertyType: String = "Квартира",
     rentType: String = "посуточно",
     initialAddress: String = "",
@@ -94,20 +97,74 @@ fun CreatePropertyScreen(
     onPaymentSchedule: (String) -> Unit = {},
     viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
-    var name by remember { mutableStateOf(CreateDraftHolder.name) }
-    var area by remember { mutableStateOf(CreateDraftHolder.area) }
-    var price by remember { mutableStateOf(CreateDraftHolder.price) }
-    var description by remember { mutableStateOf(CreateDraftHolder.description) }
+    val isEditMode = editPropertyId != null
+    val uiState by viewModel.uiState.collectAsState()
+    val editProperty = uiState.editProperty
 
-    var rooms by remember { mutableStateOf(CreateDraftHolder.rooms) }
-    var sleepingPlaces by remember { mutableStateOf(CreateDraftHolder.sleepingPlaces) }
-    var floor by remember { mutableStateOf(CreateDraftHolder.floor) }
-    var floorsInHouse by remember { mutableStateOf(CreateDraftHolder.floorsInHouse) }
+    if (isEditMode) {
+        // Загружаем редактируемый объект: мгновенно из кэша, затем с сервера
+        LaunchedEffect(editPropertyId) { viewModel.loadForEdit(editPropertyId!!) }
+        // Правки объекта не должны портить черновик флоу создания:
+        // сохраняем его снимок на входе и восстанавливаем при выходе с экрана
+        val draftSnapshot = remember { CreateDraftHolder.snapshot() }
+        DisposableEffect(Unit) {
+            onDispose { CreateDraftHolder.restore(draftSnapshot) }
+        }
+    }
 
-    var phoneNumber by remember { mutableStateOf(CreateDraftHolder.phoneNumber) }
-    var wifiPassword by remember { mutableStateOf(CreateDraftHolder.wifiPassword) }
-    var rulesText by remember { mutableStateOf(CreateDraftHolder.rulesText) }
-    var serviceInfo by remember { mutableStateOf(CreateDraftHolder.serviceInfo) }
+    // Пока объект для редактирования не загружен — показываем лоадер
+    if (isEditMode && editProperty == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = Graphite)
+        }
+        return
+    }
+
+    // В режиме редактирования поля предзаполняются данными объекта
+    val editKey = editProperty?.id
+    var name by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.name.orEmpty() else CreateDraftHolder.name)
+    }
+    var area by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.area?.toFieldText().orEmpty() else CreateDraftHolder.area)
+    }
+    var price by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.rentAmount?.toFieldText().orEmpty() else CreateDraftHolder.price)
+    }
+    var description by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.description.orEmpty() else CreateDraftHolder.description)
+    }
+
+    var rooms by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.rooms else CreateDraftHolder.rooms)
+    }
+    var sleepingPlaces by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.sleepingPlaces else CreateDraftHolder.sleepingPlaces)
+    }
+    var floor by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.floor else CreateDraftHolder.floor)
+    }
+    var floorsInHouse by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.floorsInHouse else CreateDraftHolder.floorsInHouse)
+    }
+
+    var phoneNumber by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.phone.orEmpty() else CreateDraftHolder.phoneNumber)
+    }
+    var wifiPassword by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.wifiPassword.orEmpty() else CreateDraftHolder.wifiPassword)
+    }
+    var rulesText by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.houseRules.orEmpty() else CreateDraftHolder.rulesText)
+    }
+    var serviceInfo by remember(editKey) {
+        mutableStateOf(if (isEditMode) editProperty?.serviceInfo.orEmpty() else CreateDraftHolder.serviceInfo)
+    }
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
 
@@ -118,7 +175,11 @@ fun CreatePropertyScreen(
     var areaError by remember { mutableStateOf(false) }
     var priceError by remember { mutableStateOf(false) }
 
-    var photoUris by remember { mutableStateOf(CreateDraftHolder.photoUris) }
+    var photoUris by remember(editKey) {
+        mutableStateOf(
+            if (isEditMode) editProperty?.photos.orEmpty().map { it.url } else CreateDraftHolder.photoUris
+        )
+    }
     var showPhotoMenuIndex by remember { mutableIntStateOf(-1) }
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -129,7 +190,6 @@ fun CreatePropertyScreen(
         }
     }
 
-    val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
@@ -140,8 +200,17 @@ fun CreatePropertyScreen(
         }
     }
 
+    // В режиме редактирования тип/аренда/адрес/координаты берём из объекта
+    val effPropertyType = editProperty?.type ?: propertyType
+    val effRentType = editProperty?.rentType ?: rentType
+    val effAddress = editProperty?.address ?: initialAddress
+    val effLatitude = editProperty?.latitude ?: initialLatitude
+    val effLongitude = editProperty?.longitude ?: initialLongitude
+    // id объекта для «Графика платежей» (в режиме правки — редактируемый объект)
+    val schedulePropertyId = propertyId ?: editPropertyId
+
     val canCreate = name.isNotBlank() &&
-        initialAddress.isNotBlank() &&
+        effAddress.isNotBlank() &&
         !uiState.isCreating
 
     Scaffold(containerColor = Color.White) { paddingValues ->
@@ -151,7 +220,11 @@ fun CreatePropertyScreen(
                 .background(Color.White)
                 .padding(paddingValues)
         ) {
-            ScreenToolbar(title = "Новый объект", onBack = onBack, showClose = false)
+            ScreenToolbar(
+                title = if (isEditMode) "Редактировать объект" else "Новый объект",
+                onBack = onBack,
+                showClose = false
+            )
             CreationProgressBar(currentStep = 4)
             Spacer(Modifier.height(20.dp))
 
@@ -239,7 +312,7 @@ fun CreatePropertyScreen(
                         isError = nameError
                     )
                     // Адрес перенесён на шаг 3 — здесь только отображение
-                    CardAddressDisplay(address = initialAddress, isError = addressError)
+                    CardAddressDisplay(address = effAddress, isError = addressError)
                     Row(
                         modifier = Modifier.fillMaxWidth().height(65.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -316,7 +389,7 @@ fun CreatePropertyScreen(
                             priceError = false
                             CreateDraftHolder.price = it
                         },
-                        placeholder = if (rentType == "длительно") "Цена за месяц, ₽" else "Цена за сутки, ₽",
+                        placeholder = if (effRentType == "длительно") "Цена за месяц, ₽" else "Цена за сутки, ₽",
                         keyboardType = KeyboardType.Decimal,
                         isError = priceError
                     )
@@ -331,14 +404,14 @@ fun CreatePropertyScreen(
                             iconRes = R.drawable.ic_payment_schedule,
                             borderColor = Color(0xD9212121)
                         ) {
-                            if (propertyId != null) {
-                                onPaymentSchedule(propertyId)
+                            if (schedulePropertyId != null) {
+                                onPaymentSchedule(schedulePropertyId)
                             } else if (canCreate) {
                                 submitCreate(
-                                    viewModel, name, initialAddress, area, price, description,
+                                    viewModel, name, effAddress, area, price, description,
                                     photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
-                                    propertyType, rentType, rooms, sleepingPlaces, floor,
-                                    floorsInHouse, initialLatitude, initialLongitude
+                                    effPropertyType, effRentType, rooms, sleepingPlaces, floor,
+                                    floorsInHouse, effLatitude, effLongitude
                                 ) { newId -> onPaymentSchedule(newId) }
                             }
                         }
@@ -413,28 +486,66 @@ fun CreatePropertyScreen(
                     }
                 }
 
-                // 8. Кнопки (Figma: «Создать объект» контур + «Создать и опубликовать» градиент)
+                // 8. Кнопки (создание: «Создать объект» + «Создать и опубликовать»;
+                // редактирование: одна кнопка «Сохранить изменения», Figma 2521:17683)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlineCtaButton(text = "Создать объект") {
-                        // Валидация обязательных полей: кнопка всегда чёрная, но создание
-                        // запускается только когда все обязательные поля заполнены
-                        nameError = name.isBlank()
-                        roomsError = rooms == null
-                        addressError = initialAddress.isBlank()
-                        areaError = area.isBlank()
-                        priceError = price.isBlank()
-                        val hasErrors = nameError || roomsError || addressError || areaError || priceError
-                        if (!hasErrors) {
-                            submitCreate(
-                                viewModel, name, initialAddress, area, price, description,
-                                photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
-                                propertyType, rentType, rooms, sleepingPlaces, floor,
-                                floorsInHouse, initialLatitude, initialLongitude
-                            ) { onCreated(it) }
+                    if (isEditMode) {
+                        GradientCtaButton(
+                            text = "Сохранить изменения",
+                            enabled = !uiState.isCreating
+                        ) {
+                            nameError = name.isBlank()
+                            roomsError = rooms == null
+                            addressError = effAddress.isBlank()
+                            areaError = area.isBlank()
+                            priceError = price.isBlank()
+                            val hasErrors = nameError || roomsError || addressError || areaError || priceError
+                            if (!hasErrors) {
+                                viewModel.updateProperty(
+                                    propertyId = editPropertyId ?: "",
+                                    name = name,
+                                    address = effAddress,
+                                    area = area,
+                                    rentAmount = price,
+                                    description = description,
+                                    photoUris = photoUris,
+                                    serviceInfo = serviceInfo,
+                                    phone = phoneNumber,
+                                    wifiPassword = wifiPassword,
+                                    houseRules = rulesText,
+                                    type = effPropertyType,
+                                    rentType = effRentType,
+                                    rooms = rooms,
+                                    sleepingPlaces = sleepingPlaces,
+                                    floor = floor,
+                                    floorsInHouse = floorsInHouse,
+                                    latitude = effLatitude,
+                                    longitude = effLongitude
+                                ) { onCreated(it) }
+                            }
                         }
+                    } else {
+                        OutlineCtaButton(text = "Создать объект") {
+                            // Валидация обязательных полей: кнопка всегда чёрная, но создание
+                            // запускается только когда все обязательные поля заполнены
+                            nameError = name.isBlank()
+                            roomsError = rooms == null
+                            addressError = effAddress.isBlank()
+                            areaError = area.isBlank()
+                            priceError = price.isBlank()
+                            val hasErrors = nameError || roomsError || addressError || areaError || priceError
+                            if (!hasErrors) {
+                                submitCreate(
+                                    viewModel, name, effAddress, area, price, description,
+                                    photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
+                                    effPropertyType, effRentType, rooms, sleepingPlaces, floor,
+                                    floorsInHouse, effLatitude, effLongitude
+                                ) { onCreated(it) }
+                            }
+                        }
+                        // Публикация — отдельный шаг (как и раньше, неактивна)
+                        GradientCtaButton(text = "Создать и опубликовать", enabled = false) {}
                     }
-                    // Публикация — отдельный шаг (как и раньше, неактивна)
-                    GradientCtaButton(text = "Создать и опубликовать", enabled = false) {}
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -487,6 +598,10 @@ private fun submitCreate(
         onSuccess = onSuccess
     )
 }
+
+// 55.0 → «55», 55.5 → «55.5» — предзаполнение числовых полей в режиме редактирования
+private fun Double.toFieldText(): String =
+    if (this == toLong().toDouble()) toLong().toString() else toString()
 
 // Плитка «Добавить фото» (Figma: 183x130, r30, камера 50, подпись 15 SemiBold Grey/Text)
 @Composable

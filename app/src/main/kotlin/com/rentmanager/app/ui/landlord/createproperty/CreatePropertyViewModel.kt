@@ -27,7 +27,9 @@ data class CreatePropertyUiState(
     val selectedLatitude: Double? = null,
     val selectedLongitude: Double? = null,
     val addressToSet: String? = null,
-    val addressError: String? = null
+    val addressError: String? = null,
+    /** Объект, загруженный для редактирования (не null только в режиме правки). */
+    val editProperty: PropertyDto? = null
 )
 
 @HiltViewModel
@@ -265,5 +267,131 @@ class CreatePropertyViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
+    /**
+     * Загружает объект для редактирования: мгновенно из кэша (если есть),
+     * затем актуальные данные с сервера.
+     */
+    fun loadForEdit(propertyId: String) {
+        if (propertyId.isBlank()) return
+        if (_uiState.value.editProperty?.id == propertyId) return
+        viewModelScope.launch {
+            val cached = try {
+                detailCache.load(propertyId)?.property
+            } catch (_: Exception) {
+                null
+            }
+            if (cached != null) {
+                _uiState.value = _uiState.value.copy(editProperty = cached)
+            }
+            try {
+                val resp = propertyRepository.getProperty(propertyId)
+                val body = if (resp.isSuccessful) resp.body() else null
+                if (body != null) {
+                    detailCache.saveProperty(body)
+                    _uiState.value = _uiState.value.copy(editProperty = body)
+                } else if (cached == null) {
+                    _uiState.value =
+                        _uiState.value.copy(errorMessage = "Не удалось загрузить объект (${resp.code()})")
+                }
+            } catch (e: Exception) {
+                if (cached == null) {
+                    _uiState.value = _uiState.value.copy(errorMessage = e.message ?: "Ошибка сети")
+                }
+            }
+        }
+    }
+
+    /**
+     * Сохраняет изменения существующего объекта (PUT): сначала поля,
+     * затем удаление убранных фото и загрузка добавленных.
+     */
+    fun updateProperty(
+        propertyId: String,
+        name: String,
+        address: String,
+        area: String?,
+        rentAmount: String?,
+        description: String?,
+        photoUris: List<String>,
+        serviceInfo: String?,
+        phone: String?,
+        wifiPassword: String?,
+        houseRules: String?,
+        type: String?,
+        rentType: String?,
+        rooms: String?,
+        sleepingPlaces: String?,
+        floor: String?,
+        floorsInHouse: String?,
+        latitude: Double?,
+        longitude: Double?,
+        onSuccess: (String) -> Unit
+    ) {
+        val original = _uiState.value.editProperty
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isCreating = true)
+            try {
+                // 1. Сохраняем поля объекта
+                val dto = PropertyDto(
+                    name = name,
+                    address = address.trim().trimEnd(',', ' '),
+                    area = area?.toDoubleOrNull(),
+                    rentAmount = rentAmount?.toDoubleOrNull(),
+                    description = description,
+                    serviceInfo = serviceInfo,
+                    phone = phone,
+                    wifiPassword = wifiPassword,
+                    houseRules = houseRules,
+                    type = type,
+                    rentType = rentType,
+                    rooms = rooms,
+                    sleepingPlaces = sleepingPlaces,
+                    floor = floor,
+                    floorsInHouse = floorsInHouse,
+                    latitude = latitude,
+                    longitude = longitude
+                )
+                val resp = propertyRepository.updateProperty(propertyId, dto)
+                if (!resp.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(
+                        isCreating = false,
+                        errorMessage = "Ошибка сохранения объекта (${resp.code()})"
+                    )
+                    return@launch
+                }
+
+                // 2. Удаляем существующие фото, которые убрали из списка
+                // (локальные uri — не http, они обрабатываются шагом 3)
+                val keptUrls = photoUris.filter { it.startsWith("http") }
+                original?.photos.orEmpty().forEach { photo ->
+                    if (photo.id != null && photo.url !in keptUrls) {
+                        try {
+                            propertyRepository.deletePhoto(photo.id)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+
+                // 3. Загружаем новые локальные фото и прикрепляем к объекту
+                photoUris.filter { !it.startsWith("http") }.forEach { uri ->
+                    try {
+                        val url = photoUploader.upload(uri.toUri())
+                        propertyRepository.addPhoto(propertyId, url)
+                    } catch (_: Exception) {
+                    }
+                }
+
+                // 4. Перечитываем финальное состояние и обновляем кэш
+                val finalResp = propertyRepository.getProperty(propertyId)
+                val finalDto = if (finalResp.isSuccessful) finalResp.body() else resp.body()
+                if (finalDto != null) detailCache.saveProperty(finalDto)
+                _uiState.value = _uiState.value.copy(isCreating = false, editProperty = finalDto)
+                onSuccess(propertyId)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isCreating = false, errorMessage = e.message ?: "Ошибка")
+            }
+        }
     }
 }

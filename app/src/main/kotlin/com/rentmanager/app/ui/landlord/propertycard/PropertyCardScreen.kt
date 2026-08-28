@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.landlord.propertycard
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,7 +24,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,17 +44,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
+import com.rentmanager.app.ui.landlord.createproperty.GradientCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.OutlineCtaButton
 import com.rentmanager.app.ui.theme.CardBackground
+import com.rentmanager.app.ui.theme.ErrorRed
 import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
@@ -66,6 +76,12 @@ private val GreenIcon = Color(0xFFE5F2E7)
 private val GreenText = Color(0xFF2F7D4D)
 private val BrandTint = Color(0xFFFFF1CF)
 private val White50 = Color(0x80FFFFFF)
+// rgba(33,33,33,0.85) — рамка кнопок в нижнем шите действий
+private val Graphite85 = Color(0xD9212121)
+// #CAC4D0 — разделитель в шите действий
+private val DividerGrey = Color(0xFFCAC4D0)
+// #79747E — drag handle шита
+private val SheetHandleGrey = Color(0xFF79747E)
 
 // Карточка объекта (Figma 2Y1uc9owPaF7N9jzQhhuIr, node 2574:20588)
 @Composable
@@ -73,11 +89,27 @@ fun PropertyCardScreen(
     propertyId: String,
     onBack: () -> Unit,
     onPaymentSchedule: (String) -> Unit,
+    onEditProperty: (String) -> Unit,
+    onDeleted: () -> Unit = {},
     viewModel: PropertyCardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     LaunchedEffect(propertyId) { viewModel.load(propertyId) }
     val property = uiState.property
+
+    var showActionsSheet by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // Ошибки действий (публикация/удаление/загрузка) — Toast'ами
+    LaunchedEffect(Unit) {
+        viewModel.errorEvents.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    }
+    // Объект удалён — закрываем карточку (со освежением списка объектов)
+    LaunchedEffect(Unit) {
+        viewModel.deleted.collect { onDeleted() }
+    }
+
     var tenantExpanded by remember { mutableStateOf(false) }
     var serviceExpanded by remember { mutableStateOf(false) }
 
@@ -109,7 +141,10 @@ fun PropertyCardScreen(
             Image(
                 painter = painterResource(R.drawable.ic_toolbar_more),
                 contentDescription = "Ещё",
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .clickable { showActionsSheet = true }
             )
         }
 
@@ -118,7 +153,7 @@ fun PropertyCardScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
         ) {
-            PhotoSlider(property)
+            PhotoSlider(property, onEdit = { onEditProperty(propertyId) })
 
             // Белая панель (наложение на фото, offset -19dp)
             Column(
@@ -328,11 +363,47 @@ fun PropertyCardScreen(
             }
         }
     }
+
+    // Шит действий с объектом (⋮): редактировать / публикация / удалить
+    if (showActionsSheet) {
+        PropertyActionsSheet(
+            isPublished = property?.isPublished == true,
+            isActionInProgress = uiState.isActionInProgress,
+            onEdit = {
+                showActionsSheet = false
+                onEditProperty(propertyId)
+            },
+            onPublish = {
+                showActionsSheet = false
+                viewModel.publish()
+            },
+            onUnpublish = {
+                showActionsSheet = false
+                viewModel.unpublish()
+            },
+            onRequestDelete = {
+                showActionsSheet = false
+                showDeleteDialog = true
+            },
+            onDismiss = { showActionsSheet = false }
+        )
+    }
+
+    // Диалог подтверждения удаления объекта
+    if (showDeleteDialog) {
+        DeletePropertyDialog(
+            onConfirm = {
+                showDeleteDialog = false
+                viewModel.deleteProperty()
+            },
+            onDismiss = { showDeleteDialog = false }
+        )
+    }
 }
 // ---------- вспомогательные ----------
 
 @Composable
-private fun PhotoSlider(property: PropertyDto?) {
+private fun PhotoSlider(property: PropertyDto?, onEdit: () -> Unit = {}) {
     val photos = property?.photos?.mapNotNull { it.url } ?: emptyList()
     val pagerState = rememberPagerState { photos.size }
     val scope = rememberCoroutineScope()
@@ -408,8 +479,10 @@ private fun PhotoSlider(property: PropertyDto?) {
             )
         }
 
-        // Плашка «Не опубликовано» и карандаш — ПОВЕРХ фото (Figma 20675/20676/20679):
-        // отступы top/start/end = 20, плашка на белом фоне radius 10, карандаш на белом круге.
+        // Плашка «Опубликовано/Не опубликовано» и карандаш — ПОВЕРХ фото
+        // (Figma 20675/20676/20679 и 2574:20032): отступы top/start/end = 20,
+        // плашка radius 10, карандаш на белом круге.
+        val published = property?.isPublished == true
         Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -421,7 +494,7 @@ private fun PhotoSlider(property: PropertyDto?) {
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White)
+                    .background(if (published) GreenIcon else Color.White)
                     .padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -430,14 +503,22 @@ private fun PhotoSlider(property: PropertyDto?) {
                     Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF212121))
+                        .background(if (published) GreenText else Color(0xFF212121))
                 )
-                Text("Не опубликовано", style = Headline2MobStyle.copy(color = Color(0xFF212121)))
+                Text(
+                    if (published) "Опубликовано" else "Не опубликовано",
+                    style = Headline2MobStyle.copy(
+                        color = if (published) GreenText else Color(0xFF212121)
+                    )
+                )
             }
             Image(
                 painter = painterResource(R.drawable.ic_edit_pencil_white),
                 contentDescription = "Редактировать",
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onEdit)
             )
         }
     }
@@ -613,5 +694,116 @@ private fun GradientFullButton(text: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Text(text, style = Headline2MobStyle)
+    }
+}
+
+// Нижний шит «Действие с объектом» (Figma 2574:21650 — не опубликован /
+// 2574:21684 — опубликован): редактирование, публикация/снятие с публикации,
+// разделитель, удаление.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PropertyActionsSheet(
+    isPublished: Boolean,
+    isActionInProgress: Boolean,
+    onEdit: () -> Unit,
+    onPublish: () -> Unit,
+    onUnpublish: () -> Unit,
+    onRequestDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White,
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = 8.dp)
+                    .size(width = 32.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(SheetHandleGrey)
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, bottom = 36.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Действие с объектом", style = ToolbarTitleStyle)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlineCtaButton(
+                    text = "Редактировать объект",
+                    iconRes = R.drawable.ic_action_edit,
+                    borderColor = Graphite85,
+                    onClick = onEdit
+                )
+                if (isPublished) {
+                    BlackCtaButton(
+                        text = "Снять с публикации",
+                        enabled = !isActionInProgress,
+                        onClick = onUnpublish
+                    )
+                } else {
+                    GradientCtaButton(
+                        text = "Опубликовать объявление",
+                        enabled = !isActionInProgress,
+                        onClick = onPublish
+                    )
+                }
+            }
+            HorizontalDivider(color = DividerGrey, thickness = 1.dp)
+            OutlineCtaButton(
+                text = "Удалить объект",
+                iconRes = R.drawable.ic_action_delete,
+                borderColor = ErrorRed,
+                textColor = ErrorRed,
+                onClick = onRequestDelete
+            )
+        }
+    }
+}
+
+// Диалог подтверждения удаления объекта (Figma 2574:21637):
+// центр-выровненная карточка, радиус 20, красная залитая кнопка + контурная «Отменить».
+@Composable
+private fun DeletePropertyDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text("Удалить объект?", style = ToolbarTitleStyle)
+            Text(
+                "Будут удалены данные объекта, договор, история платежей и показания счетчиков. Это действие нельзя отменить.",
+                style = Headline2MobStyle.copy(color = GreyText)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                BlackCtaButton(
+                    text = "Удалить объект",
+                    containerColor = ErrorRed,
+                    onClick = onConfirm
+                )
+                OutlineCtaButton(
+                    text = "Отменить",
+                    borderColor = Graphite85,
+                    onClick = onDismiss
+                )
+            }
+        }
     }
 }

@@ -32,5 +32,6 @@ data class PropertyDto(
     @SerializedName("contract_date") val contractDate: String? = null,
     @SerializedName("tenant_id") val tenantId: String? = null,
     @SerializedName("latitude") val latitude: Double? = null,
-    @SerializedName("longitude") val longitude: Double? = null
+    @SerializedName("longitude") val longitude: Double? = null,
+    @SerializedName("is_published") val isPublished: Boolean? = null
 )

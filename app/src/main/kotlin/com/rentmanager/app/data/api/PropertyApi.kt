@@ -32,6 +32,12 @@ interface PropertyApi {
     @DELETE("properties/{id}")
     suspend fun deleteProperty(@Path("id") id: String): Response<Unit>
 
+    @POST("properties/{id}/publish")
+    suspend fun publishProperty(@Path("id") id: String): Response<PropertyDto>
+
+    @POST("properties/{id}/unpublish")
+    suspend fun unpublishProperty(@Path("id") id: String): Response<PropertyDto>
+
     @POST("properties/{id}/attach_tenant")
     suspend fun attachTenant(@Path("id") id: String, @Body request: AttachTenantRequest): Response<MessageResponse>
 

@@ -83,4 +83,38 @@ object CreateDraftHolder {
         entryRequested = false
         autoContinue = false
     }
+
+    /** Снимок полей шага 4 — чтобы режим редактирования объекта не портил черновик создания. */
+    fun snapshot(): Map<String, Any?> = mapOf(
+        "name" to name,
+        "area" to area,
+        "price" to price,
+        "description" to description,
+        "rooms" to rooms,
+        "sleepingPlaces" to sleepingPlaces,
+        "floor" to floor,
+        "floorsInHouse" to floorsInHouse,
+        "photoUris" to photoUris,
+        "phoneNumber" to phoneNumber,
+        "wifiPassword" to wifiPassword,
+        "rulesText" to rulesText,
+        "serviceInfo" to serviceInfo
+    )
+
+    /** Восстановление полей шага 4 из снимка [snapshot]. */
+    fun restore(snapshot: Map<String, Any?>) {
+        name = snapshot["name"] as? String ?: ""
+        area = snapshot["area"] as? String ?: ""
+        price = snapshot["price"] as? String ?: ""
+        description = snapshot["description"] as? String ?: ""
+        rooms = snapshot["rooms"] as? String
+        sleepingPlaces = snapshot["sleepingPlaces"] as? String
+        floor = snapshot["floor"] as? String
+        floorsInHouse = snapshot["floorsInHouse"] as? String
+        photoUris = (snapshot["photoUris"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+        phoneNumber = snapshot["phoneNumber"] as? String ?: ""
+        wifiPassword = snapshot["wifiPassword"] as? String ?: ""
+        rulesText = snapshot["rulesText"] as? String ?: ""
+        serviceInfo = snapshot["serviceInfo"] as? String ?: ""
+    }
 }

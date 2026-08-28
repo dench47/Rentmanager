@@ -52,4 +52,11 @@ class PropertyDetailCache @Inject constructor(
             prefs.edit().putString(entry.property.id, gson.toJson(entry)).apply()
         } catch (_: Exception) { }
     }
+
+    /** Удаляет закэшированную карточку объекта (после удаления объекта). */
+    fun remove(propertyId: String) {
+        try {
+            prefs.edit().remove(propertyId).apply()
+        } catch (_: Exception) { }
+    }
 }

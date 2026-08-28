@@ -177,14 +177,16 @@ fun BlackCtaButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     iconRes: Int? = null,
+    containerColor: Color = Graphite,
     onClick: () -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(55.dp)
+            .alpha(if (enabled) 1f else 0.4f)
             .clip(RoundedCornerShape(100.dp))
-            .background(Graphite)
+            .background(containerColor)
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -213,6 +215,7 @@ fun OutlineCtaButton(
     borderColor: Color = GreyText,
     iconSpacing: Dp = 10.dp,
     enabled: Boolean = true,
+    textColor: Color? = null,
     onClick: () -> Unit
 ) {
     Box(
@@ -237,7 +240,10 @@ fun OutlineCtaButton(
                     modifier = Modifier.size(24.dp)
                 )
             }
-            Text(text, style = Headline2MobStyle)
+            Text(
+                text,
+                style = if (textColor != null) Headline2MobStyle.copy(color = textColor) else Headline2MobStyle
+            )
         }
     }
 }

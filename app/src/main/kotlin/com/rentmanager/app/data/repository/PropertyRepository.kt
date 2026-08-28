@@ -15,6 +15,8 @@ class PropertyRepository @Inject constructor(
     suspend fun createProperty(property: PropertyDto) = propertyApi.createProperty(property)
     suspend fun updateProperty(id: String, property: PropertyDto) = propertyApi.updateProperty(id, property)
     suspend fun deleteProperty(id: String) = propertyApi.deleteProperty(id)
+    suspend fun publishProperty(id: String) = propertyApi.publishProperty(id)
+    suspend fun unpublishProperty(id: String) = propertyApi.unpublishProperty(id)
     suspend fun addPhoto(id: String, url: String) = propertyApi.addPhoto(id, AddPhotoRequest(url))
     suspend fun deletePhoto(photoId: String) = propertyApi.deletePhoto(photoId)
 }
