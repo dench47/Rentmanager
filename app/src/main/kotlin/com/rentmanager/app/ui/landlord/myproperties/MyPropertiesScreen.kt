@@ -81,6 +81,7 @@ import com.rentmanager.app.R
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+import com.rentmanager.app.ui.components.ScaledModalBottomSheet
 
 // Цвета из Figma (node 2183:9531)
 private val White = Color.White
@@ -830,7 +831,7 @@ private fun PeriodPickerSheet(
     val sheetState = rememberModalBottomSheetState()
     val currentYear = LocalDate.now().year
 
-    ModalBottomSheet(
+    ScaledModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),

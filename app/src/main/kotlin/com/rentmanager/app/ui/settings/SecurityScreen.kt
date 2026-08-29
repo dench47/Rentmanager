@@ -29,6 +29,7 @@ import com.rentmanager.app.data.api.TrustedDeviceDto
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.rentmanager.app.ui.components.ScaledModalBottomSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -175,7 +176,7 @@ fun SecurityScreen(
     }
 
     if (showDevicesSheet) {
-        ModalBottomSheet(
+        ScaledModalBottomSheet(
             onDismissRequest = { showDevicesSheet = false },
             containerColor = Color.White,
             shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)

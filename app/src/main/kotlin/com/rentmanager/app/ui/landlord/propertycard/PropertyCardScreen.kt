@@ -71,6 +71,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.coroutines.launch
+import com.rentmanager.app.ui.components.ScaledModalBottomSheet
 
 private val GreenIcon = Color(0xFFE5F2E7)
 private val GreenText = Color(0xFF2F7D4D)
@@ -90,6 +91,7 @@ fun PropertyCardScreen(
     onBack: () -> Unit,
     onPaymentSchedule: (String) -> Unit,
     onEditProperty: (String) -> Unit,
+    onAddCounter: (String) -> Unit = {},
     onDeleted: () -> Unit = {},
     viewModel: PropertyCardViewModel = hiltViewModel()
 ) {
@@ -365,7 +367,11 @@ fun PropertyCardScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SectionHeader("Счетчики", pencilRes = R.drawable.ic_edit_pencil_white, onPencilClick = { showMetersSheet = true })
-                BlackCtaButton(text = "Добавить счетчики", iconRes = R.drawable.ic_plus_circle_white, onClick = {})
+                BlackCtaButton(
+                    text = "Добавить счетчики",
+                    iconRes = R.drawable.ic_plus_circle_white,
+                    onClick = { onAddCounter(propertyId) }
+                )
             }
         }
 
@@ -821,7 +827,7 @@ private fun PropertyActionsSheet(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    ScaledModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),

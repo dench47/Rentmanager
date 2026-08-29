@@ -97,4 +97,9 @@ sealed class Screen(val route: String) {
         fun createRoute(propertyId: String, meterId: String) =
             "landlord/meter_detail/$propertyId/$meterId"
     }
+
+    // Экран добавления счётчика (Figma 2713:40952)
+    data object AddCounter : Screen("landlord/add_counter/{propertyId}") {
+        fun createRoute(propertyId: String) = "landlord/add_counter/$propertyId"
+    }
 }

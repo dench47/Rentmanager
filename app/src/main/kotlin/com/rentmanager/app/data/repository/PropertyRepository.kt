@@ -2,6 +2,7 @@ package com.rentmanager.app.data.repository
 
 import com.rentmanager.app.data.api.AddPhotoRequest
 import com.rentmanager.app.data.api.PropertyApi
+import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PropertyDto
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,4 +20,6 @@ class PropertyRepository @Inject constructor(
     suspend fun unpublishProperty(id: String) = propertyApi.unpublishProperty(id)
     suspend fun addPhoto(id: String, url: String) = propertyApi.addPhoto(id, AddPhotoRequest(url))
     suspend fun deletePhoto(photoId: String) = propertyApi.deletePhoto(photoId)
+    suspend fun getMeters(id: String) = propertyApi.getMeters(id)
+    suspend fun createMeter(id: String, meter: MeterDto) = propertyApi.createMeter(id, meter)
 }

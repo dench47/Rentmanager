@@ -28,6 +28,7 @@ import com.rentmanager.app.ui.tenant.properties.TenantPropertiesScreen
 import com.rentmanager.app.ui.landlord.payment.PaymentScheduleScreen
 import com.rentmanager.app.ui.finance.FinanceScreen
 import com.rentmanager.app.ui.finance.SubscriptionScreen
+import com.rentmanager.app.ui.counter.add.AddCounterScreen
 import com.rentmanager.app.ui.landlord.createproperty.CreateDraftHolder
 
 @Composable
@@ -305,10 +306,24 @@ fun RentManagerNavGraph(
                 onBack = { navController.popBackStack() },
                 onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) },
                 onEditProperty = { pid -> navController.navigate(Screen.EditProperty.createRoute(pid)) },
+                onAddCounter = { pid -> navController.navigate(Screen.AddCounter.createRoute(pid)) },
                 onDeleted = {
                     propertiesViewModel.refresh()
                     navController.popBackStack()
                 }
+            )
+        }
+
+        // ========== Add Counter (добавление счётчика, Figma 2713:40952) ==========
+        composable(
+            route = Screen.AddCounter.route,
+            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
+            AddCounterScreen(
+                propertyId = propertyId,
+                onBack = { navController.popBackStack() },
+                onAdded = { navController.popBackStack() }
             )
         }
 

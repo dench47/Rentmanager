@@ -1,6 +1,7 @@
 package com.rentmanager.app.data.api
 
 import com.google.gson.annotations.SerializedName
+import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PhotoDto
 import com.rentmanager.app.data.model.PropertyDto
 import retrofit2.Response
@@ -37,6 +38,12 @@ interface PropertyApi {
 
     @POST("properties/{id}/unpublish")
     suspend fun unpublishProperty(@Path("id") id: String): Response<PropertyDto>
+
+    @GET("properties/{id}/meters")
+    suspend fun getMeters(@Path("id") id: String): Response<List<MeterDto>>
+
+    @POST("properties/{id}/meters")
+    suspend fun createMeter(@Path("id") id: String, @Body meter: MeterDto): Response<MeterDto>
 
     @POST("properties/{id}/attach_tenant")
     suspend fun attachTenant(@Path("id") id: String, @Body request: AttachTenantRequest): Response<MessageResponse>
