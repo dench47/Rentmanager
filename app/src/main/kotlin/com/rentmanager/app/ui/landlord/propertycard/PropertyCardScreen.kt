@@ -236,22 +236,24 @@ fun PropertyCardScreen(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         InfoPair(
                             label = "Арендатор",
-                            value = property?.tenantInfo?.takeIf { it.isNotBlank() } ?: "—",
+                            value = property?.tenantInfo.orEmpty(),
                             modifier = Modifier.weight(1f)
                         )
                         InfoPair(
                             label = "Договор",
                             value = property
                                 ?.let { contractDisplayText(it.contractNumber, it.contractDate) }
-                                ?.takeIf { it.isNotBlank() } ?: "—",
+                                .orEmpty(),
                             modifier = Modifier.weight(1f)
                         )
                     }
+                    // Нет арендатора → кнопки связи неактивны (Figma 2574-20392:
+                    // контур/иконка/текст #212121 на 40%, нажатие отключено)
+                    val tenantAttached = property?.tenantInfo?.isNotBlank() == true
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlineCtaButton(
@@ -259,6 +261,8 @@ fun PropertyCardScreen(
                                 iconRes = R.drawable.ic_call_phone,
                                 modifier = Modifier.weight(1f),
                                 iconSpacing = 4.dp,
+                                enabled = tenantAttached,
+                                borderColor = if (tenantAttached) GreyText else Graphite,
                                 onClick = {}
                             )
                             OutlineCtaButton(
@@ -266,6 +270,8 @@ fun PropertyCardScreen(
                                 iconRes = R.drawable.ic_chat_message,
                                 modifier = Modifier.weight(1f),
                                 iconSpacing = 4.dp,
+                                enabled = tenantAttached,
+                                borderColor = if (tenantAttached) GreyText else Graphite,
                                 onClick = {}
                             )
                         }
@@ -640,7 +646,10 @@ private fun InfoPair(label: String, value: String, modifier: Modifier = Modifier
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(label, style = CardSubtitleStyle)
-        Text(value, style = Headline2MobStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // Пустое значение не показываем — состояние «арендатор не добавлен» (Figma 2574-20392)
+        if (value.isNotBlank()) {
+            Text(value, style = Headline2MobStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 

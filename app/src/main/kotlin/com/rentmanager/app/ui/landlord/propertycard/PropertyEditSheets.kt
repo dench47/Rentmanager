@@ -109,7 +109,7 @@ fun RentEditSheet(
 ) {
     var rentAmount by remember(property.id) { mutableStateOf(property.rentAmount.toFieldText()) }
     var rentEndDate by remember(property.id) { mutableStateOf(property.rentEndDate.orEmpty()) }
-    EditSheetScaffold(title = "Аренда и платежи", titleCentered = true, onDismiss = onDismiss) {
+    EditSheetScaffold(title = "Аренда и платежи", onDismiss = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SheetCaptionField(
                 caption = "Арендная плата",
@@ -123,8 +123,9 @@ fun RentEditSheet(
                 onValueChange = { rentEndDate = it }
             )
         }
-        Spacer(Modifier.height(20.dp))
+        // 12dp от spacedBy + 8dp паддинга = 20dp до кнопки (Figma: Content itemSpacing 20)
         BlackCtaButton(
+            modifier = Modifier.padding(top = 8.dp),
             text = "Сохранить изменения",
             enabled = !isSaving,
             onClick = { onSave(rentAmount, rentEndDate) }
@@ -166,8 +167,9 @@ fun TenantContractEditSheet(
                 placeholder = "+7"
             )
         }
-        Spacer(Modifier.height(20.dp))
+        // 12dp от spacedBy + 8dp паддинга = 20dp до кнопки (Figma: Content itemSpacing 20)
         BlackCtaButton(
+            modifier = Modifier.padding(top = 8.dp),
             text = "Сохранить изменения",
             enabled = !isSaving,
             onClick = { onSave(tenantInfo, contractText, phone) }
@@ -283,8 +285,9 @@ fun AboutPropertyEditSheet(
                 keyboardType = KeyboardType.Decimal
             )
         }
-        Spacer(Modifier.height(20.dp))
+        // 12dp от spacedBy + 8dp паддинга = 20dp до кнопки (Figma: Content itemSpacing 20)
         BlackCtaButton(
+            modifier = Modifier.padding(top = 8.dp),
             text = "Сохранить изменения",
             enabled = !isSaving,
             onClick = {
@@ -424,7 +427,8 @@ fun PhotoEditSheet(
     }
 }
 
-// Плитка загруженного фото с крестиком удаления (Figma 2523-27049)
+// Плитка загруженного фото с крестиком удаления (Figma 2700-23638: без рамки,
+// кружок #EFEFEF 40×40 с крестиком, отступы 6 сверху / 11 справа)
 @Composable
 private fun PhotoSheetTile(
     uri: String,
@@ -435,7 +439,6 @@ private fun PhotoSheetTile(
         modifier = modifier
             .aspectRatio(183f / 130f)
             .clip(RoundedCornerShape(30.dp))
-            .border(1.dp, Graphite, RoundedCornerShape(30.dp))
     ) {
         AsyncImage(
             model = uri,
@@ -446,7 +449,7 @@ private fun PhotoSheetTile(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(6.dp)
+                .padding(top = 6.dp, end = 11.dp)
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(GreyIcon)
@@ -454,7 +457,7 @@ private fun PhotoSheetTile(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_action_edit),
+                painter = painterResource(R.drawable.ic_toolbar_close),
                 contentDescription = "Удалить фото",
                 modifier = Modifier.size(24.dp)
             )
@@ -496,7 +499,6 @@ private fun AddPhotoSheetTile(
 private fun EditSheetScaffold(
     title: String,
     onDismiss: () -> Unit,
-    titleCentered: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -527,8 +529,7 @@ private fun EditSheetScaffold(
                     .fillMaxWidth()
                     .padding(start = 20.dp, end = 20.dp, bottom = 36.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = if (titleCentered) Alignment.CenterHorizontally else Alignment.Start
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(title, style = ToolbarTitleStyle)
                 content()
