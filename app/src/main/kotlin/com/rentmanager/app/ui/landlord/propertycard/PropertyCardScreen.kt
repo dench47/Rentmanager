@@ -313,7 +313,10 @@ fun PropertyCardScreen(
                     )
                     ValueCard(
                         if (property?.rentType == "длительно") "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
-                        property?.rentAmount?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: "",
+                        property?.rentAmount?.let {
+                            val s = if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+                            formatAmount(s)
+                        } ?: "",
                         Modifier.fillMaxWidth()
                     )
                 }
@@ -707,7 +710,7 @@ private fun TabButton(label: String, iconRes: Int, onClick: () -> Unit) {
 private fun rentText(p: PropertyDto): String {
     val amount = p.rentAmount ?: 0.0
     val formatted = if (amount == amount.toLong().toDouble()) amount.toLong().toString() else amount.toString()
-    return "$formatted ₽ / ${if (p.rentType == "длительно") "месяц" else "сутки"}"
+    return "${formatAmount(formatted)} ₽ / ${if (p.rentType == "длительно") "месяц" else "сутки"}"
 }
 
 @Composable

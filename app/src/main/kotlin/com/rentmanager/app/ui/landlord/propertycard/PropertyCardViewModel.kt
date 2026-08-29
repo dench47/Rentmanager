@@ -130,12 +130,18 @@ class PropertyCardViewModel @Inject constructor(
         val current = _uiState.value.property ?: return
         saveProperty(
             current.copy(
-                rentAmount = rentAmount.toDoubleOrNull(),
+                rentAmount = parseAmount(rentAmount),
                 rentEndDate = rentEndDate.takeIf { it.isNotBlank() }
             ),
             "Изменения сохранены"
         )
     }
+
+    // «25 000» / «25,5» → Double: пробелы-разделители разрядов выкидываем, запятую — в точку
+    private fun parseAmount(raw: String): Double? =
+        raw.filter { it.isDigit() || it == '.' || it == ',' }
+            .replace(',', '.')
+            .toDoubleOrNull()
 
     /** Шит «Арендатор и договор»: ровно три поля (арендатор, договор «№… от …», телефон). */
     fun saveTenantInfo(tenantInfo: String, contractText: String, phone: String) {
@@ -178,7 +184,7 @@ class PropertyCardViewModel @Inject constructor(
                 floor = floor,
                 floorsInHouse = floorsInHouse,
                 description = description.takeIf { it.isNotBlank() },
-                rentAmount = rentAmount.toDoubleOrNull()
+                rentAmount = parseAmount(rentAmount)
             ),
             "Изменения сохранены"
         )

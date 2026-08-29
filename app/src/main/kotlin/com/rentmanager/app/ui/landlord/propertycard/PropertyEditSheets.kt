@@ -86,6 +86,33 @@ private val FloorsInHouseSheetOptions = (1..100).map { it.toString() }
 private fun Double?.toFieldText(): String =
     if (this == null) "" else if (this == toLong().toDouble()) toLong().toString() else toString()
 
+// Группировка разрядов пробелом: «25000» → «25 000» (макеты 2700-23453/23258).
+// Оставляем только цифры и один десятичный разделитель; пробелы игнорируются при вводе
+fun formatAmount(raw: String): String {
+    var seenDot = false
+    val cleaned = buildString {
+        for (c in raw) {
+            when {
+                c.isDigit() -> append(c)
+                (c == '.' || c == ',') && !seenDot && isNotEmpty() -> {
+                    append('.')
+                    seenDot = true
+                }
+            }
+        }
+    }
+    if (cleaned.isEmpty()) return ""
+    val intPart = cleaned.substringBefore('.')
+    val frac = if ('.' in cleaned) cleaned.substringAfter('.') else ""
+    val grouped = StringBuilder()
+    val n = intPart.length
+    intPart.forEachIndexed { i, c ->
+        if (i > 0 && (n - i) % 3 == 0) grouped.append(' ')
+        grouped.append(c)
+    }
+    return grouped.toString() + if (frac.isNotEmpty()) ".$frac" else ""
+}
+
 // Договор в одном поле: «№45 от 14.02.2025» (собирается из реальных данных;
 // используется и в шите, и в секции карточки «Арендатор и договор»)
 fun contractDisplayText(number: String?, date: String?): String {
@@ -111,14 +138,14 @@ fun RentEditSheet(
     onSave: (rentAmount: String, rentEndDate: String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var rentAmount by remember(property.id) { mutableStateOf(property.rentAmount.toFieldText()) }
+    var rentAmount by remember(property.id) { mutableStateOf(formatAmount(property.rentAmount.toFieldText())) }
     var rentEndDate by remember(property.id) { mutableStateOf(property.rentEndDate.orEmpty()) }
     EditSheetScaffold(title = "Аренда и платежи", onDismiss = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SheetCaptionField(
                 caption = "Арендная плата",
                 value = rentAmount,
-                onValueChange = { rentAmount = it },
+                onValueChange = { rentAmount = formatAmount(it) },
                 keyboardType = KeyboardType.Decimal,
                 // Суффикс по типу аренды (Figma 2700-23463: «25 000 ₽ / сутки»)
                 suffix = " ₽ / " + if (property.rentType == "длительно") "месяц" else "сутки"
@@ -211,7 +238,7 @@ fun AboutPropertyEditSheet(
     var floor by remember(property.id) { mutableStateOf(property.floor) }
     var floorsInHouse by remember(property.id) { mutableStateOf(property.floorsInHouse) }
     var description by remember(property.id) { mutableStateOf(property.description.orEmpty()) }
-    var price by remember(property.id) { mutableStateOf(property.rentAmount.toFieldText()) }
+    var price by remember(property.id) { mutableStateOf(formatAmount(property.rentAmount.toFieldText())) }
     var nameError by remember { mutableStateOf(false) }
     var addressError by remember { mutableStateOf(false) }
 
@@ -287,7 +314,7 @@ fun AboutPropertyEditSheet(
             SheetCaptionField(
                 caption = if (property.rentType == "длительно") "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
                 value = price,
-                onValueChange = { price = it },
+                onValueChange = { price = formatAmount(it) },
                 keyboardType = KeyboardType.Decimal
             )
         }
@@ -665,21 +692,31 @@ private fun SheetDescriptionField(
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
     ) {
-        Row(
+        // Шеврон плавает справа по центру; текст получает всю ширину карточки —
+        // субтитр помещается одной строкой даже на узких экранах (макет 2700-23258)
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .padding(start = 10.dp, end = 10.dp)
-                .clickable { expanded = !expanded },
-            verticalAlignment = Alignment.CenterVertically
+                .clickable { expanded = !expanded }
         ) {
+            Image(
+                painter = painterResource(R.drawable.ic_card_chevron),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 10.dp)
+                    .size(40.dp)
+                    .graphicsLayer { rotationZ = if (expanded) 180f else 0f }
+            )
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 10.dp, end = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text("Описание объявления", style = Headline2MobStyle)
-                // В раскрытом состоянии подпись переезжает в поле ввода плейсхолдером.
-                // Одна строка без зазора до шеврона — как в макете (Figma 2700-23258)
+                // В раскрытом состоянии подпись переезжает в поле ввода плейсхолдером
                 if (!expanded) {
                     Text(
                         subtitle,
@@ -689,13 +726,6 @@ private fun SheetDescriptionField(
                     )
                 }
             }
-            Image(
-                painter = painterResource(R.drawable.ic_card_chevron),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(40.dp)
-                    .graphicsLayer { rotationZ = if (expanded) 180f else 0f }
-            )
         }
         if (expanded) {
             BasicTextField(
@@ -748,14 +778,15 @@ private fun SheetCaptionDropdown(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(caption, style = CardSubtitleStyle)
+                    // Подпись всегда одна строка: в половинных карточках («Спальные места»,
+                    // «Этажей в доме») места ровно на одну, перенос недопустим (макет 2700-23258)
+                    Text(caption, style = CardSubtitleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         text = selected ?: "",
                         style = if (selected == null) Headline2MobPlaceholderStyle else Headline2MobStyle,
