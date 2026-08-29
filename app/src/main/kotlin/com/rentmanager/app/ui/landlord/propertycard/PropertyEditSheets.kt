@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.aspectRatio
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Spacer
@@ -41,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -115,7 +119,9 @@ fun RentEditSheet(
                 caption = "Арендная плата",
                 value = rentAmount,
                 onValueChange = { rentAmount = it },
-                keyboardType = KeyboardType.Decimal
+                keyboardType = KeyboardType.Decimal,
+                // Суффикс по типу аренды (Figma 2700-23463: «25 000 ₽ / сутки»)
+                suffix = " ₽ / " + if (property.rentType == "длительно") "месяц" else "сутки"
             )
             SheetCaptionField(
                 caption = "Арендовано",
@@ -539,7 +545,9 @@ private fun EditSheetScaffold(
 }
 
 // Безрамочное поле с серой подписью (названием) сверху и значением снизу —
-// как в макетах шитов (Figma 2677-26495/26531/26195)
+// как в макетах шитов (Figma 2677-26495/26531/26195).
+// suffix — неизменяемый хвост значения (например «₽ / сутки»); подпись намеренно
+// вне BasicTextField: intrinsic-ширина на самом поле ломает вертикальную раскладку
 @Composable
 private fun SheetCaptionField(
     caption: String,
@@ -547,7 +555,8 @@ private fun SheetCaptionField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
-    isError: Boolean = false
+    isError: Boolean = false,
+    suffix: String? = null
 ) {
     Box(
         modifier = modifier
@@ -559,21 +568,37 @@ private fun SheetCaptionField(
             .padding(start = 20.dp, end = 20.dp),
         contentAlignment = Alignment.CenterStart
     ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = Headline2MobStyle,
-            cursorBrush = SolidColor(Graphite),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
-            decorationBox = { innerTextField ->
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(caption, style = CardSubtitleStyle)
-                    Box { innerTextField() }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(caption, style = CardSubtitleStyle)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (suffix == null) {
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = Headline2MobStyle,
+                        cursorBrush = SolidColor(Graphite),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next)
+                    )
+                } else {
+                    // Box сжимается до ширины введённых цифр (min 2dp под курсор),
+                    // суффикс идёт сразу за ними — «25 000 ₽ / сутки» одной строкой
+                    Box(Modifier.widthIn(min = 2.dp).width(IntrinsicSize.Min)) {
+                        BasicTextField(
+                            value = value,
+                            onValueChange = onValueChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = Headline2MobStyle,
+                            cursorBrush = SolidColor(Graphite),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next)
+                        )
+                    }
+                    Text(suffix, style = Headline2MobStyle)
                 }
             }
-        )
+        }
     }
 }
 
@@ -624,32 +649,79 @@ private fun SheetIconField(
     }
 }
 
-// Безрамочное поле «Описание объявления»: заголовок + серая подпись + ввод
+// Раскрывающаяся карточка «Описание объявления» (Figma 2700-23258): как дропдаун —
+// тёмный заголовок, серая подпись, шеврон; раскрытый ввод — как на экране создания
+// (Figma 2533-18130: подпись становится плейсхолдером и исчезает при вводе)
 @Composable
 private fun SheetDescriptionField(
     value: String,
     onValueChange: (String) -> Unit,
     subtitle: String
 ) {
+    var expanded by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text("Описание объявления", style = Headline2MobStyle)
-        Text(subtitle, style = CardSubtitleStyle)
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 70.dp),
-            textStyle = Headline2MobStyle.copy(color = Graphite),
-            cursorBrush = SolidColor(Graphite)
-        )
+                .height(64.dp)
+                .padding(start = 10.dp, end = 10.dp)
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("Описание объявления", style = Headline2MobStyle)
+                // В раскрытом состоянии подпись переезжает в поле ввода плейсхолдером.
+                // Одна строка без зазора до шеврона — как в макете (Figma 2700-23258)
+                if (!expanded) {
+                    Text(
+                        subtitle,
+                        style = CardSubtitleStyle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Image(
+                painter = painterResource(R.drawable.ic_card_chevron),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(40.dp)
+                    .graphicsLayer { rotationZ = if (expanded) 180f else 0f }
+            )
+        }
+        if (expanded) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
+                    .heightIn(min = 70.dp),
+                textStyle = CardSubtitleStyle.copy(color = Graphite),
+                cursorBrush = SolidColor(Graphite),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(
+                                subtitle,
+                                style = CardSubtitleStyle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+        }
     }
 }
 

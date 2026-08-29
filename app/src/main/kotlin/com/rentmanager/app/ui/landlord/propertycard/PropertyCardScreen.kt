@@ -204,11 +204,11 @@ fun PropertyCardScreen(
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
                     ) {
-                        InfoPair("Арендная плата", property?.let { rentText(it) } ?: "—", Modifier.weight(1f))
-                        InfoPair("Срок аренды", property?.rentType ?: "—", Modifier.weight(1f))
+                        InfoPair("Арендная плата", property?.let { rentText(it) } ?: "", Modifier.weight(1f))
+                        // Нет арендатора → «Срок аренды» без значения (Figma 2574-20378)
+                        InfoPair("Срок аренды", property?.rentEndDate.orEmpty(), Modifier.weight(1f))
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlineCtaButton(
@@ -225,7 +225,11 @@ fun PropertyCardScreen(
                 }
 
                 // Арендатор и договор
-                SectionHeader("Арендатор и договор", onPencilClick = { showTenantSheet = true })
+                // Без арендатора карандаш ничего не открывает (Figma 2574-20392:
+                // шит редактирования доступен только при прикреплённом арендаторе)
+                SectionHeader("Арендатор и договор", onPencilClick = {
+                    if (property?.tenantInfo?.isNotBlank() == true) showTenantSheet = true
+                })
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
