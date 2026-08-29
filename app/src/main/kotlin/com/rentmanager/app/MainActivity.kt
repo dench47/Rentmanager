@@ -1,6 +1,7 @@
 package com.rentmanager.app
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -39,6 +40,7 @@ import com.rentmanager.app.data.local.TokenManager
 import com.rentmanager.app.ui.components.UpdateDialog
 import com.rentmanager.app.ui.navigation.RentManagerNavGraph
 import com.rentmanager.app.ui.theme.RentManagerTheme
+import com.rentmanager.app.ui.theme.createDesignWidthContext
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +84,12 @@ class MainActivity : FragmentActivity() {
 
     companion object {
         private const val BACKGROUND_TIMEOUT_MS = 60_000L
+    }
+
+    // Масштабирование плотности под дизайн-ширину 412dp на уровне базового контекста:
+    // наследуется всеми окнами (шиты, диалоги), включая будущие
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.createDesignWidthContext())
     }
 
     override fun onPause() {

@@ -13,22 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 
-
-/**
- * Дизайнерская ширина макета Figma (фреймы экранов — 412px).
- * Все dp/sp вёрстки масштабируются так, чтобы 412dp всегда занимали всю ширину экрана:
- * пропорции, размеры и переносы строк совпадают с макетом на любом устройстве.
- */
-private const val DESIGN_WIDTH_DP = 412f
 
 private val LightColorScheme = lightColorScheme(
     primary = AlmostBlack,
@@ -53,31 +42,22 @@ private val LightColorScheme = lightColorScheme(
 )
 
 /**
- * Контент темы: масштабирование плотности под дизайнерскую ширину 412dp
- * и фон системной навигации #F5F5F5 (компонент «Android Navigation Bar» из макета).
+ * Контент темы: плотность масштабируется на уровне контекста Activity
+ * (см. DesignWidth.kt — наследуется всеми окнами, включая шиты и диалоги),
+ * здесь остаётся только фон системной навигации #EFEFEF («Android Navigation Bar» из макета).
  */
 @Composable
 private fun DesignScaledContent(content: @Composable () -> Unit) {
-    val currentDensity = LocalDensity.current
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    val designScale = if (screenWidthDp > 0) screenWidthDp / DESIGN_WIDTH_DP else 1f
-    val designDensity = Density(
-        density = currentDensity.density * designScale,
-        fontScale = currentDensity.fontScale
-    )
-
-    CompositionLocalProvider(LocalDensity provides designDensity) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            content()
-            // Подложка под системную навигацию
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .background(Color(0xFFEFEFEF))
-                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
-            )
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
+        content()
+        // Подложка под системную навигацию
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color(0xFFEFEFEF))
+                .windowInsetsBottomHeight(WindowInsets.navigationBars)
+        )
     }
 }
 
