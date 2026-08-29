@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -25,13 +26,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -45,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
@@ -85,8 +82,9 @@ private val FloorsInHouseSheetOptions = (1..100).map { it.toString() }
 private fun Double?.toFieldText(): String =
     if (this == null) "" else if (this == toLong().toDouble()) toLong().toString() else toString()
 
-// Договор в одном поле: «№45 от 14.02.2025» (собирается из реальных данных)
-private fun contractDisplayText(number: String?, date: String?): String {
+// Договор в одном поле: «№45 от 14.02.2025» (собирается из реальных данных;
+// используется и в шите, и в секции карточки «Арендатор и договор»)
+fun contractDisplayText(number: String?, date: String?): String {
     val num = number?.takeIf { it.isNotBlank() }
         ?.let { if (it.startsWith("№")) it else "№$it" } ?: ""
     val d = date?.takeIf { it.isNotBlank() } ?: ""
@@ -125,7 +123,7 @@ fun RentEditSheet(
                 onValueChange = { rentEndDate = it }
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(20.dp))
         BlackCtaButton(
             text = "Сохранить изменения",
             enabled = !isSaving,
@@ -161,14 +159,14 @@ fun TenantContractEditSheet(
                 onValueChange = { contractText = it }
             )
             SheetIconField(
-                icon = Icons.Filled.Phone,
+                iconRes = R.drawable.ic_call_phone,
                 caption = "Номер телефона арендатора",
                 value = phone,
                 onValueChange = { phone = it },
                 placeholder = "+7"
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(20.dp))
         BlackCtaButton(
             text = "Сохранить изменения",
             enabled = !isSaving,
@@ -285,7 +283,7 @@ fun AboutPropertyEditSheet(
                 keyboardType = KeyboardType.Decimal
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(20.dp))
         BlackCtaButton(
             text = "Сохранить изменения",
             enabled = !isSaving,
@@ -317,7 +315,7 @@ fun MetersSheet(onDismiss: () -> Unit) {
                         .background(CardBackground)
                         .padding(start = 20.dp, end = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
                     Text(
                         text = meter,
@@ -383,9 +381,11 @@ fun PhotoEditSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, bottom = 36.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 36.dp)
             ) {
+                // Заголовок «Фотографии» в контенте шита (Figma 2523-27049): слева, над сеткой
+                Text("Фотографии", style = ToolbarTitleStyle)
+                Spacer(Modifier.height(12.dp))
             // null — маркер плитки «Добавить фото» (всегда последняя)
             val rows = (photoUris.toList() + listOf<String?>(null)).chunked(2)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -411,7 +411,9 @@ fun PhotoEditSheet(
                     }
                 }
             }
+            Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = TrackGrey, thickness = 1.dp)
+            Spacer(Modifier.height(20.dp))
             BlackCtaButton(
                 text = "Сохранить изменения",
                 enabled = !isSaving,
@@ -431,7 +433,7 @@ private fun PhotoSheetTile(
 ) {
     Box(
         modifier = modifier
-            .height(130.dp)
+            .aspectRatio(183f / 130f)
             .clip(RoundedCornerShape(30.dp))
             .border(1.dp, Graphite, RoundedCornerShape(30.dp))
     ) {
@@ -452,9 +454,9 @@ private fun PhotoSheetTile(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_toolbar_close),
+                painter = painterResource(R.drawable.ic_action_edit),
                 contentDescription = "Удалить фото",
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
     }
@@ -468,7 +470,7 @@ private fun AddPhotoSheetTile(
 ) {
     Column(
         modifier = modifier
-            .height(130.dp)
+            .aspectRatio(183f / 130f)
             .clip(RoundedCornerShape(30.dp))
             .background(GreyIcon)
             .clickable(onClick = onClick),
@@ -577,7 +579,7 @@ private fun SheetCaptionField(
 // Безрамочное поле с иконкой и подписью (телефон) — как LabeledField на экране создания
 @Composable
 private fun SheetIconField(
-    icon: ImageVector,
+    iconRes: Int,
     caption: String,
     value: String,
     onValueChange: (String) -> Unit,
@@ -593,11 +595,10 @@ private fun SheetIconField(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Icon(
-            icon,
+        Image(
+            painter = painterResource(iconRes),
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = Graphite
+            modifier = Modifier.size(20.dp)
         )
         BasicTextField(
             value = value,

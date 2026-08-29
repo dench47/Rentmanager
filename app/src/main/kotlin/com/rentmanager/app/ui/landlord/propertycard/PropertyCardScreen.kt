@@ -78,10 +78,10 @@ private val BrandTint = Color(0xFFFFF1CF)
 private val White50 = Color(0x80FFFFFF)
 // rgba(33,33,33,0.85) — рамка кнопок в нижнем шите действий
 private val Graphite85 = Color(0xD9212121)
-// #CAC4D0 — разделитель в шите действий
-private val DividerGrey = Color(0xFFCAC4D0)
-// #79747E — drag handle шита
-private val SheetHandleGrey = Color(0xFF79747E)
+// rgba(33,33,33,0.4) — разделитель в шите действий (Figma 2574:21650)
+private val DividerGrey = Color(0x66212121)
+// rgba(33,33,33,0.4) — drag handle шита действий (Figma 2574:21650)
+private val SheetHandleGrey = Color(0x66212121)
 
 // Карточка объекта (Figma 2Y1uc9owPaF7N9jzQhhuIr, node 2574:20588)
 @Composable
@@ -239,14 +239,24 @@ fun PropertyCardScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Арендатор", style = CardSubtitleStyle, modifier = Modifier.weight(1f))
-                        Text("Договор", style = CardSubtitleStyle, modifier = Modifier.weight(1f))
+                        InfoPair(
+                            label = "Арендатор",
+                            value = property?.tenantInfo?.takeIf { it.isNotBlank() } ?: "—",
+                            modifier = Modifier.weight(1f)
+                        )
+                        InfoPair(
+                            label = "Договор",
+                            value = property
+                                ?.let { contractDisplayText(it.contractNumber, it.contractDate) }
+                                ?.takeIf { it.isNotBlank() } ?: "—",
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlineCtaButton(
                                 text = "Позвонить",
-                                iconRes = R.drawable.ic_tab_call,
+                                iconRes = R.drawable.ic_call_phone,
                                 modifier = Modifier.weight(1f),
                                 iconSpacing = 4.dp,
                                 onClick = {}
@@ -259,7 +269,11 @@ fun PropertyCardScreen(
                                 onClick = {}
                             )
                         }
-                        BlackCtaButton(text = "Прикрепить арендатора", onClick = {})
+                        BlackCtaButton(
+                            // Прикреплённый арендатор (tenantInfo заполнен) — «Открепить», иначе «Прикрепить»
+                            text = if (property?.tenantInfo?.isNotBlank() == true) "Открепить арендатора" else "Прикрепить арендатора",
+                            onClick = {}
+                        )
                     }
                 }
 // Об объекте
@@ -799,7 +813,7 @@ private fun PropertyActionsSheet(
         dragHandle = {
             Box(
                 Modifier
-                    .padding(top = 8.dp)
+                    .padding(top = 16.dp, bottom = 16.dp)
                     .size(width = 32.dp, height = 4.dp)
                     .clip(RoundedCornerShape(100.dp))
                     .background(SheetHandleGrey)
