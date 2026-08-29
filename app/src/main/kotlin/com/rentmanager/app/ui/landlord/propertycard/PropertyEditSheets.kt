@@ -1,0 +1,716 @@
+package com.rentmanager.app.ui.landlord.propertycard
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.rentmanager.app.R
+import com.rentmanager.app.data.model.PropertyDto
+import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
+import com.rentmanager.app.ui.theme.CardBackground
+import com.rentmanager.app.ui.theme.CardSubtitleStyle
+import com.rentmanager.app.ui.theme.ErrorRed
+import com.rentmanager.app.ui.theme.FieldTextStyle
+import com.rentmanager.app.ui.theme.Graphite
+import com.rentmanager.app.ui.theme.GreyText
+import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
+import com.rentmanager.app.ui.theme.Headline2MobStyle
+import com.rentmanager.app.ui.theme.ToolbarTitleStyle
+
+// #79747E — drag handle шита (как в PropertyActionsSheet)
+private val SheetHandleGrey = Color(0xFF79747E)
+// #CAC4D0 — разделитель списков в шите
+private val DividerGrey = Color(0xFFCAC4D0)
+// #EFEFEF — заливка плитки «Добавить фото» и кружка удаления (Grey/Icon)
+private val GreyIcon = Color(0xFFEFEFEF)
+// 40% от Graphite #212121 — разделитель в шите фотографий
+private val TrackGrey = Color(0x66212121)
+
+// Опции дропдаунов шита «Об объекте» (те же значения, что на экране создания)
+private val RoomsSheetOptions = listOf("Студия", "1", "2", "3", "4", "5", "6+ комнат")
+private val SleepingSheetOptions = listOf("1", "2", "3", "4", "5", "6+")
+private val FloorSheetOptions = listOf("Подвал", "Цоколь", "-2", "-1") + (1..100).map { it.toString() }
+private val FloorsInHouseSheetOptions = (1..100).map { it.toString() }
+
+// 55.0 → «55», 55.5 → «55.5» — предзаполнение числовых полей шитов
+private fun Double?.toFieldText(): String =
+    if (this == null) "" else if (this == toLong().toDouble()) toLong().toString() else toString()
+
+// Договор в одном поле: «№45 от 14.02.2025» (собирается из реальных данных)
+private fun contractDisplayText(number: String?, date: String?): String {
+    val num = number?.takeIf { it.isNotBlank() }
+        ?.let { if (it.startsWith("№")) it else "№$it" } ?: ""
+    val d = date?.takeIf { it.isNotBlank() } ?: ""
+    return when {
+        num.isBlank() && d.isBlank() -> ""
+        num.isBlank() -> d
+        d.isBlank() -> num
+        else -> "$num от $d"
+    }
+}
+
+// ---------- Шиты редактирования секций карточки ----------
+
+// Шит «Аренда и платежи» (Figma 2677-26495): арендная плата + дата окончания аренды.
+// Значения из макета — примеры, переносятся только названия полей (серые подписи).
+@Composable
+fun RentEditSheet(
+    property: PropertyDto,
+    isSaving: Boolean,
+    onSave: (rentAmount: String, rentEndDate: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var rentAmount by remember(property.id) { mutableStateOf(property.rentAmount.toFieldText()) }
+    var rentEndDate by remember(property.id) { mutableStateOf(property.rentEndDate.orEmpty()) }
+    EditSheetScaffold(title = "Аренда и платежи", titleCentered = true, onDismiss = onDismiss) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SheetCaptionField(
+                caption = "Арендная плата",
+                value = rentAmount,
+                onValueChange = { rentAmount = it },
+                keyboardType = KeyboardType.Decimal
+            )
+            SheetCaptionField(
+                caption = "Арендовано",
+                value = rentEndDate,
+                onValueChange = { rentEndDate = it }
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        BlackCtaButton(
+            text = "Сохранить изменения",
+            enabled = !isSaving,
+            onClick = { onSave(rentAmount, rentEndDate) }
+        )
+    }
+}
+
+// Шит «Арендатор и договор» (Figma 2677-26531): ровно три поля —
+// арендатор, договор («№… от …»), номер телефона арендатора
+@Composable
+fun TenantContractEditSheet(
+    property: PropertyDto,
+    isSaving: Boolean,
+    onSave: (tenantInfo: String, contractText: String, phone: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var tenantInfo by remember(property.id) { mutableStateOf(property.tenantInfo.orEmpty()) }
+    var contractText by remember(property.id) {
+        mutableStateOf(contractDisplayText(property.contractNumber, property.contractDate))
+    }
+    var phone by remember(property.id) { mutableStateOf(property.phone.orEmpty()) }
+    EditSheetScaffold(title = "Арендатор и договор", onDismiss = onDismiss) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SheetCaptionField(
+                caption = "Арендатор",
+                value = tenantInfo,
+                onValueChange = { tenantInfo = it }
+            )
+            SheetCaptionField(
+                caption = "Договор",
+                value = contractText,
+                onValueChange = { contractText = it }
+            )
+            SheetIconField(
+                icon = Icons.Filled.Phone,
+                caption = "Номер телефона арендатора",
+                value = phone,
+                onValueChange = { phone = it },
+                placeholder = "+7"
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        BlackCtaButton(
+            text = "Сохранить изменения",
+            enabled = !isSaving,
+            onClick = { onSave(tenantInfo, contractText, phone) }
+        )
+    }
+}
+
+// Шит «Об объекте» (Figma 2677-26195): название, адрес, комнаты, площадь,
+// спальные места, этажи, описание, стоимость. Значения из макета — примеры,
+// переносятся только названия полей (серые подписи).
+@Composable
+fun AboutPropertyEditSheet(
+    property: PropertyDto,
+    isSaving: Boolean,
+    onSave: (
+        name: String,
+        address: String,
+        rooms: String?,
+        area: String,
+        sleepingPlaces: String?,
+        floor: String?,
+        floorsInHouse: String?,
+        description: String,
+        rentAmount: String
+    ) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember(property.id) { mutableStateOf(property.name) }
+    var address by remember(property.id) { mutableStateOf(property.address) }
+    var rooms by remember(property.id) { mutableStateOf(property.rooms) }
+    var area by remember(property.id) { mutableStateOf(property.area.toFieldText()) }
+    var sleepingPlaces by remember(property.id) { mutableStateOf(property.sleepingPlaces) }
+    var floor by remember(property.id) { mutableStateOf(property.floor) }
+    var floorsInHouse by remember(property.id) { mutableStateOf(property.floorsInHouse) }
+    var description by remember(property.id) { mutableStateOf(property.description.orEmpty()) }
+    var price by remember(property.id) { mutableStateOf(property.rentAmount.toFieldText()) }
+    var nameError by remember { mutableStateOf(false) }
+    var addressError by remember { mutableStateOf(false) }
+
+    EditSheetScaffold(title = "Об объекте", onDismiss = onDismiss) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SheetCaptionField(
+                caption = "Название",
+                value = name,
+                onValueChange = {
+                    name = it
+                    nameError = false
+                },
+                isError = nameError
+            )
+            SheetCaptionField(
+                caption = "Адрес",
+                value = address,
+                onValueChange = {
+                    address = it
+                    addressError = false
+                },
+                isError = addressError
+            )
+            SheetCaptionDropdown(
+                caption = "Количество комнат",
+                selected = rooms,
+                options = RoomsSheetOptions,
+                onSelect = { rooms = it }
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SheetCaptionField(
+                    caption = "Площадь, м2",
+                    value = area,
+                    onValueChange = { area = it },
+                    keyboardType = KeyboardType.Decimal,
+                    modifier = Modifier.weight(1f)
+                )
+                SheetCaptionDropdown(
+                    caption = "Спальные места",
+                    selected = sleepingPlaces,
+                    options = SleepingSheetOptions,
+                    onSelect = { sleepingPlaces = it },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                SheetCaptionDropdown(
+                    caption = "Этаж",
+                    selected = floor,
+                    options = FloorSheetOptions,
+                    onSelect = { floor = it },
+                    modifier = Modifier.weight(1f)
+                )
+                SheetCaptionDropdown(
+                    caption = "Этажей в доме",
+                    selected = floorsInHouse,
+                    options = FloorsInHouseSheetOptions,
+                    onSelect = { floorsInHouse = it },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            SheetDescriptionField(
+                value = description,
+                onValueChange = { description = it },
+                subtitle = "Эта информация будет видна в объявлении"
+            )
+            SheetCaptionField(
+                caption = if (property.rentType == "длительно") "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
+                value = price,
+                onValueChange = { price = it },
+                keyboardType = KeyboardType.Decimal
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        BlackCtaButton(
+            text = "Сохранить изменения",
+            enabled = !isSaving,
+            onClick = {
+                nameError = name.isBlank()
+                addressError = address.isBlank()
+                if (!nameError && !addressError) {
+                    onSave(name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price)
+                }
+            }
+        )
+    }
+}
+
+// Шит «Счетчики» (Figma 2678-27396): заголовок «Редактировать счетчики»,
+// строки типов счётчиков (номера в макете — примеры, не переносятся),
+// без кнопки сохранения
+@Composable
+fun MetersSheet(onDismiss: () -> Unit) {
+    val meters = listOf("Электроэнергия", "Холодная вода", "Горячая вода", "Отопление")
+    EditSheetScaffold(title = "Редактировать счетчики", onDismiss = onDismiss) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            meters.forEach { meter ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CardBackground)
+                        .padding(start = 20.dp, end = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = meter,
+                        style = Headline2MobStyle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Image(
+                        painter = painterResource(R.drawable.ic_card_chevron),
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Шит редактирования фотографий (Figma 2523-27049): сетка 2 в ряд,
+// на каждой фотографии крестик удаления, последняя плитка «Добавить фото»,
+// ниже разделитель и кнопка «Сохранить изменения»
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PhotoEditSheet(
+    initialPhotoUris: List<String>,
+    isSaving: Boolean,
+    onSave: (photoUris: List<String>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val photoUris = remember(initialPhotoUris) { initialPhotoUris.toMutableStateList() }
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            photoUris.addAll(0, uris.map { it.toString() })
+        }
+    }
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White,
+        dragHandle = null
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Ручка 32×4 по центру: 16dp сверху, 16dp до контента (Figma: Header padding 16)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(width = 32.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(TrackGrey)
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 36.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+            // null — маркер плитки «Добавить фото» (всегда последняя)
+            val rows = (photoUris.toList() + listOf<String?>(null)).chunked(2)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                rows.forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { uri ->
+                            if (uri == null) {
+                                AddPhotoSheetTile(
+                                    onClick = { galleryLauncher.launch("image/*") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            } else {
+                                PhotoSheetTile(
+                                    uri = uri,
+                                    onRemove = { photoUris.remove(uri) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        if (row.size == 1) {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(color = TrackGrey, thickness = 1.dp)
+            BlackCtaButton(
+                text = "Сохранить изменения",
+                enabled = !isSaving,
+                onClick = { onSave(photoUris.toList()) }
+            )
+            }
+        }
+    }
+}
+
+// Плитка загруженного фото с крестиком удаления (Figma 2523-27049)
+@Composable
+private fun PhotoSheetTile(
+    uri: String,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(130.dp)
+            .clip(RoundedCornerShape(30.dp))
+            .border(1.dp, Graphite, RoundedCornerShape(30.dp))
+    ) {
+        AsyncImage(
+            model = uri,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(6.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(GreyIcon)
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_toolbar_close),
+                contentDescription = "Удалить фото",
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+// Плитка «Добавить фото» (серая, r30, камера + подпись — как на экране создания)
+@Composable
+private fun AddPhotoSheetTile(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .height(130.dp)
+            .clip(RoundedCornerShape(30.dp))
+            .background(GreyIcon)
+            .clickable(onClick = onClick),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_add_photo_camera),
+            contentDescription = null,
+            modifier = Modifier.size(50.dp)
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Добавить фото", style = Headline2MobStyle.copy(color = GreyText))
+    }
+}
+
+// ---------- внутренние компоненты шитов ----------
+
+// Каркас шита редактирования секции:
+// ручка 32×4 рисуется вручную (16dp сверху, 16dp до заголовка), контент 20/20/36
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditSheetScaffold(
+    title: String,
+    onDismiss: () -> Unit,
+    titleCentered: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White,
+        dragHandle = null
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Ручка 32×4 по центру: 16dp сверху, 16dp до заголовка (Figma: Header padding 16)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(width = 32.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(TrackGrey)
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 36.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = if (titleCentered) Alignment.CenterHorizontally else Alignment.Start
+            ) {
+                Text(title, style = ToolbarTitleStyle)
+                content()
+            }
+        }
+    }
+}
+
+// Безрамочное поле с серой подписью (названием) сверху и значением снизу —
+// как в макетах шитов (Figma 2677-26495/26531/26195)
+@Composable
+private fun SheetCaptionField(
+    caption: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    isError: Boolean = false
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBackground)
+            .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
+            .padding(start = 20.dp, end = 20.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = Headline2MobStyle,
+            cursorBrush = SolidColor(Graphite),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
+            decorationBox = { innerTextField ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(caption, style = CardSubtitleStyle)
+                    Box { innerTextField() }
+                }
+            }
+        )
+    }
+}
+
+// Безрамочное поле с иконкой и подписью (телефон) — как LabeledField на экране создания
+@Composable
+private fun SheetIconField(
+    icon: ImageVector,
+    caption: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBackground)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = Graphite
+        )
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1f),
+            textStyle = FieldTextStyle,
+            cursorBrush = SolidColor(Graphite),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+            decorationBox = { innerTextField ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(caption, style = CardSubtitleStyle)
+                    Box {
+                        if (value.isEmpty()) {
+                            Text(placeholder, style = Headline2MobPlaceholderStyle)
+                        }
+                        innerTextField()
+                    }
+                }
+            }
+        )
+    }
+}
+
+// Безрамочное поле «Описание объявления»: заголовок + серая подпись + ввод
+@Composable
+private fun SheetDescriptionField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    subtitle: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBackground)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text("Описание объявления", style = Headline2MobStyle)
+        Text(subtitle, style = CardSubtitleStyle)
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 70.dp),
+            textStyle = Headline2MobStyle.copy(color = Graphite),
+            cursorBrush = SolidColor(Graphite)
+        )
+    }
+}
+
+// Безрамочный дропдаун с серой подписью и шевроном (как в макете «Об объекте»)
+@Composable
+private fun SheetCaptionDropdown(
+    caption: String,
+    selected: String?,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(CardBackground)
+                .clickable { expanded = true }
+                .padding(start = 20.dp, end = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(caption, style = CardSubtitleStyle)
+                    Text(
+                        text = selected ?: "",
+                        style = if (selected == null) Headline2MobPlaceholderStyle else Headline2MobStyle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Image(
+                    painter = painterResource(R.drawable.ic_card_chevron),
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 304.dp),
+            containerColor = Color.White
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, style = FieldTextStyle) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}

@@ -1,6 +1,7 @@
 package com.rentmanager.app.ui.landlord.createproperty
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
@@ -64,6 +65,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
@@ -75,6 +78,7 @@ import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
+import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 
 // Опции дропдаунов и чипов (локально, в бэкенд уходят как строки)
 private val SleepingOptions = listOf("1", "2", "3", "4", "5", "6+")
@@ -213,6 +217,85 @@ fun CreatePropertyScreen(
         effAddress.isNotBlank() &&
         !uiState.isCreating
 
+    // Режим редактирования: контроль несохранённых изменений (Figma 2677-26609)
+    var showExitDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
+
+    val hasUnsavedChanges = isEditMode && editProperty?.let { p ->
+        name != p.name.orEmpty() ||
+            area != p.area?.toFieldText().orEmpty() ||
+            price != p.rentAmount?.toFieldText().orEmpty() ||
+            description != p.description.orEmpty() ||
+            rooms != p.rooms ||
+            sleepingPlaces != p.sleepingPlaces ||
+            floor != p.floor ||
+            floorsInHouse != p.floorsInHouse ||
+            phoneNumber != p.phone.orEmpty() ||
+            wifiPassword != p.wifiPassword.orEmpty() ||
+            rulesText != p.houseRules.orEmpty() ||
+            serviceInfo != p.serviceInfo.orEmpty() ||
+            photoUris != p.photos.orEmpty().map { it.url }
+    } == true
+
+    fun attemptSave() {
+        nameError = name.isBlank()
+        roomsError = rooms == null
+        addressError = effAddress.isBlank()
+        areaError = area.isBlank()
+        priceError = price.isBlank()
+        val hasErrors = nameError || roomsError || addressError || areaError || priceError
+        if (!hasErrors) {
+            viewModel.updateProperty(
+                propertyId = editPropertyId ?: "",
+                name = name,
+                address = effAddress,
+                area = area,
+                rentAmount = price,
+                description = description,
+                photoUris = photoUris,
+                serviceInfo = serviceInfo,
+                phone = phoneNumber,
+                wifiPassword = wifiPassword,
+                houseRules = rulesText,
+                type = effPropertyType,
+                rentType = effRentType,
+                rooms = rooms,
+                sleepingPlaces = sleepingPlaces,
+                floor = floor,
+                floorsInHouse = floorsInHouse,
+                latitude = effLatitude,
+                longitude = effLongitude
+            ) { onCreated(it) }
+        }
+    }
+
+    fun resetChanges() {
+        val p = editProperty ?: return
+        name = p.name.orEmpty()
+        area = p.area?.toFieldText().orEmpty()
+        price = p.rentAmount?.toFieldText().orEmpty()
+        description = p.description.orEmpty()
+        rooms = p.rooms
+        sleepingPlaces = p.sleepingPlaces
+        floor = p.floor
+        floorsInHouse = p.floorsInHouse
+        phoneNumber = p.phone.orEmpty()
+        wifiPassword = p.wifiPassword.orEmpty()
+        rulesText = p.houseRules.orEmpty()
+        serviceInfo = p.serviceInfo.orEmpty()
+        photoUris = p.photos.orEmpty().map { it.url }
+        nameError = false
+        roomsError = false
+        addressError = false
+        areaError = false
+        priceError = false
+    }
+
+    // Системная кнопка «назад» при несохранённых правках — через диалог (Figma 2677-26836)
+    BackHandler(enabled = isEditMode && hasUnsavedChanges && !uiState.isCreating) {
+        showExitDialog = true
+    }
+
     Scaffold(containerColor = Color.White) { paddingValues ->
         Column(
             modifier = Modifier
@@ -222,10 +305,20 @@ fun CreatePropertyScreen(
         ) {
             ScreenToolbar(
                 title = if (isEditMode) "Редактировать объект" else "Новый объект",
-                onBack = onBack,
+                onBack = {
+                    // Несохранённые правки — сначала диалог «Сохранить изменения?»
+                    if (isEditMode && hasUnsavedChanges && !uiState.isCreating) {
+                        showExitDialog = true
+                    } else {
+                        onBack()
+                    }
+                },
                 showClose = false
             )
-            CreationProgressBar(currentStep = 4)
+            // Прогресс-бар — только во флоу создания (в редактировании его нет, Figma 2677-26609)
+            if (!isEditMode) {
+                CreationProgressBar(currentStep = 4)
+            }
             Spacer(Modifier.height(20.dp))
 
             Column(
@@ -487,43 +580,19 @@ fun CreatePropertyScreen(
                 }
 
                 // 8. Кнопки (создание: «Создать объект» + «Создать и опубликовать»;
-                // редактирование: одна кнопка «Сохранить изменения», Figma 2521:17683)
+                // редактирование: чёрная «Сохранить изменения» + контурная «Сбросить изменения», Figma 2677-26609)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (isEditMode) {
-                        GradientCtaButton(
+                        BlackCtaButton(
                             text = "Сохранить изменения",
+                            enabled = !uiState.isCreating,
+                            onClick = { attemptSave() }
+                        )
+                        OutlineCtaButton(
+                            text = "Сбросить изменения",
+                            borderColor = Graphite,
                             enabled = !uiState.isCreating
-                        ) {
-                            nameError = name.isBlank()
-                            roomsError = rooms == null
-                            addressError = effAddress.isBlank()
-                            areaError = area.isBlank()
-                            priceError = price.isBlank()
-                            val hasErrors = nameError || roomsError || addressError || areaError || priceError
-                            if (!hasErrors) {
-                                viewModel.updateProperty(
-                                    propertyId = editPropertyId ?: "",
-                                    name = name,
-                                    address = effAddress,
-                                    area = area,
-                                    rentAmount = price,
-                                    description = description,
-                                    photoUris = photoUris,
-                                    serviceInfo = serviceInfo,
-                                    phone = phoneNumber,
-                                    wifiPassword = wifiPassword,
-                                    houseRules = rulesText,
-                                    type = effPropertyType,
-                                    rentType = effRentType,
-                                    rooms = rooms,
-                                    sleepingPlaces = sleepingPlaces,
-                                    floor = floor,
-                                    floorsInHouse = floorsInHouse,
-                                    latitude = effLatitude,
-                                    longitude = effLongitude
-                                ) { onCreated(it) }
-                            }
-                        }
+                        ) { showResetDialog = true }
                     } else {
                         OutlineCtaButton(text = "Создать объект") {
                             // Валидация обязательных полей: кнопка всегда чёрная, но создание
@@ -549,6 +618,107 @@ fun CreatePropertyScreen(
                 }
 
                 Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+
+    // Диалог «Сохранить изменения?» при выходе с несохранёнными правками (Figma 2677-26836)
+    if (isEditMode && showExitDialog) {
+        SaveBeforeExitDialog(
+            onSaveAndExit = {
+                showExitDialog = false
+                attemptSave()
+            },
+            onExitWithoutSaving = {
+                showExitDialog = false
+                onBack()
+            },
+            onDismiss = { showExitDialog = false }
+        )
+    }
+
+    // Диалог «Сбросить изменения?» (Figma 2677-26796)
+    if (isEditMode && showResetDialog) {
+        ResetChangesDialog(
+            onCancel = { showResetDialog = false },
+            onReset = {
+                showResetDialog = false
+                resetChanges()
+            },
+            onDismiss = { showResetDialog = false }
+        )
+    }
+}
+
+// Диалог выхода при несохранённых изменениях (Figma 2677-26836):
+// «Сохранить изменения?» — [Сохранить и выйти] чёрная / [Выйти без сохранения] контурная.
+// Закрытие по тапу вне карточки отключено — только явный выбор.
+@Composable
+private fun SaveBeforeExitDialog(
+    onSaveAndExit: () -> Unit,
+    onExitWithoutSaving: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text("Сохранить изменения?", style = ToolbarTitleStyle)
+            Text(
+                "Внесённые изменения ещё не сохранены. Если выйти сейчас, они будут потеряны.",
+                style = Headline2MobStyle.copy(color = GreyText)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                BlackCtaButton(text = "Сохранить и выйти", onClick = onSaveAndExit)
+                OutlineCtaButton(
+                    text = "Выйти без сохранения",
+                    borderColor = Graphite,
+                    onClick = onExitWithoutSaving
+                )
+            }
+        }
+    }
+}
+
+// Диалог подтверждения сброса изменений (Figma 2677-26796):
+// «Сбросить изменения?» — [Отмена] контурная / [Сбросить изменения] чёрная.
+// Закрытие по тапу вне карточки отключено — только явный выбор.
+@Composable
+private fun ResetChangesDialog(
+    onCancel: () -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Text("Сбросить изменения?", style = ToolbarTitleStyle)
+            Text(
+                "Все несохранённые изменения будут отменены, данные объекта вернутся к последней сохранённой версии.",
+                style = Headline2MobStyle.copy(color = GreyText)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlineCtaButton(text = "Отмена", borderColor = Graphite, onClick = onCancel)
+                BlackCtaButton(text = "Сбросить изменения", onClick = onReset)
             }
         }
     }

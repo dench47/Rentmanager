@@ -101,9 +101,20 @@ fun PropertyCardScreen(
     var showActionsSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
+    // Шиты быстрого редактирования секций (карандаши у заголовков) и сетки фото
+    var showRentSheet by remember { mutableStateOf(false) }
+    var showTenantSheet by remember { mutableStateOf(false) }
+    var showAboutSheet by remember { mutableStateOf(false) }
+    var showMetersSheet by remember { mutableStateOf(false) }
+    var showPhotosSheet by remember { mutableStateOf(false) }
+
     // Ошибки действий (публикация/удаление/загрузка) — Toast'ами
     LaunchedEffect(Unit) {
         viewModel.errorEvents.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    }
+    // Изменения секции сохранены — короткий Toast
+    LaunchedEffect(Unit) {
+        viewModel.savedEvents.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
     }
     // Объект удалён — закрываем карточку (со освежением списка объектов)
     LaunchedEffect(Unit) {
@@ -153,7 +164,8 @@ fun PropertyCardScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
         ) {
-            PhotoSlider(property, onEdit = { onEditProperty(propertyId) })
+            // Карандаш на фото открывает сетку фотографий, а не экран редактирования
+            PhotoSlider(property, onEdit = { showPhotosSheet = true })
 
             // Белая панель (наложение на фото, offset -19dp)
             Column(
@@ -182,7 +194,7 @@ fun PropertyCardScreen(
                 }
 
                 // Аренда и платежи
-                SectionHeader("Аренда и платежи")
+                SectionHeader("Аренда и платежи", onPencilClick = { showRentSheet = true })
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -213,7 +225,7 @@ fun PropertyCardScreen(
                 }
 
                 // Арендатор и договор
-                SectionHeader("Арендатор и договор")
+                SectionHeader("Арендатор и договор", onPencilClick = { showTenantSheet = true })
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -251,7 +263,7 @@ fun PropertyCardScreen(
                     }
                 }
 // Об объекте
-                SectionHeader("Об объекте")
+                SectionHeader("Об объекте", onPencilClick = { showAboutSheet = true })
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ValueCard("Название", property?.name ?: "", Modifier.fillMaxWidth())
                     ValueCard("Адрес", property?.address ?: "", Modifier.fillMaxWidth())
@@ -325,7 +337,7 @@ fun PropertyCardScreen(
                     .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SectionHeader("Счетчики", pencilRes = R.drawable.ic_edit_pencil_white)
+                SectionHeader("Счетчики", pencilRes = R.drawable.ic_edit_pencil_white, onPencilClick = { showMetersSheet = true })
                 BlackCtaButton(text = "Добавить счетчики", iconRes = R.drawable.ic_plus_circle_white, onClick = {})
             }
         }
@@ -398,6 +410,61 @@ fun PropertyCardScreen(
             },
             onDismiss = { showDeleteDialog = false }
         )
+    }
+
+    // Шиты редактирования секций карточки (карандаши у заголовков секций)
+    property?.let { p ->
+        if (showRentSheet) {
+            RentEditSheet(
+                property = p,
+                isSaving = uiState.isActionInProgress,
+                onSave = { rentAmount, rentEndDate ->
+                    showRentSheet = false
+                    viewModel.saveRentInfo(rentAmount, rentEndDate)
+                },
+                onDismiss = { showRentSheet = false }
+            )
+        }
+        if (showTenantSheet) {
+            TenantContractEditSheet(
+                property = p,
+                isSaving = uiState.isActionInProgress,
+                onSave = { tenantInfo, contractText, phone ->
+                    showTenantSheet = false
+                    viewModel.saveTenantInfo(tenantInfo, contractText, phone)
+                },
+                onDismiss = { showTenantSheet = false }
+            )
+        }
+        if (showAboutSheet) {
+            AboutPropertyEditSheet(
+                property = p,
+                isSaving = uiState.isActionInProgress,
+                onSave = { name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price ->
+                    showAboutSheet = false
+                    viewModel.saveAboutInfo(
+                        name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price
+                    )
+                },
+                onDismiss = { showAboutSheet = false }
+            )
+        }
+    }
+    if (showMetersSheet) {
+        MetersSheet(onDismiss = { showMetersSheet = false })
+    }
+    if (showPhotosSheet) {
+        property?.let { p ->
+            PhotoEditSheet(
+                initialPhotoUris = p.photos.orEmpty().map { it.url },
+                isSaving = uiState.isActionInProgress,
+                onSave = { uris ->
+                    showPhotosSheet = false
+                    viewModel.savePhotos(uris)
+                },
+                onDismiss = { showPhotosSheet = false }
+            )
+        }
     }
 }
 // ---------- вспомогательные ----------
@@ -514,7 +581,7 @@ private fun PhotoSlider(property: PropertyDto?, onEdit: () -> Unit = {}) {
             }
             Image(
                 painter = painterResource(R.drawable.ic_edit_pencil_white),
-                contentDescription = "Редактировать",
+                contentDescription = "Фотографии объекта",
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
@@ -525,7 +592,11 @@ private fun PhotoSlider(property: PropertyDto?, onEdit: () -> Unit = {}) {
 }
 
 @Composable
-private fun SectionHeader(text: String, pencilRes: Int = R.drawable.ic_edit_pencil) {
+private fun SectionHeader(
+    text: String,
+    pencilRes: Int = R.drawable.ic_edit_pencil,
+    onPencilClick: (() -> Unit)? = null
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -535,7 +606,15 @@ private fun SectionHeader(text: String, pencilRes: Int = R.drawable.ic_edit_penc
         Image(
             painter = painterResource(pencilRes),
             contentDescription = "Редактировать",
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier
+                .size(40.dp)
+                .then(
+                    if (onPencilClick != null) {
+                        Modifier.clip(CircleShape).clickable { onPencilClick() }
+                    } else {
+                        Modifier
+                    }
+                )
         )
     }
 }
