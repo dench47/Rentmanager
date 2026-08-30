@@ -1018,7 +1018,11 @@ private fun ServiceNoteContent(
     focused: Boolean,
     onTextChange: (String) -> Unit
 ) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 10.dp)) {
+    // 6dp от заголовка и 10dp снизу — как в макете (itemSpacing 6, paddingBottom 10)
+    Column(
+        Modifier.fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 10.dp)
+    ) {
         NoteField(text = text, focused = focused, onTextChange = onTextChange, placeholder = null)
     }
 }
@@ -1049,6 +1053,9 @@ private fun NoteField(
         onValueChange = { value = it },
         modifier = Modifier
             .fillMaxWidth()
+            // Фиксированная начальная высота зоны ввода 144dp (Figma 2677-26172):
+            // карточка держит исходный размер и при пустом значении, курсор — сверху
+            .heightIn(min = 144.dp)
             .focusRequester(focusRequester)
             .onFocusChanged { state ->
                 if (state.isFocused) {
