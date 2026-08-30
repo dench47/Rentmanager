@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -778,6 +779,9 @@ private fun AccordionCard(
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
     ) {
+        // Без ripple-подсветки на заголовке: раскрытие/закрытие аккордеона
+        // не должно давать анимированный эффект
+        val headerInteraction = remember { MutableInteractionSource() }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -786,7 +790,11 @@ private fun AccordionCard(
                 // свёрнутый — 64dp с подзаголовком-плейсхолдером
                 .padding(top = if (expanded) 10.dp else 0.dp)
                 .height(if (expanded) 40.dp else 64.dp)
-                .clickable(onClick = onToggle)
+                .clickable(
+                    interactionSource = headerInteraction,
+                    indication = null,
+                    onClick = onToggle
+                )
                 .padding(start = 20.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

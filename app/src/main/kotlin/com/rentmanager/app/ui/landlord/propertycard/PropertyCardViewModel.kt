@@ -161,14 +161,17 @@ class PropertyCardViewModel @Inject constructor(
         )
     }
 
-    /** Шит «Информация об объекте»: контактный телефон, пароль WiFi и правила. */
+    /** Инлайн-режим «Информация об объекте»: контактный телефон, пароль WiFi и правила. */
     fun saveObjectInfo(phone: String, wifiPassword: String, houseRules: String) {
         val current = _uiState.value.property ?: return
+        // Пустые значения отправляем как пустые строки, а не как null:
+        // Gson выбрасывает null-поля из JSON, сервер считает их «не переданными»
+        // и очистка поля не сохранялась бы
         saveProperty(
             current.copy(
-                phone = phone.takeIf { it.isNotBlank() },
-                wifiPassword = wifiPassword.takeIf { it.isNotBlank() },
-                houseRules = houseRules.takeIf { it.isNotBlank() }
+                phone = phone.trim(),
+                wifiPassword = wifiPassword.trim(),
+                houseRules = houseRules.trim()
             ),
             "Изменения сохранены"
         )
@@ -179,8 +182,9 @@ class PropertyCardViewModel @Inject constructor(
     fun saveServiceInfo(text: String) {
         val current = _uiState.value.property ?: return
         if (current.serviceInfo.orEmpty() == text) return
+        // Пустая строка вместо null — иначе очистка заметки не сохранится (см. saveObjectInfo)
         saveProperty(
-            current.copy(serviceInfo = text.takeIf { it.isNotBlank() }),
+            current.copy(serviceInfo = text.trim()),
             "Изменения сохранены"
         )
     }
