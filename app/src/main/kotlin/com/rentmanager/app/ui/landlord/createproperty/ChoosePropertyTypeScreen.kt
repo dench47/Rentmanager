@@ -38,6 +38,7 @@ import com.rentmanager.app.R
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
+import com.rentmanager.app.ui.components.DesignWidthDialog
 
 // Шаг 1: выбор типа недвижимости (Figma 2533:17735)
 @Composable
@@ -123,13 +124,10 @@ private fun ContinueDraftDialog(
     onStartOver: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    DesignWidthDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnClickOutside = false,
-            dismissOnBackPress = false
-        )
+        dismissOnClickOutside = false,
+        dismissOnBackPress = false
     ) {
         Box(
             modifier = Modifier.fillMaxWidth(),
@@ -137,7 +135,7 @@ private fun ContinueDraftDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .width(380.dp)
+                    .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White)
                     .padding(10.dp),

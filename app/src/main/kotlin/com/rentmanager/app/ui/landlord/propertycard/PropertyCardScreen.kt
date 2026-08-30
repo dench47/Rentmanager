@@ -1,6 +1,10 @@
 package com.rentmanager.app.ui.landlord.propertycard
 
 import android.widget.Toast
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.runtime.SideEffect
+import android.view.ViewGroup
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
@@ -44,6 +49,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -71,6 +77,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.coroutines.launch
+import com.rentmanager.app.ui.components.DesignWidthDialog
 
 private val GreenIcon = Color(0xFFE5F2E7)
 private val GreenText = Color(0xFF2F7D4D)
@@ -881,31 +888,32 @@ private fun PropertyActionsSheet(
     }
 }
 
-// Диалог подтверждения удаления объекта (Figma 2574:21637):
-// центр-выровненная карточка, радиус 20, красная залитая кнопка + контурная «Отменить».
+// Диалог подтверждения удаления объекта (Figma 2698-22247):
+// центр-выровненная карточка, радиус 20, паддинг 20, заголовок+текст с зазором 6,
+// красная залитая кнопка + контурная «Отменить».
 @Composable
 private fun DeletePropertyDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
+    DesignWidthDialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color.White)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text("Удалить объект?", style = ToolbarTitleStyle)
-            Text(
-                "Будут удалены данные объекта, договор, история платежей и показания счетчиков. Это действие нельзя отменить.",
-                style = Headline2MobStyle.copy(color = GreyText)
-            )
+            // Заголовок и текст вплотную, зазор 6 (Figma 2698-22247: txt itemSpacing 6);
+            // \u00A0 — неразрывные пробелы из макета, задают переносы как в дизайне
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Удалить объект?", style = ToolbarTitleStyle)
+                Text(
+                    "Будут удалены данные объекта, договор, история платежей и\u00A0показания счетчиков. Это\u00A0действие нельзя отменить",
+                    style = Headline2MobStyle.copy(color = GreyText)
+                )
+            }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 BlackCtaButton(
                     text = "Удалить объект",

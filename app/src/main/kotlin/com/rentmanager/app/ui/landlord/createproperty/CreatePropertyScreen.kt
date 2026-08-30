@@ -79,6 +79,7 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
+import com.rentmanager.app.ui.components.DesignWidthDialog
 
 // Опции дропдаунов и чипов (локально, в бэкенд уходят как строки)
 private val SleepingOptions = listOf("1", "2", "3", "4", "5", "6+")
@@ -659,14 +660,13 @@ private fun SaveBeforeExitDialog(
     onExitWithoutSaving: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    DesignWidthDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)
+        dismissOnClickOutside = false
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color.White)
                 .padding(20.dp),
@@ -698,14 +698,13 @@ private fun ResetChangesDialog(
     onReset: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(
+    DesignWidthDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)
+        dismissOnClickOutside = false
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color.White)
                 .padding(20.dp),

@@ -68,6 +68,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.gson.Gson
 import com.rentmanager.app.R
 import java.util.Calendar
+import com.rentmanager.app.ui.components.DesignWidthDialog
 
 // ---- Cache to persist state across navigation ----
 object PaymentScheduleCache {
@@ -768,8 +769,9 @@ private fun DayPickerWithDialog(
     }
 
     if (showDialog) {
-        Dialog(onDismissRequest = { showDialog = false }) {
+        DesignWidthDialog(onDismissRequest = { showDialog = false }) {
             Surface(
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 color = CreamColor
             ) {
