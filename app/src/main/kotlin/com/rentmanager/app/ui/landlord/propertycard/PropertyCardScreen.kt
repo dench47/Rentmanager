@@ -768,11 +768,13 @@ private fun AccordionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // Развёрнутый — заголовок 40dp без подзаголовка (Figma 2519-14173),
+                // Развёрнутый: 10dp сверху карточки + строка 40dp (Figma 2519-14173:
+                // paddingTop=10, header 40, itemSpacing=12 до контента);
                 // свёрнутый — 64dp с подзаголовком-плейсхолдером
+                .padding(top = if (expanded) 10.dp else 0.dp)
                 .height(if (expanded) 40.dp else 64.dp)
                 .clickable(onClick = onToggle)
-                .padding(top = if (expanded) 10.dp else 0.dp, start = 20.dp, end = 10.dp),
+                .padding(start = 20.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -818,7 +820,7 @@ private fun AccordionCard(
 @Composable
 private fun ObjectInfoContent(property: PropertyDto?) {
     Column(
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
