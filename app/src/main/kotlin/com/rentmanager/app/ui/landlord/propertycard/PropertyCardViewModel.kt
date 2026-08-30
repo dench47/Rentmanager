@@ -161,6 +161,30 @@ class PropertyCardViewModel @Inject constructor(
         )
     }
 
+    /** Шит «Информация об объекте»: контактный телефон, пароль WiFi и правила. */
+    fun saveObjectInfo(phone: String, wifiPassword: String, houseRules: String) {
+        val current = _uiState.value.property ?: return
+        saveProperty(
+            current.copy(
+                phone = phone.takeIf { it.isNotBlank() },
+                wifiPassword = wifiPassword.takeIf { it.isNotBlank() },
+                houseRules = houseRules.takeIf { it.isNotBlank() }
+            ),
+            "Изменения сохранены"
+        )
+    }
+
+
+    /** Заметка «Служебная информация» в аккордеоне — сохранение по потере фокуса. */
+    fun saveServiceInfo(text: String) {
+        val current = _uiState.value.property ?: return
+        if (current.serviceInfo.orEmpty() == text) return
+        saveProperty(
+            current.copy(serviceInfo = text.takeIf { it.isNotBlank() }),
+            "Изменения сохранены"
+        )
+    }
+
     /** Шит «Об объекте»: основные параметры и стоимость. */
     fun saveAboutInfo(
         name: String,

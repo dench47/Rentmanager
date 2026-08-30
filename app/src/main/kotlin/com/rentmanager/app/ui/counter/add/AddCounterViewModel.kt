@@ -107,7 +107,7 @@ class AddCounterViewModel @Inject constructor(
                     nextVerificationDate = state.nextVerificationDate.toApiDate(),
                     currentValue = state.initialValue.toDoubleOrNull() ?: 0.0,
                     unit = apiType.toUnit(),
-                    submitReadingsBy = state.submitReadingsBy.toApiDate(),
+                    submitReadingsBy = state.submitReadingsBy.trim(),
                     lastUpdated = null
                 )
                 val resp = repository.createMeter(propertyId, meter)

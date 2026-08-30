@@ -78,6 +78,14 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlinx.coroutines.launch
 import com.rentmanager.app.ui.components.DesignWidthDialog
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalFocusManager
 
 private val GreenIcon = Color(0xFFE5F2E7)
 private val GreenText = Color(0xFF2F7D4D)
@@ -115,6 +123,7 @@ fun PropertyCardScreen(
     var showAboutSheet by remember { mutableStateOf(false) }
     var showMetersSheet by remember { mutableStateOf(false) }
     var showPhotosSheet by remember { mutableStateOf(false) }
+    var showObjectInfoSheet by remember { mutableStateOf(false) }
 
     // Ошибки действий (публикация/удаление/загрузка) — Toast'ами
     LaunchedEffect(Unit) {
@@ -344,9 +353,10 @@ fun PropertyCardScreen(
                         "Информация об объекте",
                         "Эта информация будет видна арендатору",
                         tenantExpanded,
-                        onToggle = { tenantExpanded = !tenantExpanded }
+                        onToggle = { tenantExpanded = !tenantExpanded },
+                        onPencilClick = { showObjectInfoSheet = true }
                     ) {
-                        DetailsContent(property)
+                        ObjectInfoContent(property)
                     }
                     AccordionCard(
                         "Служебная информация",
@@ -354,9 +364,11 @@ fun PropertyCardScreen(
                         serviceExpanded,
                         onToggle = { serviceExpanded = !serviceExpanded }
                     ) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp)) {
-                            Text(property?.serviceInfo?.ifBlank { "—" } ?: "—", style = CardSubtitleStyle.copy(color = Graphite))
-                        }
+                        ServiceNoteContent(
+                            text = property?.serviceInfo.orEmpty(),
+                            focused = serviceExpanded,
+                            onTextChange = { viewModel.saveServiceInfo(it) }
+                        )
                     }
                 }
             }
@@ -491,6 +503,19 @@ fun PropertyCardScreen(
     }
     if (showMetersSheet) {
         MetersSheet(onDismiss = { showMetersSheet = false })
+    }
+    if (showObjectInfoSheet) {
+        property?.let { p ->
+            ObjectInfoEditSheet(
+                property = p,
+                isSaving = uiState.isActionInProgress,
+                onSave = { phone, wifi, rules ->
+                    showObjectInfoSheet = false
+                    viewModel.saveObjectInfo(phone, wifi, rules)
+                },
+                onDismiss = { showObjectInfoSheet = false }
+            )
+        }
     }
     if (showPhotosSheet) {
         property?.let { p ->
@@ -731,6 +756,7 @@ private fun AccordionCard(
     subtitle: String,
     expanded: Boolean,
     onToggle: () -> Unit,
+    onPencilClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     Column(
@@ -742,42 +768,163 @@ private fun AccordionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                // Развёрнутый — заголовок 40dp без подзаголовка (Figma 2519-14173),
+                // свёрнутый — 64dp с подзаголовком-плейсхолдером
+                .height(if (expanded) 40.dp else 64.dp)
                 .clickable(onClick = onToggle)
-                .padding(start = 20.dp, end = 10.dp),
+                .padding(top = if (expanded) 10.dp else 0.dp, start = 20.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = Headline2MobStyle)
-                Text(subtitle, style = CardSubtitleStyle)
+                // Свёрнутый аккордеон показывает подзаголовок-плейсхолдер,
+                // развёрнутый — только заголовок (Figma 2519-14173 / 2677-26172)
+                if (!expanded) {
+                    Text(subtitle, style = CardSubtitleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            // Карандаш редактирования — только в развёрнутом состоянии;
+            // голый глиф без круга в зоне 40×40 (новый макет 2519-14173, файл 3)
+            if (expanded && onPencilClick != null) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onPencilClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_action_edit),
+                        contentDescription = "Редактировать",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
             Image(
                 painter = painterResource(R.drawable.ic_card_chevron),
                 contentDescription = null,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .graphicsLayer { rotationZ = if (expanded) 180f else 0f }
             )
         }
         if (expanded) content()
     }
 }
 
+// Контент аккордеона «Информация об объекте» (Figma 2519-14173) — только чтение:
+// инлайн-строки с иконками «Номер телефона:»/«Пароль WiFi:» + значения из данных,
+// блок «Правила объекта» — текст; редактирование — через карандаш (шит)
 @Composable
-private fun DetailsContent(property: PropertyDto?) {
+private fun ObjectInfoContent(property: PropertyDto?) {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        DetailRow("Номер телефона", property?.phone.orEmpty())
-        DetailRow("Пароль WiFi", property?.wifiPassword.orEmpty())
-        DetailRow("Правила объекта", property?.houseRules.orEmpty())
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            InfoInlineRow(iconRes = R.drawable.ic_call_phone, label = "Номер телефона:", value = property?.phone.orEmpty())
+            InfoInlineRow(iconRes = R.drawable.ic_wifi, label = "Пароль WiFi:", value = property?.wifiPassword.orEmpty())
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Правила объекта", style = Headline2MobStyle)
+            Text(
+                property?.houseRules.orEmpty()
+                    .ifBlank { "Использовать помещение исключительно в целях, указанных в договоре" },
+                style = CardSubtitleStyle
+            )
+        }
     }
 }
 
+// Строка «иконка + статичная подпись + значение» (Figma 2519-14173):
+// подпись и иконка #212121@85%, значение #212121; пустое значение — только подпись
 @Composable
-private fun DetailRow(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = CardSubtitleStyle)
-        Text(value.ifBlank { "—" }, style = Headline2MobStyle.copy(color = Graphite))
+private fun InfoInlineRow(iconRes: Int, label: String, value: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            colorFilter = ColorFilter.tint(Graphite85)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(label, style = Headline2MobStyle.copy(color = Graphite85))
+            if (value.isNotBlank()) {
+                Text(value, style = Headline2MobStyle)
+            }
+        }
+    }
+}
+
+// Контент аккордеона «Служебная информация» (Figma 2677-26172):
+// заметка прямо на карточке; при пустоте — только мигающий курсор
+@Composable
+private fun ServiceNoteContent(
+    text: String,
+    focused: Boolean,
+    onTextChange: (String) -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 10.dp)) {
+        NoteField(text = text, focused = focused, onTextChange = onTextChange, placeholder = null)
+    }
+}
+
+// Заметка: многострочный ввод без ограничений длины (Figma 2677-26172: 13 Regular).
+// focused=true — автофокус с курсором в начале первой строки при раскрытии аккордеона;
+// сохранение — по потере фокуса
+@Composable
+private fun NoteField(
+    text: String,
+    focused: Boolean,
+    onTextChange: (String) -> Unit,
+    placeholder: String?
+) {
+    var value by remember(text) { mutableStateOf(text) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    var hasFocus by remember { mutableStateOf(false) }
+
+    // При появлении поля (раскрытие аккордеона) — сразу фокус, мигающий курсор в начале
+    LaunchedEffect(focused) {
+        if (focused) {
+            try { focusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
+    BasicTextField(
+        value = value,
+        onValueChange = { value = it },
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester)
+            .onFocusChanged { state ->
+                if (state.isFocused) {
+                    hasFocus = true
+                } else if (hasFocus) {
+                    // Потеряли фокус — сохраняем заметку
+                    hasFocus = false
+                    if (value != text) onTextChange(value)
+                }
+            },
+        textStyle = CardSubtitleStyle.copy(color = Graphite),
+        cursorBrush = SolidColor(Graphite),
+        decorationBox = { innerTextField ->
+            Box {
+                if (value.isEmpty() && placeholder != null) {
+                    Text(placeholder, style = CardSubtitleStyle)
+                }
+                innerTextField()
+            }
+        }
+    )
+    // Случай «свернули аккордеон с несохранённым текстом» — тоже сохраняем
+    if (!focused && value != text) {
+        LaunchedEffect(Unit) { onTextChange(value) }
     }
 }
 
