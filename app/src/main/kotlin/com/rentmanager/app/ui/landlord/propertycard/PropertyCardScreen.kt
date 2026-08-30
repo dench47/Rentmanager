@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
@@ -53,6 +54,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -70,6 +73,8 @@ import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.CardSubtitleStyle
+import com.rentmanager.app.ui.theme.FieldTextStyle
+import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.PropertyNameStyle
 import com.rentmanager.app.ui.theme.TextIconeStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
@@ -79,6 +84,7 @@ import kotlin.math.sin
 import kotlinx.coroutines.launch
 import com.rentmanager.app.ui.components.DesignWidthDialog
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -123,7 +129,10 @@ fun PropertyCardScreen(
     var showAboutSheet by remember { mutableStateOf(false) }
     var showMetersSheet by remember { mutableStateOf(false) }
     var showPhotosSheet by remember { mutableStateOf(false) }
-    var showObjectInfoSheet by remember { mutableStateOf(false) }
+
+    // Инлайн-редактирование «Информация об объекте» (Figma 2677-26576):
+    // карандаш превращает контент раскрытого аккордеона в редактируемые поля
+    var objectInfoEditing by remember { mutableStateOf(false) }
 
     // Ошибки действий (публикация/удаление/загрузка) — Toast'ами
     LaunchedEffect(Unit) {
@@ -353,10 +362,26 @@ fun PropertyCardScreen(
                         "Информация об объекте",
                         "Эта информация будет видна арендатору",
                         tenantExpanded,
-                        onToggle = { tenantExpanded = !tenantExpanded },
-                        onPencilClick = { showObjectInfoSheet = true }
+                        onToggle = {
+                            tenantExpanded = !tenantExpanded
+                            // Схлопнули аккордеон — выходим из редактирования (несохранённое отбрасывается)
+                            if (!tenantExpanded) objectInfoEditing = false
+                        },
+                        onPencilClick = { objectInfoEditing = true },
+                        showPencil = !objectInfoEditing
                     ) {
-                        ObjectInfoContent(property)
+                        if (objectInfoEditing) {
+                            ObjectInfoEditContent(
+                                property = property,
+                                isSaving = uiState.isActionInProgress,
+                                onSave = { phone, wifi, rules ->
+                                    objectInfoEditing = false
+                                    viewModel.saveObjectInfo(phone, wifi, rules)
+                                }
+                            )
+                        } else {
+                            ObjectInfoContent(property)
+                        }
                     }
                     AccordionCard(
                         "Служебная информация",
@@ -503,19 +528,6 @@ fun PropertyCardScreen(
     }
     if (showMetersSheet) {
         MetersSheet(onDismiss = { showMetersSheet = false })
-    }
-    if (showObjectInfoSheet) {
-        property?.let { p ->
-            ObjectInfoEditSheet(
-                property = p,
-                isSaving = uiState.isActionInProgress,
-                onSave = { phone, wifi, rules ->
-                    showObjectInfoSheet = false
-                    viewModel.saveObjectInfo(phone, wifi, rules)
-                },
-                onDismiss = { showObjectInfoSheet = false }
-            )
-        }
     }
     if (showPhotosSheet) {
         property?.let { p ->
@@ -757,6 +769,7 @@ private fun AccordionCard(
     expanded: Boolean,
     onToggle: () -> Unit,
     onPencilClick: (() -> Unit)? = null,
+    showPencil: Boolean = true,
     content: @Composable () -> Unit
 ) {
     Column(
@@ -786,8 +799,9 @@ private fun AccordionCard(
                 }
             }
             // Карандаш редактирования — только в развёрнутом состоянии;
-            // голый глиф без круга в зоне 40×40 (новый макет 2519-14173, файл 3)
-            if (expanded && onPencilClick != null) {
+            // скрывается в режиме инлайн-редактирования (Figma 2677-26576:
+            // в заголовке редактируемой карточки только название + шеврон)
+            if (expanded && onPencilClick != null && showPencil) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -816,7 +830,7 @@ private fun AccordionCard(
 
 // Контент аккордеона «Информация об объекте» (Figma 2519-14173) — только чтение:
 // инлайн-строки с иконками «Номер телефона:»/«Пароль WiFi:» + значения из данных,
-// блок «Правила объекта» — текст; редактирование — через карандаш (шит)
+// блок «Правила объекта» — текст; редактирование — карандаш в заголовке
 @Composable
 private fun ObjectInfoContent(property: PropertyDto?) {
     Column(
@@ -861,6 +875,130 @@ private fun InfoInlineRow(iconRes: Int, label: String, value: String) {
                 Text(value, style = Headline2MobStyle)
             }
         }
+    }
+}
+
+// Редактируемый контент аккордеона «Информация об объекте» (Figma 2677-26576):
+// белые пилюли-поля «Номер телефона»/«Пароль WiFi» на серой карточке, блок
+// «Правила объекта» с автофокусом и CTA «Сохранить изменения» (332×55, r100).
+// Зазоры: пилюли 6dp, правила в 6dp от пилюль, кнопка в 20dp (itemSpacing 20)
+@Composable
+private fun ObjectInfoEditContent(
+    property: PropertyDto?,
+    isSaving: Boolean,
+    onSave: (phone: String, wifiPassword: String, houseRules: String) -> Unit
+) {
+    var phone by remember(property?.id) { mutableStateOf(property?.phone.orEmpty()) }
+    var wifi by remember(property?.id) { mutableStateOf(property?.wifiPassword.orEmpty()) }
+    var rules by remember(property?.id) { mutableStateOf(property?.houseRules.orEmpty()) }
+    val rulesFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        try { rulesFocus.requestFocus() } catch (_: Exception) {}
+    }
+    Column(
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        InlineIconField(
+            iconRes = R.drawable.ic_call_phone,
+            caption = "Номер телефона",
+            value = phone,
+            onValueChange = { phone = it },
+            placeholder = "+7",
+            keyboardType = KeyboardType.Phone
+        )
+        InlineIconField(
+            iconRes = R.drawable.ic_wifi,
+            caption = "Пароль WiFi",
+            value = wifi,
+            onValueChange = { wifi = it },
+            placeholder = ""
+        )
+        // Правила: текст выровнен с иконками пилюль (горизонтальный отступ 10dp)
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("Правила объекта", style = Headline2MobStyle)
+            // Многострочный ввод без ограничений; плейсхолдер — только когда пусто
+            BasicTextField(
+                value = rules,
+                onValueChange = { rules = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 40.dp)
+                    .focusRequester(rulesFocus),
+                textStyle = CardSubtitleStyle.copy(color = Graphite),
+                cursorBrush = SolidColor(Graphite),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (rules.isEmpty()) {
+                            Text(
+                                "Использовать помещение исключительно в целях, указанных в договоре",
+                                style = CardSubtitleStyle
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+        }
+        // 6dp от spacedBy + 14dp паддинга = 20dp до кнопки (Figma: itemSpacing 20)
+        BlackCtaButton(
+            modifier = Modifier.padding(top = 14.dp),
+            text = "Сохранить изменения",
+            enabled = !isSaving,
+            onClick = { onSave(phone, wifi, rules) }
+        )
+    }
+}
+
+// Поле-пилюля с иконкой для инлайн-редактирования (Figma 2677-26576):
+// белая 64dp r20, иконка 20dp, отступ 10dp; подпись 13/400 #727272 над вводом 15/600
+@Composable
+private fun InlineIconField(
+    iconRes: Int,
+    caption: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1f),
+            textStyle = FieldTextStyle,
+            cursorBrush = SolidColor(Graphite),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
+            decorationBox = { innerTextField ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(caption, style = CardSubtitleStyle)
+                    Box {
+                        if (value.isEmpty() && placeholder.isNotEmpty()) {
+                            Text(placeholder, style = Headline2MobPlaceholderStyle)
+                        }
+                        innerTextField()
+                    }
+                }
+            }
+        )
     }
 }
 

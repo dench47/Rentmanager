@@ -66,9 +66,6 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.runtime.LaunchedEffect
 
 // #79747E — drag handle шита (как в PropertyActionsSheet)
 private val SheetHandleGrey = Color(0xFF79747E)
@@ -213,80 +210,8 @@ fun TenantContractEditSheet(
     }
 }
 
-// Шит «Информация об объекте» (Figma 2677-26576): телефон и пароль WiFi
-// Шит «Информация об объекте» (Figma 2677-26576): телефон и пароль WiFi
-// с иконками + заметка «Правила объекта» (без ограничений длины, автофокус
-// с мигающим курсором при открытии — вводить можно сразу)
-@Composable
-fun ObjectInfoEditSheet(
-    property: PropertyDto,
-    isSaving: Boolean,
-    onSave: (phone: String, wifiPassword: String, houseRules: String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var phone by remember(property.id) { mutableStateOf(property.phone.orEmpty()) }
-    var wifi by remember(property.id) { mutableStateOf(property.wifiPassword.orEmpty()) }
-    var rules by remember(property.id) { mutableStateOf(property.houseRules.orEmpty()) }
-    val rulesFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        try { rulesFocus.requestFocus() } catch (_: Exception) {}
-    }
-    EditSheetScaffold(title = "Информация об объекте", onDismiss = onDismiss) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SheetIconField(
-                iconRes = R.drawable.ic_call_phone,
-                caption = "Номер телефона",
-                value = phone,
-                onValueChange = { phone = it },
-                placeholder = "+7"
-            )
-            SheetIconField(
-                iconRes = R.drawable.ic_wifi,
-                caption = "Пароль WiFi",
-                value = wifi,
-                onValueChange = { wifi = it },
-                placeholder = ""
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 10.dp, end = 10.dp, top = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text("Правила объекта", style = Headline2MobStyle)
-                // Заметка: многострочный ввод без ограничений; плейсхолдер — только когда пусто
-                BasicTextField(
-                    value = rules,
-                    onValueChange = { rules = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 40.dp)
-                        .focusRequester(rulesFocus),
-                    textStyle = CardSubtitleStyle.copy(color = Graphite),
-                    cursorBrush = SolidColor(Graphite),
-                    decorationBox = { innerTextField ->
-                        Box {
-                            if (rules.isEmpty()) {
-                                Text(
-                                    "Использовать помещение исключительно в целях, указанных в договоре",
-                                    style = CardSubtitleStyle
-                                )
-                            }
-                            innerTextField()
-                        }
-                    }
-                )
-            }
-        }
-        // 12dp от spacedBy + 8dp паддинга = 20dp до кнопки (Figma: Content itemSpacing 20)
-        BlackCtaButton(
-            modifier = Modifier.padding(top = 8.dp),
-            text = "Сохранить изменения",
-            enabled = !isSaving,
-            onClick = { onSave(phone, wifi, rules) }
-        )
-    }
-}
+// Шит «Информация об объекте» удалён: редактирование стало инлайн-режимом
+// раскрытого аккордеона (Figma 2677-26576) — см. ObjectInfoEditContent в PropertyCardScreen
 
 // Шит «Об объекте» (Figma 2677-26195): название, адрес, комнаты, площадь,
 // спальные места, этажи, описание, стоимость. Значения из макета — примеры,
