@@ -10,6 +10,7 @@ import com.rentmanager.app.data.api.PropertyApi
 import com.rentmanager.app.data.api.TenantApi
 import com.rentmanager.app.data.api.TokenRefresher
 import com.rentmanager.app.data.local.TokenManager
+import com.google.gson.GsonBuilder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -92,10 +93,15 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        // serializeNulls: null-поля уходят в JSON явно. Сервер обновляет объект
+        // по присутствию ключей (map в Update) — без этого очистка необязательных
+        // полей (телефон, WiFi, ставка и т.п.) не сохранялась бы: Gson по умолчанию
+        // просто выбрасывает null-поля из тела запроса
+        val gson = GsonBuilder().serializeNulls().create()
         return Retrofit.Builder()
             .baseUrl(BuildConfig.API_BASE_URL)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
     }
 
