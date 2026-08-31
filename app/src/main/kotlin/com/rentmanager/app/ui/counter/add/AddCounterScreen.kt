@@ -58,7 +58,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.DesignWidthDialog
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
-import com.rentmanager.app.ui.landlord.createproperty.ScreenToolbar
 import com.rentmanager.app.ui.theme.CardBackground
 import com.rentmanager.app.ui.theme.CardSubtitleStyle
 import com.rentmanager.app.ui.theme.Graphite
@@ -117,7 +116,27 @@ fun AddCounterScreen(
             .background(BrandTint)
             .statusBarsPadding()
     ) {
-        ScreenToolbar(title = "Добавить счетчик", onBack = requestExit)
+        // Шапка по макету 2692:31197: 36dp пустой кремовой зоны над заголовком
+        // (ручка шита в макете есть, но с opacity 0.4 — визуально невидима),
+        // строка заголовка 36dp: стрелка 24 и текст 20/600 прижаты к верху —
+        // под ними до белой панели остаётся 12dp фона (как в макете)
+        Spacer(Modifier.height(36.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp)
+                .padding(start = 20.dp, end = 20.dp)
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_landlord_back),
+                contentDescription = "Назад",
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(onClickLabel = "Назад") { requestExit() }
+            )
+            Spacer(Modifier.size(10.dp))
+            Text("Добавить счетчик", style = ToolbarTitleStyle)
+        }
 
         // Белая область: контент + таббар
         Column(
