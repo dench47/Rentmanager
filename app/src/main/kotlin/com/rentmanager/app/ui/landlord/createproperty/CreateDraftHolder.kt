@@ -82,7 +82,12 @@ object CreateDraftHolder {
         serviceInfo = ""
         entryRequested = false
         autoContinue = false
+        // Черновик завершён — убираем и его персистентную копию
+        CreateDraftPersistence.clearStore()
     }
+
+    /** Записать текущее состояние в DataStore (переживает перезапуск приложения). */
+    fun persist() = CreateDraftPersistence.save()
 
     /** Снимок полей шага 4 — чтобы режим редактирования объекта не портил черновик создания. */
     fun snapshot(): Map<String, Any?> = mapOf(

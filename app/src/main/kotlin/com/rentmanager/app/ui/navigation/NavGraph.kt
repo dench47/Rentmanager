@@ -304,9 +304,13 @@ fun RentManagerNavGraph(
                 onCreated = { newId ->
                     CreateDraftHolder.clear()
                     propertiesViewModel.refresh()
-                    navController.navigate(Screen.PropertyCard.createRoute(newId)) {
-                        popUpTo(Screen.MyProperties.route) { inclusive = false }
+                    // Сначала «Моя недвижимость» (вычищаем весь флоу создания из стека —
+                    // вход мог быть с дашборда, где списка нет, и popUpTo(MyProperties) не срабатывал),
+                    // затем карточка: «назад» из карточки ведёт в список, а не на шаг 3
+                    navController.navigate(Screen.MyProperties.route) {
+                        popUpTo(Screen.MainScreen.route) { inclusive = false }
                     }
+                    navController.navigate(Screen.PropertyCard.createRoute(newId))
                 },
                 onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) }
             )

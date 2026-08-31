@@ -180,6 +180,9 @@ class MainActivity : FragmentActivity() {
             tokenManager.lastPauseTimestamp = 0L
         }
 
+        // Черновик создания объекта восстанавливается из DataStore (переживает перезапуск)
+        com.rentmanager.app.ui.landlord.createproperty.CreateDraftPersistence.init(this)
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED
         ) {

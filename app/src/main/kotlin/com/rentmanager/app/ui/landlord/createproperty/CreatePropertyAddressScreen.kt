@@ -110,13 +110,16 @@ fun CreatePropertyAddressScreen(
                 .fillMaxSize()
                 .background(Color.White)
         ) {
-            // Карта на весь экран (под тулбаром и шитом)
+            // Карта на весь экран (под тулбаром и шитом); в макете 2507-8642 карта
+            // начинается СТРОГО под статус-баром — не заходит на часы и иконки
             AddressMapPicker(
                 latitude = uiState.selectedLatitude ?: 55.755826,
                 longitude = uiState.selectedLongitude ?: 37.617300,
                 onLocationSelected = { lat, lon -> viewModel.onMapTapped(lat, lon) },
                 markerIconRes = R.drawable.ic_map_pin,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = paddingValues.calculateTopPadding())
             )
 
             // Тулбар поверх карты (в макете — полупрозрачная подложка rgba(237,237,237,0.6))
@@ -178,7 +181,7 @@ fun CreatePropertyAddressScreen(
                 }
             }
 
-            // Нижний шит (Figma: высота 165, радиус 30 сверху, padding 20, поле 55 + кнопка 55)
+            // Нижний шит (Figma 2507-8642: высота 165 = 20 + поле 64 + зазор 6 + CTA 55 + 20)
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -187,13 +190,13 @@ fun CreatePropertyAddressScreen(
                     .background(Color.White, RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                     .padding(20.dp)
                     .height(165.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                // Поле «Укажите адрес» (55, #EFEFEF, r20, padding 20/10)
+                // Поле «Укажите адрес» (64dp, #EFEFEF, r20, padding 20/10)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(55.dp)
+                        .height(64.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(CardBackground)
                         .padding(start = 20.dp, end = 10.dp),
@@ -232,6 +235,8 @@ fun CreatePropertyAddressScreen(
                     CreateDraftHolder.address = address.text.trim()
                     CreateDraftHolder.latitude = uiState.selectedLatitude
                     CreateDraftHolder.longitude = uiState.selectedLongitude
+                    // Шаг пройден — фиксируем черновик (адрес/координаты переживают перезапуск)
+                    CreateDraftHolder.persist()
                     onAddressConfirmed(
                         address.text.trim(),
                         uiState.selectedLatitude,

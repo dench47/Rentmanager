@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.theme.ErrorRed
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
@@ -117,7 +118,8 @@ fun ChoosePropertyTypeScreen(
     }
 }
 
-// Диалог продолжения создания объекта (Figma 2571:18704)
+// Диалог продолжения создания объекта (Figma 2698-22344): заголовок + текст,
+// красная «Продолжить» и контурная «Начать заново», паддинг карточки 20
 @Composable
 private fun ContinueDraftDialog(
     onContinue: () -> Unit,
@@ -138,8 +140,8 @@ private fun ContinueDraftDialog(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White)
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Шапка: заголовок + подзаголовок
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -150,9 +152,9 @@ private fun ContinueDraftDialog(
                     )
                 }
 
-                // Кнопки Button_CTA (Figma): чёрная «Продолжить» + контурная «Начать заново»
+                // Кнопки (Figma 2698-22344): красная «Продолжить» + контурная «Начать заново»
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    BlackCtaButton(text = "Продолжить") { onContinue() }
+                    BlackCtaButton(text = "Продолжить", containerColor = ErrorRed) { onContinue() }
                     OutlineCtaButton(text = "Начать заново", borderColor = Color(0xD9212121)) {
                         onStartOver()
                     }

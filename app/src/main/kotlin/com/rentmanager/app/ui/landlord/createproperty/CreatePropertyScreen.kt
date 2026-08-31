@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -64,6 +67,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -113,7 +117,17 @@ fun CreatePropertyScreen(
         // сохраняем его снимок на входе и восстанавливаем при выходе с экрана
         val draftSnapshot = remember { CreateDraftHolder.snapshot() }
         DisposableEffect(Unit) {
-            onDispose { CreateDraftHolder.restore(draftSnapshot) }
+            onDispose {
+                CreateDraftHolder.restore(draftSnapshot)
+                // Вышли с редактирования — фиксируем черновик в DataStore
+                CreateDraftHolder.persist()
+            }
+        }
+    } else {
+        // Выход из шага 4 создания (назад/крестик) — фиксируем черновик,
+        // чтобы он пережил перезапуск приложения
+        DisposableEffect(Unit) {
+            onDispose { CreateDraftHolder.persist() }
         }
     }
 
@@ -159,7 +173,7 @@ fun CreatePropertyScreen(
     }
 
     var phoneNumber by remember(editKey) {
-        mutableStateOf(if (isEditMode) editProperty?.phone.orEmpty() else CreateDraftHolder.phoneNumber)
+        mutableStateOf(if (isEditMode) editProperty?.phone.orEmpty().removePrefix("+") else CreateDraftHolder.phoneNumber)
     }
     var wifiPassword by remember(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.wifiPassword.orEmpty() else CreateDraftHolder.wifiPassword)
@@ -170,6 +184,7 @@ fun CreatePropertyScreen(
     var serviceInfo by remember(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.serviceInfo.orEmpty() else CreateDraftHolder.serviceInfo)
     }
+    // Оба аккордеона изначально свёрнуты
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
 
@@ -231,7 +246,7 @@ fun CreatePropertyScreen(
             sleepingPlaces != p.sleepingPlaces ||
             floor != p.floor ||
             floorsInHouse != p.floorsInHouse ||
-            phoneNumber != p.phone.orEmpty() ||
+            phoneNumber != p.phone.orEmpty().removePrefix("+") ||
             wifiPassword != p.wifiPassword.orEmpty() ||
             rulesText != p.houseRules.orEmpty() ||
             serviceInfo != p.serviceInfo.orEmpty() ||
@@ -255,7 +270,8 @@ fun CreatePropertyScreen(
                 description = description,
                 photoUris = photoUris,
                 serviceInfo = serviceInfo,
-                phone = phoneNumber,
+                // Значение хранится без «+» — добавляем при сохранении
+                phone = phoneNumber.trim().let { if (it.isBlank()) "" else "+$it" },
                 wifiPassword = wifiPassword,
                 houseRules = rulesText,
                 type = effPropertyType,
@@ -280,7 +296,7 @@ fun CreatePropertyScreen(
         sleepingPlaces = p.sleepingPlaces
         floor = p.floor
         floorsInHouse = p.floorsInHouse
-        phoneNumber = p.phone.orEmpty()
+        phoneNumber = p.phone.orEmpty().removePrefix("+")
         wifiPassword = p.wifiPassword.orEmpty()
         rulesText = p.houseRules.orEmpty()
         serviceInfo = p.serviceInfo.orEmpty()
@@ -327,6 +343,9 @@ fun CreatePropertyScreen(
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
+                    // Контент не ныряет под системную навигацию и клавиатуру
+                    .navigationBarsPadding()
+                    .imePadding()
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
@@ -420,6 +439,8 @@ fun CreatePropertyScreen(
                             },
                             placeholder = "Площадь, м2",
                             keyboardType = KeyboardType.Decimal,
+                            // После ввода рядом со значением показываем единицы
+                            suffix = "м²",
                             modifier = Modifier.weight(1f),
                             isError = areaError
                         )
@@ -536,7 +557,11 @@ fun CreatePropertyScreen(
                                 phoneNumber = it
                                 CreateDraftHolder.phoneNumber = it
                             },
-                            placeholder = "+7 "
+                            // «+» стоит в поле всегда, плейсхолдер — «7» (любая страна),
+                            // поле цифровое; «+» добавляется при сохранении
+                            placeholder = "7",
+                            keyboardType = KeyboardType.Phone,
+                            prefix = "+"
                         )
                         LabeledField(
                             icon = Icons.Filled.Wifi,
@@ -549,11 +574,12 @@ fun CreatePropertyScreen(
                             placeholder = "Rsjuff6749"
                         )
                         Column(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(start = 10.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text("Правила объекта", style = Headline2MobStyle)
-                            MultilineTextField(
+                            // Прозрачный многострочный ввод (Figma 2677-26576: без белой карточки)
+                            TransparentNoteField(
                                 value = rulesText,
                                 onValueChange = {
                                     rulesText = it
@@ -569,13 +595,15 @@ fun CreatePropertyScreen(
                         expanded = serviceInfoExpanded,
                         onToggle = { serviceInfoExpanded = !serviceInfoExpanded }
                     ) {
-                        MultilineTextField(
+                        // Зона заметки прямо на карточке (Figma 2677-26172): 144dp, без фона
+                        TransparentNoteField(
                             value = serviceInfo,
                             onValueChange = {
                                 serviceInfo = it
                                 CreateDraftHolder.serviceInfo = it
                             },
-                            placeholder = ""
+                            placeholder = "",
+                            minHeight = 144.dp
                         )
                     }
                 }
@@ -840,13 +868,12 @@ private fun RoomChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(30.dp))
-            .background(if (selected) Color.White else CardBackground)
+            // Выбранный чип — инверсия цвета (Figma 2533-20939): #212121 фон, белый текст
+            .background(if (selected) Graphite else CardBackground)
             .then(
-                when {
-                    selected -> Modifier.border(1.dp, Graphite, RoundedCornerShape(30.dp))
-                    showError -> Modifier.border(1.dp, ErrorRed, RoundedCornerShape(30.dp))
-                    else -> Modifier
-                }
+                if (!selected && showError) {
+                    Modifier.border(1.dp, ErrorRed, RoundedCornerShape(30.dp))
+                } else Modifier
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
@@ -854,14 +881,21 @@ private fun RoomChip(
     ) {
         Text(
             label,
-            style = Headline2MobStyle.copy(color = if (showError) ErrorRed else Graphite),
+            style = Headline2MobStyle.copy(
+                color = when {
+                    selected -> Color.White
+                    showError -> ErrorRed
+                    else -> Graphite
+                }
+            ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
     }
 }
 
-// Текстовое поле в карточке card_inf (Figma: 64, r20, #EFEFEF, padding 20/10, плейсхолдер Headline 2 mob Grey/Text)
+// Текстовое поле в карточке card_inf (Figma: 64, r20, #EFEFEF, padding 20/10, плейсхолдер Headline 2 mob Grey/Text).
+// suffix — единицы измерения после введённого значения («м²»)
 @Composable
 private fun CardInput(
     value: String,
@@ -869,7 +903,8 @@ private fun CardInput(
     placeholder: String,
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
-    isError: Boolean = false
+    isError: Boolean = false,
+    suffix: String? = null
 ) {
     Box(
         modifier = modifier
@@ -890,17 +925,26 @@ private fun CardInput(
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
             decorationBox = { innerTextField ->
-                Box {
-                    if (value.isEmpty()) {
-                        Text(
-                            placeholder,
-                            style = if (isError) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
-                            else Headline2MobPlaceholderStyle,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(Modifier.weight(1f)) {
+                        if (value.isEmpty()) {
+                            Text(
+                                placeholder,
+                                style = if (isError) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                                else Headline2MobPlaceholderStyle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        innerTextField()
                     }
-                    innerTextField()
+                    // Единицы измерения — рядом с введённым значением
+                    if (suffix != null && value.isNotEmpty()) {
+                        Text(suffix, style = Headline2MobStyle)
+                    }
                 }
             }
         )
@@ -1053,14 +1097,22 @@ private fun InfoAccordionCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
-            .animateContentSize()
     ) {
+        // Без ripple-подсветки и анимации размера при раскрытии/закрытии
+        val headerInteraction = remember { MutableInteractionSource() }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onToggle)
+                // Раскрытый (Figma 2677-26576/26172): 10dp сверху + строка 40dp, только название;
+                // свёрнутый — 64dp с подзаголовком
+                .padding(top = if (expanded) 10.dp else 0.dp)
+                .clickable(
+                    interactionSource = headerInteraction,
+                    indication = null,
+                    onClick = onToggle
+                )
                 .padding(start = 20.dp, end = 10.dp)
-                .height(64.dp),
+                .height(if (expanded) 40.dp else 64.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1069,7 +1121,9 @@ private fun InfoAccordionCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(title, style = Headline2MobStyle)
-                Text(subtitle, style = CardSubtitleStyle)
+                if (!expanded) {
+                    Text(subtitle, style = CardSubtitleStyle)
+                }
             }
             Image(
                 painter = painterResource(R.drawable.ic_card_chevron),
@@ -1083,7 +1137,8 @@ private fun InfoAccordionCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                    // Заголовок → поля 12, между полями 6, снизу 20 (Figma 2677-26576)
+                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 content = content
             )
@@ -1091,21 +1146,24 @@ private fun InfoAccordionCard(
     }
 }
 
-// Поле с иконкой (телефон/WiFi) внутри аккордеона — белая карточка
+// Поле с иконкой (телефон/WiFi) внутри аккордеона — белая пилюля 64dp r20 (Figma 2677-26576)
 @Composable
 private fun LabeledField(
     icon: ImageVector,
     caption: String,
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String
+    placeholder: String,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    prefix: String? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -1122,20 +1180,57 @@ private fun LabeledField(
             textStyle = FieldTextStyle,
             cursorBrush = SolidColor(Graphite),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
             decorationBox = { innerTextField ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(caption, style = CardSubtitleStyle)
-                    Box {
-                        if (value.isEmpty()) {
-                            Text(placeholder, style = Headline2MobPlaceholderStyle)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        // Постоянный префикс («+»): всегда в начале, курсор после него
+                        if (prefix != null) {
+                            Text(prefix, style = FieldTextStyle)
                         }
-                        innerTextField()
+                        Box(Modifier.weight(1f)) {
+                            if (value.isEmpty()) {
+                                Text(placeholder, style = Headline2MobPlaceholderStyle)
+                            }
+                            innerTextField()
+                        }
                     }
                 }
             }
         )
     }
+}
+
+// Прозрачная зона заметки внутри аккордеона (Figma 2677-26172/26576):
+// без фона и рамки, 13sp Regular #212121, плейсхолдер — только когда пусто
+@Composable
+private fun TransparentNoteField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    minHeight: Dp = 57.dp
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = minHeight),
+        textStyle = CardSubtitleStyle.copy(color = Graphite),
+        cursorBrush = SolidColor(Graphite),
+        decorationBox = { innerTextField ->
+            Box {
+                if (value.isEmpty() && placeholder.isNotEmpty()) {
+                    Text(placeholder, style = CardSubtitleStyle)
+                }
+                innerTextField()
+            }
+        }
+    )
 }
 
 // Многострочное поле внутри аккордеона — белая карточка
