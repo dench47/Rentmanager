@@ -54,10 +54,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.DesignWidthDialog
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.ScreenToolbar
 import com.rentmanager.app.ui.theme.CardBackground
@@ -543,20 +542,20 @@ private fun RemindSwitchRow(
 // Диалог «Выйти без сохранения?» (Figma 2711:39066): карточка r20, заголовок
 // 20/600, подпись 15/600 #727272, чёрная CTA «Продолжить редактирование» и
 // контурная «Выйти без сохранения». Закрывается ТОЛЬКО кнопками — ни тап
-// мимо, ни системный «назад» его не скрывают
+// мимо, ни системный «назад» его не скрывают. Ширина — макетная (DesignWidthDialog)
 @Composable
 private fun ExitConfirmDialog(
     onContinueEditing: () -> Unit,
     onExit: () -> Unit
 ) {
-    Dialog(
+    DesignWidthDialog(
         onDismissRequest = { },
-        properties = DialogProperties(dismissOnClickOutside = false, dismissOnBackPress = false)
+        dismissOnBackPress = false,
+        dismissOnClickOutside = false
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color.White)
                 .padding(20.dp),
