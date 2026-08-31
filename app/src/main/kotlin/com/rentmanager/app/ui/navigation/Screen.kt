@@ -31,6 +31,9 @@ sealed class Screen(val route: String) {
         fun createRoute(roleType: String) = "role/$roleType"
     }
 
+    // Пустое состояние разделов арендодателя без объектов (Figma 2533-17817)
+    data object LandlordEmptyState : Screen("landlord_empty_state")
+
     // Landlord tabs
     data object LandlordMain : Screen("landlord/main")
     data object MyProperties : Screen("landlord/my_properties")

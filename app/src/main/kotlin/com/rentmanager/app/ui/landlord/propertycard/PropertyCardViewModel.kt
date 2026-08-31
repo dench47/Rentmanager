@@ -53,7 +53,10 @@ class PropertyCardViewModel @Inject constructor(
         if (propertyId.isBlank()) return
         viewModelScope.launch {
             val previousMeters = _uiState.value.meters
-            _uiState.value = PropertyCardUiState(isLoading = true)
+            // Сразу отрисовываем кэш: без этого до ответа сети экран мигал
+            // пустым состоянием («Нет фотографий», «Без названия» и т.п.)
+            val cached = detailCache.load(propertyId)?.property
+            _uiState.value = PropertyCardUiState(isLoading = true, property = cached, meters = previousMeters)
             try {
                 val resp = repository.getProperty(propertyId)
                 val body = if (resp.isSuccessful) resp.body() else null

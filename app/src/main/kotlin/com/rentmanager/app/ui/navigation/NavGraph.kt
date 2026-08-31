@@ -176,6 +176,23 @@ fun RentManagerNavGraph(
                     navController.navigate(Screen.MainScreen.route) {
                         popUpTo(Screen.MainScreen.route) { inclusive = true }
                     }
+                },
+                onNavigateToEmptyState = {
+                    navController.navigate(Screen.LandlordEmptyState.route)
+                }
+            )
+        }
+
+        // ========== Пустое состояние арендодателя без объектов (Figma 2533-17817) ==========
+        composable(Screen.LandlordEmptyState.route) {
+            com.rentmanager.app.ui.role.LandlordEmptyStateScreen(
+                onBack = { navController.popBackStack() },
+                onAddFirstObject = {
+                    CreateDraftHolder.markEntryRequested()
+                    navController.navigate(Screen.ChoosePropertyType.route)
+                },
+                onSubscription = {
+                    navController.navigate(Screen.Subscription.route)
                 }
             )
         }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -32,9 +33,11 @@ import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -94,7 +97,7 @@ fun AddCounterScreen(
     LaunchedEffect(Unit) { viewModel.errorEvents.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() } }
 
     var showVerificationPicker by remember { mutableStateOf(false) }
-    var showSubmitReadingsPicker by remember { mutableStateOf(false) }
+    var showDayPickerSheet by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
 
     // «Начал хоть что-то делать» — любое отличие от пустой формы
@@ -175,7 +178,8 @@ fun AddCounterScreen(
                         onValueChange = viewModel::onValueChange,
                         unit = uiState.counterType.toDisplayUnit()
                     )
-                    // Дата поверки: тап по полю/иконке календаря открывает пикер
+                    // Дата поверки: подпись сверху тонко, значение снизу жирно (Figma 2713-41541),
+                    // тап по полю/иконке календаря открывает пикер
                     CalendarPickerField(
                         label = "Дата следующей поверки",
                         value = uiState.nextVerificationDate,
@@ -185,12 +189,12 @@ fun AddCounterScreen(
                         checked = uiState.remindVerification,
                         onCheckedChange = { viewModel.toggleRemindVerification() }
                     )
-                    // Иконки календаря тут нет (ошибка макета): тап по полю
-                    // открывает окно даты в режиме ввода — как «календарь → карандаш»
-                    DateTapField(
+                    // День месяца (Figma 2738-26960): шеврон открывает боттомшит
+                    // с сеткой дней 1–31; значение «N-го числа»
+                    DayPickerField(
                         label = "Передавать показания до",
-                        value = uiState.submitReadingsBy,
-                        onClick = { showSubmitReadingsPicker = true }
+                        value = dayOfMonthText(uiState.submitReadingsBy),
+                        onClick = { showDayPickerSheet = true }
                     )
                     RemindSwitchRow(
                         checked = uiState.remindReadings,
@@ -247,15 +251,14 @@ fun AddCounterScreen(
             onDismiss = { showVerificationPicker = false }
         )
     }
-    if (showSubmitReadingsPicker) {
-        // Режим ввода — то же окно, что получается по «календарь → карандаш»
-        CounterDatePickerDialog(
-            initialDisplayMode = DisplayMode.Input,
-            onConfirm = {
-                showSubmitReadingsPicker = false
-                viewModel.onSubmitReadingsByChange(it)
+    if (showDayPickerSheet) {
+        DayOfMonthPickerSheet(
+            selectedDay = uiState.submitReadingsBy.trim().toIntOrNull(),
+            onDone = { day ->
+                showDayPickerSheet = false
+                viewModel.onSubmitReadingsByChange(day.toString())
             },
-            onDismiss = { showSubmitReadingsPicker = false }
+            onDismiss = { showDayPickerSheet = false }
         )
     }
     if (showExitDialog) {
@@ -314,8 +317,8 @@ private fun TypeSelectorField(
     }
 }
 
-// Поле даты с иконкой календаря: название и значение в одну строку
-// («Дата следующей поверки 30.08.2026»), иконка 24dp в зоне 40dp
+// Поле даты (Figma 2713-41541): пустое — фраза жирно по центру (как в макете),
+// заполненное — подпись сверху 13/400 #727272, дата снизу 15/600 + иконка календаря
 @Composable
 private fun CalendarPickerField(
     label: String,
@@ -333,23 +336,32 @@ private fun CalendarPickerField(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        DateLabelValueLine(label = label, value = value, modifier = Modifier.weight(1f))
-        Box(
-            modifier = Modifier.size(40.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(R.drawable.ic_calendar),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp)
+        if (value.isBlank()) {
+            Text(label, style = Headline2MobStyle, modifier = Modifier.weight(1f), maxLines = 1)
+        } else {
+            LabelValueColumn(
+                label = label,
+                value = value,
+                modifier = Modifier.weight(1f)
             )
+            Box(
+                modifier = Modifier.size(40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_calendar),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
 
-// Поле-дата без иконки: тап по всему полю открывает окно ввода даты
+// Поле дня месяца (Figma 2738-26960): пустое — фраза жирно по центру,
+// заполненное — подпись сверху + «N-го числа» снизу + шеврон; тап — сетка дней
 @Composable
-private fun DateTapField(
+private fun DayPickerField(
     label: String,
     value: String,
     onClick: () -> Unit
@@ -361,23 +373,49 @@ private fun DateTapField(
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
             .clickable(onClick = onClick)
-            .padding(start = 20.dp, end = 20.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(start = 20.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        DateLabelValueLine(label = label, value = value, modifier = Modifier.weight(1f))
+        if (value.isBlank()) {
+            Text(label, style = Headline2MobStyle, modifier = Modifier.weight(1f), maxLines = 1)
+        } else {
+            LabelValueColumn(
+                label = label,
+                value = value,
+                modifier = Modifier.weight(1f)
+            )
+            Image(
+                painter = painterResource(R.drawable.ic_card_chevron),
+                contentDescription = null,
+                modifier = Modifier.size(40.dp)
+            )
+        }
     }
 }
 
-// Одна строка: название (15/600) + значение через пробел (15/400)
+// Подпись сверху тонким (13/400 #727272) + значение снизу жирным (15/600);
+// пустое значение держит высоту строки, чтобы пилюля не меняла размер
 @Composable
-private fun DateLabelValueLine(label: String, value: String, modifier: Modifier = Modifier) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = Headline2MobStyle, maxLines = 1)
-        if (value.isNotBlank()) {
-            Spacer(Modifier.width(4.dp))
-            Text(value, style = Headline2MobStyle.copy(fontWeight = FontWeight.Normal), maxLines = 1)
-        }
+private fun LabelValueColumn(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = CardSubtitleStyle, maxLines = 1)
+        Text(
+            text = value.ifBlank { " " },
+            style = Headline2MobStyle,
+            maxLines = 1
+        )
     }
+}
+
+// «N-го числа» из номера дня («11» → «11-го числа»); пусто — пусто
+private fun dayOfMonthText(raw: String): String {
+    val day = raw.trim().toIntOrNull() ?: return ""
+    return "$day-го числа"
 }
 
 // Поле ввода (Figma): подпись сверху тонким (13/400 #727272),
@@ -460,12 +498,9 @@ private fun InitialReadingField(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
             decorationBox = { innerTextField ->
                 if (value.isBlank()) {
-                    // Плейсхолдер-фраза по центру строки; ввод прозрачен, но уже может получить фокус
+                    // Пусто — фраза-плейсхолдер жирным, одна строка по центру высоты
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                        Text(
-                            "Внести начальное показание",
-                            style = Headline2MobStyle.copy(fontWeight = FontWeight.Normal, color = GreyText)
-                        )
+                        Text("Внести начальное показание", style = Headline2MobStyle)
                         innerTextField()
                     }
                 } else {
@@ -602,6 +637,90 @@ private fun ExitConfirmDialog(
             ) {
                 Text("Выйти без сохранения", style = Headline2MobStyle)
             }
+        }
+    }
+}
+
+
+// Боттомшит выбора дня месяца (Figma 2743-30852): ручка 32×4 #212121,
+// «День месяца» 20/600 + подпись 13/400, сетка дней 1–31 по 7 в ряд
+// (кружок 40dp; выбранный — #212121 с белой цифрой), CTA «Готово»
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DayOfMonthPickerSheet(
+    selectedDay: Int?,
+    onDone: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var picked by remember { mutableStateOf(selectedDay) }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White,
+        dragHandle = null
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 20.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(width = 32.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Graphite)
+                )
+            }
+            Text("День месяца", style = ToolbarTitleStyle)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Выберите число, до которого нужно передавать показания каждый месяц",
+                style = CardSubtitleStyle
+            )
+            Spacer(Modifier.height(12.dp))
+            (1..31).chunked(7).forEach { week ->
+                Row(modifier = Modifier.fillMaxWidth().height(44.dp)) {
+                    week.forEach { day ->
+                        Box(
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .then(
+                                        if (picked == day) Modifier.background(Graphite)
+                                        else Modifier.background(Color.Transparent)
+                                    )
+                                    .clickable { picked = day },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    day.toString(),
+                                    style = CardSubtitleStyle.copy(color = if (picked == day) Color.White else Graphite)
+                                )
+                            }
+                        }
+                    }
+                    repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            BlackCtaButton(
+                text = "Готово",
+                enabled = picked != null,
+                onClick = { picked?.let(onDone) }
+            )
         }
     }
 }

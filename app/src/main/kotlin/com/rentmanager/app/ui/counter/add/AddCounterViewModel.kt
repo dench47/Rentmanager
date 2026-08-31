@@ -109,7 +109,8 @@ class AddCounterViewModel @Inject constructor(
                     nextVerificationDate = state.nextVerificationDate.toApiDate(),
                     currentValue = state.initialValue.toDoubleOrNull() ?: 0.0,
                     unit = apiType.toUnit(),
-                    submitReadingsBy = state.submitReadingsBy.toApiDate(),
+                    // День месяца (1–31), а не дата: «передавать показания до N-го числа»
+                    submitReadingsBy = state.submitReadingsBy.trim(),
                     lastUpdated = null,
                     remindVerification = state.remindVerification,
                     remindReadings = state.remindReadings

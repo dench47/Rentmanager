@@ -62,6 +62,7 @@ fun RoleScreen(
     onNavigateToServices: () -> Unit = {},
     onBackToMain: () -> Unit = {},
     onPay: () -> Unit = {},
+    onNavigateToEmptyState: () -> Unit = {},
     viewModel: RoleViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -135,20 +136,28 @@ fun RoleScreen(
                         DashboardCard(
                             iconRes = card.iconRes,
                             title = card.title,
-                         onClick = { handleCardClick(card.id, uiState.role, onNavigateToMyProperties, onNavigateToTenants, onNavigateToOtherProperties, onNavigateToFinance, onNavigateToMessages, onNavigateToLandlordsList, onNavigateToTenantProperties, onNavigateToServices) }
+                         onClick = {
+                             // Пометка дизайнера (Figma 2533-17834): карточки не «мёртвые» —
+                             // без объектов каждая открывает своё пустое состояние
+                             if (uiState.role == UserRole.LANDLORD && !uiState.hasDeals && !uiState.isLoading) {
+                                 onNavigateToEmptyState()
+                             } else {
+                                 handleCardClick(card.id, uiState.role, onNavigateToMyProperties, onNavigateToTenants, onNavigateToOtherProperties, onNavigateToFinance, onNavigateToMessages, onNavigateToLandlordsList, onNavigateToTenantProperties, onNavigateToServices)
+                             }
+                         }
                         )
                     }
                 }
 
                 if (uiState.role == UserRole.LANDLORD) {
-                    // Figma «Арендодатель_1»: градиентная кнопка подписки + контурная кнопка объявления
-                    Spacer(Modifier.height(if (uiState.hasDeals) 12.dp else 22.dp))
+                    // Figma «Арендодатель_1» (4005-20627): зазоры до/между кнопками 12dp
+                    Spacer(Modifier.height(12.dp))
                     GradientCtaButton(
                         iconRes = R.drawable.ic_cta_diamond,
                         text = "Управление подпиской",
                         onClick = onNavigateToSubscription
                     )
-                    Spacer(Modifier.height(if (uiState.hasDeals) 12.dp else 16.dp))
+                    Spacer(Modifier.height(12.dp))
                     OutlineCtaButton(
                         iconRes = R.drawable.ic_cta_pin,
                         text = "Разместить объявление о сдаче",
@@ -219,13 +228,13 @@ private fun CtaButton(
 private fun LandlordInfBlock(onAddFirstObject: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            "Ведите аренду, платежи, договоры и показания\nсчётчиков в одном месте.",
+            "Ведите аренду, платежи, договоры и показания счётчиков в одном месте.",
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = InterFontFamily,
             color = Color(0xFF212121),
             letterSpacing = (-0.4).sp,
-            lineHeight = 19.sp,
+            lineHeight = 18.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
