@@ -319,6 +319,9 @@ fun CreatePropertyScreen(
                 .fillMaxSize()
                 .background(Color.White)
                 .padding(paddingValues)
+                // Клавиатура поднимает весь контент (скролл + нижние CTA),
+                // а не перекрывает его; работает вместе с adjustResize в манифесте
+                .imePadding()
         ) {
             ScreenToolbar(
                 title = if (isEditMode) "Редактировать объект" else "Новый объект",
@@ -343,9 +346,6 @@ fun CreatePropertyScreen(
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
-                    // Контент не ныряет под системную навигацию и клавиатуру
-                    .navigationBarsPadding()
-                    .imePadding()
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
