@@ -114,6 +114,7 @@ fun PropertyCardScreen(
     onBack: () -> Unit,
     onPaymentSchedule: (String) -> Unit,
     onEditProperty: (String) -> Unit,
+    onEditAbout: (String) -> Unit = {},
     onAddCounter: (String) -> Unit = {},
     onDeleted: () -> Unit = {},
     viewModel: PropertyCardViewModel = hiltViewModel()
@@ -129,7 +130,6 @@ fun PropertyCardScreen(
     // Шиты быстрого редактирования секций (карандаши у заголовков) и сетки фото
     var showRentSheet by remember { mutableStateOf(false) }
     var showTenantSheet by remember { mutableStateOf(false) }
-    var showAboutSheet by remember { mutableStateOf(false) }
     var showMetersSheet by remember { mutableStateOf(false) }
     var showPhotosSheet by remember { mutableStateOf(false) }
 
@@ -320,7 +320,7 @@ fun PropertyCardScreen(
                     }
                 }
 // Об объекте
-                SectionHeader("Об объекте", onPencilClick = { showAboutSheet = true })
+                SectionHeader("Об объекте", onPencilClick = { onEditAbout(propertyId) })
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ValueCard("Название", property?.name ?: "", Modifier.fillMaxWidth())
                     ValueCard("Адрес", property?.address ?: "", Modifier.fillMaxWidth())
@@ -524,19 +524,6 @@ fun PropertyCardScreen(
                     viewModel.saveTenantInfo(tenantInfo, contractText, phone)
                 },
                 onDismiss = { showTenantSheet = false }
-            )
-        }
-        if (showAboutSheet) {
-            AboutPropertyEditSheet(
-                property = p,
-                isSaving = uiState.isActionInProgress,
-                onSave = { name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price ->
-                    showAboutSheet = false
-                    viewModel.saveAboutInfo(
-                        name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price
-                    )
-                },
-                onDismiss = { showAboutSheet = false }
             )
         }
     }

@@ -70,6 +70,11 @@ sealed class Screen(val route: String) {
     data object EditProperty : Screen("landlord/edit_property/{propertyId}") {
         fun createRoute(propertyId: String) = "landlord/edit_property/$propertyId"
     }
+
+    // Экран «Об объекте» — редактирование основных параметров (Figma 2726-33827)
+    data object AboutEdit : Screen("landlord/about_edit/{propertyId}") {
+        fun createRoute(propertyId: String) = "landlord/about_edit/$propertyId"
+    }
     data object TenantsList : Screen("landlord/tenants")
     data object TenantDetail : Screen("landlord/tenant_detail/{tenantId}") {
         fun createRoute(tenantId: String) = "landlord/tenant_detail/$tenantId"

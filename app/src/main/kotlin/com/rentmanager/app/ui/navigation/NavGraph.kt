@@ -329,11 +329,25 @@ fun RentManagerNavGraph(
                 onBack = { navController.popBackStack() },
                 onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) },
                 onEditProperty = { pid -> navController.navigate(Screen.EditProperty.createRoute(pid)) },
+                // Карандаш «Об объекте» — полноценный экран (Figma 2726-33827)
+                onEditAbout = { pid -> navController.navigate(Screen.AboutEdit.createRoute(pid)) },
                 onAddCounter = { pid -> navController.navigate(Screen.AddCounter.createRoute(pid)) },
                 onDeleted = {
                     propertiesViewModel.refresh()
                     navController.popBackStack()
                 }
+            )
+        }
+
+        // ========== About Edit («Об объекте», Figma 2726-33827) ==========
+        composable(
+            route = Screen.AboutEdit.route,
+            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
+            com.rentmanager.app.ui.landlord.propertycard.about.AboutPropertyEditScreen(
+                propertyId = propertyId,
+                onBack = { navController.popBackStack() }
             )
         }
 

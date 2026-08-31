@@ -29,17 +29,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -71,9 +66,6 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 // #79747E — drag handle шита (как в PropertyActionsSheet)
 private val SheetHandleGrey = Color(0xFF79747E)
@@ -138,7 +130,6 @@ fun contractDisplayText(number: String?, date: String?): String {
 // ---------- Шиты редактирования секций карточки ----------
 
 // Шит «Аренда и платежи» (Figma 2677-26495): арендная плата + дата окончания аренды.
-// Значения из макета — примеры, переносятся только названия полей (серые подписи).
 @Composable
 fun RentEditSheet(
     property: PropertyDto,
@@ -148,7 +139,6 @@ fun RentEditSheet(
 ) {
     var rentAmount by remember(property.id) { mutableStateOf(formatAmount(property.rentAmount.toFieldText())) }
     var rentEndDate by remember(property.id) { mutableStateOf(property.rentEndDate.orEmpty()) }
-    var showRentDatePicker by remember(property.id) { mutableStateOf(false) }
     EditSheetScaffold(title = "Аренда и платежи", onDismiss = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SheetCaptionField(
@@ -159,11 +149,10 @@ fun RentEditSheet(
                 // Суффикс по типу аренды (Figma 2700-23463: «25 000 ₽ / сутки»)
                 suffix = " ₽ / " + if (property.rentType == "длительно") "месяц" else "сутки"
             )
-            // «Арендовано»: дата выбирается в окне ввода (как «календарь → карандаш»),
-            // в поле всегда стоит префикс «до», затем дата
+            // «Арендовано»: подпись сверху, снизу «до» и ввод даты прямо в поле (дд.мм.гггг)
             RentedUntilField(
                 date = rentEndDate,
-                onClick = { showRentDatePicker = true }
+                onDateChange = { rentEndDate = it }
             )
         }
         // 12dp от spacedBy + 8dp паддинга = 20dp до кнопки (Figma: Content itemSpacing 20)
@@ -174,69 +163,64 @@ fun RentEditSheet(
             onClick = { onSave(rentAmount, rentEndDate) }
         )
     }
-    if (showRentDatePicker) {
-        SheetDatePickerDialog(
-            onConfirm = {
-                showRentDatePicker = false
-                rentEndDate = it
-            },
-            onDismiss = { showRentDatePicker = false }
-        )
-    }
 }
 
-// Поле «Арендовано» (Figma 2692:31197-стиль даты): пилюля 64dp r20,
-// значение «до {дата}» сверху, подпись «Арендовано» снизу; тап — окно даты
+// Поле «Арендовано»: подпись «Арендовано» сверху тонко, снизу постоянное «до»
+// и ввод даты dd.MM.yyyy сразу в поле (точки вставляются автоматически)
 @Composable
 private fun RentedUntilField(
     date: String,
-    onClick: () -> Unit
+    onDateChange: (String) -> Unit
 ) {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
-            .clickable(onClick = onClick)
             .padding(start = 20.dp, end = 20.dp),
-        contentAlignment = Alignment.CenterStart
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            // «до» стоит всегда; без даты — только «до»
-            Text(
-                text = if (date.isBlank()) "до" else "до $date",
-                style = CardSubtitleStyle.copy(color = if (date.isBlank()) GreyText else Graphite)
-            )
-            Text("Арендовано", style = Headline2MobStyle)
-        }
+        BasicTextField(
+            value = date,
+            onValueChange = { onDateChange(formatDateMask(it)) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = Headline2MobStyle,
+            cursorBrush = SolidColor(Graphite),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            decorationBox = { innerTextField ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Арендовано", style = CardSubtitleStyle)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // «до» — постоянный префикс; дата вводится после него
+                        Text("до", style = Headline2MobStyle)
+                        Box {
+                            if (date.isEmpty()) {
+                                Text("дд.мм.гггг", style = Headline2MobStyle.copy(color = GreyText, fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
+                            }
+                            innerTextField()
+                        }
+                    }
+                }
+            }
+        )
     }
 }
 
-// Окно даты в режиме ввода (то же, что «календарь → карандаш»): dd.MM.yyyy
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SheetDatePickerDialog(
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val state = rememberDatePickerState(initialDisplayMode = DisplayMode.Input)
-    val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                state.selectedDateMillis?.let { millis ->
-                    val cal = Calendar.getInstance().apply { timeInMillis = millis }
-                    onConfirm(dateFormat.format(cal.time))
-                } ?: onDismiss()
-            }) { Text("ОК") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
+// Маска даты: пропускаем только цифры, точки после дд и мм, максимум 10 символов
+private fun formatDateMask(raw: String): String {
+    val digits = raw.filter { it.isDigit() }.take(8)
+    return buildString {
+        digits.forEachIndexed { i, c ->
+            when (i) {
+                2, 4 -> append('.').append(c)
+                else -> append(c)
+            }
         }
-    ) {
-        DatePicker(state = state, showModeToggle = true)
     }
 }
 
@@ -287,129 +271,8 @@ fun TenantContractEditSheet(
 // Шит «Информация об объекте» удалён: редактирование стало инлайн-режимом
 // раскрытого аккордеона (Figma 2677-26576) — см. ObjectInfoEditContent в PropertyCardScreen
 
-// Шит «Об объекте» (Figma 2677-26195): название, адрес, комнаты, площадь,
-// спальные места, этажи, описание, стоимость. Значения из макета — примеры,
-// переносятся только названия полей (серые подписи).
-@Composable
-fun AboutPropertyEditSheet(
-    property: PropertyDto,
-    isSaving: Boolean,
-    onSave: (
-        name: String,
-        address: String,
-        rooms: String?,
-        area: String,
-        sleepingPlaces: String?,
-        floor: String?,
-        floorsInHouse: String?,
-        description: String,
-        rentAmount: String
-    ) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var name by remember(property.id) { mutableStateOf(property.name) }
-    var address by remember(property.id) { mutableStateOf(property.address) }
-    var rooms by remember(property.id) { mutableStateOf(property.rooms) }
-    var area by remember(property.id) { mutableStateOf(property.area.toFieldText()) }
-    var sleepingPlaces by remember(property.id) { mutableStateOf(property.sleepingPlaces) }
-    var floor by remember(property.id) { mutableStateOf(property.floor) }
-    var floorsInHouse by remember(property.id) { mutableStateOf(property.floorsInHouse) }
-    var description by remember(property.id) { mutableStateOf(property.description.orEmpty()) }
-    var price by remember(property.id) { mutableStateOf(formatAmount(property.rentAmount.toFieldText())) }
-    var nameError by remember { mutableStateOf(false) }
-    var addressError by remember { mutableStateOf(false) }
-
-    EditSheetScaffold(title = "Об объекте", onDismiss = onDismiss) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            SheetCaptionField(
-                caption = "Название",
-                value = name,
-                onValueChange = {
-                    name = it
-                    nameError = false
-                },
-                isError = nameError
-            )
-            SheetCaptionField(
-                caption = "Адрес",
-                value = address,
-                onValueChange = {
-                    address = it
-                    addressError = false
-                },
-                isError = addressError
-            )
-            SheetCaptionDropdown(
-                caption = "Количество комнат",
-                selected = rooms,
-                options = RoomsSheetOptions,
-                onSelect = { rooms = it }
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                SheetCaptionField(
-                    caption = "Площадь, м2",
-                    value = area,
-                    onValueChange = { area = it },
-                    keyboardType = KeyboardType.Decimal,
-                    modifier = Modifier.weight(1f)
-                )
-                SheetCaptionDropdown(
-                    caption = "Спальные места",
-                    selected = sleepingPlaces,
-                    options = SleepingSheetOptions,
-                    onSelect = { sleepingPlaces = it },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                SheetCaptionDropdown(
-                    caption = "Этаж",
-                    selected = floor,
-                    options = FloorSheetOptions,
-                    onSelect = { floor = it },
-                    modifier = Modifier.weight(1f)
-                )
-                SheetCaptionDropdown(
-                    caption = "Этажей в доме",
-                    selected = floorsInHouse,
-                    options = FloorsInHouseSheetOptions,
-                    onSelect = { floorsInHouse = it },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            SheetDescriptionField(
-                value = description,
-                onValueChange = { description = it },
-                subtitle = "Эта информация будет видна в объявлении"
-            )
-            SheetCaptionField(
-                caption = if (property.rentType == "длительно") "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
-                value = price,
-                onValueChange = { price = formatAmount(it) },
-                keyboardType = KeyboardType.Decimal
-            )
-        }
-        // 12dp от spacedBy + 8dp паддинга = 20dp до кнопки (Figma: Content itemSpacing 20)
-        BlackCtaButton(
-            modifier = Modifier.padding(top = 8.dp),
-            text = "Сохранить изменения",
-            enabled = !isSaving,
-            onClick = {
-                nameError = name.isBlank()
-                addressError = address.isBlank()
-                if (!nameError && !addressError) {
-                    onSave(name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price)
-                }
-            }
-        )
-    }
-}
+// Шит «Об объекте» удалён: редактирование вынесено на отдельный экран
+// AboutPropertyEditScreen (Figma 2726-33827)
 
 // Шит «Счетчики» (Figma 2678-27396): заголовок «Редактировать счетчики»,
 // строки типов счётчиков (номера в макете — примеры, не переносятся),
