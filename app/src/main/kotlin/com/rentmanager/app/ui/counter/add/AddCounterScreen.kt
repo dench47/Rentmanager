@@ -3,6 +3,7 @@ package com.rentmanager.app.ui.counter.add
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,11 +43,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +70,8 @@ import java.util.Locale
 private val BrandTint = Color(0xFFFFF1CF)
 // Нижний таббар — rgba(237,237,237,0.6)
 private val TabBarFill = Color(0x99EDEDED)
+// Включённый тумблер (Figma Switch 2691:29404: трек #151515)
+private val SwitchOnTrack = Color(0xFF151515)
 
 /**
  * Экран «Добавить счетчик» (Figma 2713:40952).
@@ -89,6 +91,7 @@ fun AddCounterScreen(
     LaunchedEffect(Unit) { viewModel.errorEvents.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() } }
 
     var showVerificationPicker by remember { mutableStateOf(false) }
+    var showSubmitReadingsPicker by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -124,21 +127,22 @@ fun AddCounterScreen(
                         onSelect = viewModel::selectType
                     )
                     CounterInputField(
-                        caption = "Заводской номер",
+                        label = "Заводской номер",
                         value = uiState.counterNumber,
-                        placeholder = "№",
                         onValueChange = viewModel::onNumberChange,
-                        keyboardType = KeyboardType.Text
+                        keyboardType = KeyboardType.Number,
+                        prefix = "№"
                     )
                     CounterInputField(
-                        caption = "Внести начальное показание",
+                        label = "Внести начальное показание",
                         value = uiState.initialValue,
                         onValueChange = viewModel::onValueChange,
-                        keyboardType = KeyboardType.Decimal
+                        keyboardType = KeyboardType.Decimal,
+                        suffix = uiState.counterType.toDisplayUnit()
                     )
-                    // Дата поверки: иконка календаря
+                    // Дата поверки: тап по полю/иконке календаря открывает пикер
                     CalendarPickerField(
-                        caption = "Дата следующей поверки",
+                        label = "Дата следующей поверки",
                         value = uiState.nextVerificationDate,
                         onClick = { showVerificationPicker = true }
                     )
@@ -146,11 +150,12 @@ fun AddCounterScreen(
                         checked = uiState.remindVerification,
                         onCheckedChange = { viewModel.toggleRemindVerification() }
                     )
-                    CounterInputField(
-                        caption = "Передавать показания до",
+                    // Иконки календаря тут нет (ошибка макета): тап по полю
+                    // открывает окно даты в режиме ввода — как «календарь → карандаш»
+                    DateTapField(
+                        label = "Передавать показания до",
                         value = uiState.submitReadingsBy,
-                        onValueChange = viewModel::onSubmitReadingsByChange,
-                        keyboardType = KeyboardType.Number
+                        onClick = { showSubmitReadingsPicker = true }
                     )
                     RemindSwitchRow(
                         checked = uiState.remindReadings,
@@ -199,8 +204,23 @@ fun AddCounterScreen(
 
     if (showVerificationPicker) {
         CounterDatePickerDialog(
-            onConfirm = { showVerificationPicker = false; viewModel.onNextVerificationDateChange(it) },
+            initialDisplayMode = DisplayMode.Picker,
+            onConfirm = {
+                showVerificationPicker = false
+                viewModel.onNextVerificationDateChange(it)
+            },
             onDismiss = { showVerificationPicker = false }
+        )
+    }
+    if (showSubmitReadingsPicker) {
+        // Режим ввода — то же окно, что получается по «календарь → карандаш»
+        CounterDatePickerDialog(
+            initialDisplayMode = DisplayMode.Input,
+            onConfirm = {
+                showSubmitReadingsPicker = false
+                viewModel.onSubmitReadingsByChange(it)
+            },
+            onDismiss = { showSubmitReadingsPicker = false }
         )
     }
 }
@@ -250,10 +270,11 @@ private fun TypeSelectorField(
     }
 }
 
-// Поле даты поверки: иконка календаря справа
+// Поле даты с иконкой календаря (Figma 2692:31197): дата сверху (13/400),
+// подпись снизу (15/600 #212121); иконка 24dp в зоне 40dp
 @Composable
 private fun CalendarPickerField(
-    caption: String,
+    label: String,
     value: String,
     onClick: () -> Unit
 ) {
@@ -266,67 +287,136 @@ private fun CalendarPickerField(
             .clickable(onClick = onClick)
             .padding(start = 20.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
+        FieldValueColumn(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            value = value,
+            label = label
+        )
+        Box(
+            modifier = Modifier.size(40.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text(caption, style = CardSubtitleStyle)
-            if (value.isNotBlank()) {
-                Text(value, style = Headline2MobStyle, maxLines = 1)
-            }
+            Image(
+                painter = painterResource(R.drawable.ic_calendar),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
         }
-        Image(
-            painter = painterResource(R.drawable.ic_calendar),
-            contentDescription = null,
-            modifier = Modifier.size(40.dp)
+    }
+}
+
+// Поле-дата без иконки (Figma: иконка календаря в макете — ошибка):
+// тап по всему полю открывает окно ввода даты
+@Composable
+private fun DateTapField(
+    label: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBackground)
+            .clickable(onClick = onClick)
+            .padding(start = 20.dp, end = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FieldValueColumn(
+            modifier = Modifier.weight(1f),
+            value = value,
+            label = label
         )
     }
 }
 
-// Текстовое поле: подпись 13 Regular + ввод 15 SemiBold
+// Значение (дата) сверху 13/400 + подпись снизу 15/600 (Figma 2692:31197)
+@Composable
+private fun FieldValueColumn(
+    modifier: Modifier = Modifier,
+    value: String,
+    label: String
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = value.ifBlank { " " },
+            style = CardSubtitleStyle.copy(color = Graphite),
+            maxLines = 1
+        )
+        Text(label, style = Headline2MobStyle, maxLines = 1)
+    }
+}
+
+// Поле ввода (Figma 2692:31197): ввод сверху 13/400 #212121 (пусто — серый
+// плейсхолдер), подпись снизу 15/600 #212121; 64dp r20 #EFEFEF, L20/R10.
+// prefix — постоянный не удаляемый префикс («№»), suffix — хвост («м³»)
 @Composable
 private fun CounterInputField(
-    caption: String,
+    label: String,
     value: String,
     onValueChange: (String) -> Unit,
     keyboardType: KeyboardType = KeyboardType.Text,
-    placeholder: String? = null
+    prefix: String? = null,
+    suffix: String? = null
 ) {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
             .padding(start = 20.dp, end = 10.dp),
-        contentAlignment = Alignment.CenterStart
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(caption, style = CardSubtitleStyle)
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = Headline2MobStyle,
-                cursorBrush = SolidColor(Graphite),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
-                decorationBox = { inner ->
-                    if (value.isBlank() && placeholder != null) {
-                        Box(contentAlignment = Alignment.CenterStart) {
-                            Text(placeholder, style = Headline2MobStyle)
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = CardSubtitleStyle.copy(color = Graphite),
+            cursorBrush = SolidColor(Graphite),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
+            decorationBox = { innerTextField ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (prefix != null) {
+                            Text(prefix, style = CardSubtitleStyle.copy(color = Graphite))
+                        }
+                        Box(Modifier.weight(1f).heightIn(min = 16.dp)) {
+                            if (value.isBlank() && prefix == null && suffix == null) {
+                                Text(" ", style = CardSubtitleStyle)
+                            }
+                            innerTextField()
+                        }
+                        if (suffix != null) {
+                            Text(suffix, style = CardSubtitleStyle.copy(color = Graphite))
                         }
                     }
-                    inner()
+                    Text(label, style = Headline2MobStyle, maxLines = 1)
                 }
-            )
-        }
+            }
+        )
     }
 }
 
-// Кастомный тумблер (Figma Switch 2713:40959): 52×32, радиус 100
+// Русское имя типа → единица измерения для суффикса начального показания;
+// тип не выбран — суффикса нет
+private fun String.toDisplayUnit(): String? = when (this) {
+    "Электроэнергия" -> "кВт·ч"
+    "Отопление" -> "Гкал"
+    "Холодная вода", "Горячая вода" -> "м³"
+    else -> null
+}
+
+// Тумблер «Включить напоминание» (Figma Switch 2691:29404):
+// OFF — трек #EFEFEF, рамка #727272 2dp, бегунок 16dp #727272;
+// ON — трек #151515 без рамки, бегунок 24dp белый с галочкой #212121
 @Composable
 private fun RemindSwitchRow(
     checked: Boolean,
@@ -347,40 +437,54 @@ private fun RemindSwitchRow(
                 .height(32.dp)
                 .clip(RoundedCornerShape(100.dp))
                 .then(
-                    if (checked) Modifier.background(Graphite)
+                    if (checked) Modifier.background(SwitchOnTrack)
                     else Modifier
                         .background(CardBackground)
-                        .drawBehind {
-                            drawRoundRect(
-                                color = GreyText,
-                                cornerRadius = CornerRadius(100f),
-                                style = Stroke(width = 2.dp.toPx())
-                            )
-                        }
+                        .border(2.dp, GreyText, RoundedCornerShape(100.dp))
                 )
                 .clickable { onCheckedChange(!checked) },
             contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 6.dp)
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(if (checked) Color.White else GreyText)
-            )
+            if (checked) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_switch_check),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(GreyText)
+                )
+            }
         }
     }
 }
 
 
-// Пикер даты (Material3): возвращает выбранную дату в виде dd.MM.yyyy
+// Пикер даты (Material3): возвращает выбранную дату в виде dd.MM.yyyy.
+// initialDisplayMode = Input — то же окно, что открывается по «карандашу»
+// внутри календаря (режим ручного ввода даты)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CounterDatePickerDialog(
+    initialDisplayMode: DisplayMode = DisplayMode.Picker,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val state = rememberDatePickerState()
+    val state = rememberDatePickerState(initialDisplayMode = initialDisplayMode)
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
     DatePickerDialog(
         onDismissRequest = onDismiss,
@@ -396,7 +500,7 @@ private fun CounterDatePickerDialog(
             TextButton(onClick = onDismiss) { Text("Отмена") }
         }
     ) {
-        DatePicker(state = state)
+        DatePicker(state = state, showModeToggle = true)
     }
 }
 

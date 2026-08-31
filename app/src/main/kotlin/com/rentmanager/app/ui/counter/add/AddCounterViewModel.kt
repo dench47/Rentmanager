@@ -18,9 +18,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Состояние формы «Добавить счетчик» (Figma 2713:40952).
+ * Состояние формы «Добавить счетчик» (Figma 2692:31197).
  * Даты хранятся в отображаемом виде dd.MM.yyyy и конвертируются в формат API yyyy-MM-dd
- * при сохранении. Переключатели напоминаний — локальные настройки формы (в API не уходят).
+ * при сохранении. Заводской номер — только цифры (префикс «№ » рисуется в UI).
+ * Переключатели напоминаний уходят в API (remind_verification / remind_readings).
  */
 data class AddCounterUiState(
     val counterType: String = "",
@@ -60,7 +61,8 @@ class AddCounterViewModel @Inject constructor(
     }
 
     fun onNumberChange(value: String) {
-        _uiState.update { it.copy(counterNumber = value) }
+        // Заводской номер — только цифры; «№ » в начале — постоянный префикс поля, не значение
+        _uiState.update { it.copy(counterNumber = value.filter { ch -> ch.isDigit() }) }
     }
 
     fun onValueChange(value: String) {
@@ -107,8 +109,10 @@ class AddCounterViewModel @Inject constructor(
                     nextVerificationDate = state.nextVerificationDate.toApiDate(),
                     currentValue = state.initialValue.toDoubleOrNull() ?: 0.0,
                     unit = apiType.toUnit(),
-                    submitReadingsBy = state.submitReadingsBy.trim(),
-                    lastUpdated = null
+                    submitReadingsBy = state.submitReadingsBy.toApiDate(),
+                    lastUpdated = null,
+                    remindVerification = state.remindVerification,
+                    remindReadings = state.remindReadings
                 )
                 val resp = repository.createMeter(propertyId, meter)
                 if (resp.isSuccessful) {

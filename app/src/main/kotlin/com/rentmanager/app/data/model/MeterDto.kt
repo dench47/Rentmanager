@@ -11,5 +11,7 @@ data class MeterDto(
     @SerializedName("current_value") val currentValue: Double,
     @SerializedName("unit") val unit: String, // "м³", "кВт·ч", "Гкал"
     @SerializedName("submit_readings_by") val submitReadingsBy: String,
-    @SerializedName("last_updated") val lastUpdated: String? = null
+    @SerializedName("last_updated") val lastUpdated: String? = null,
+    @SerializedName("remind_verification") val remindVerification: Boolean = false,
+    @SerializedName("remind_readings") val remindReadings: Boolean = false
 )

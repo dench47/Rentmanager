@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -64,6 +65,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
+import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.GradientCtaButton
@@ -234,8 +236,12 @@ fun PropertyCardScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
                     ) {
                         InfoPair("Арендная плата", property?.let { rentText(it) } ?: "", Modifier.weight(1f))
-                        // Нет арендатора → «Срок аренды» без значения (Figma 2574-20378)
-                        InfoPair("Срок аренды", property?.rentEndDate.orEmpty(), Modifier.weight(1f))
+                        // Нет даты → значение пустое, «до» в карточке не показываем
+                        InfoPair(
+                            "Срок аренды",
+                            property?.rentEndDate?.takeIf { it.isNotBlank() }?.let { "до $it" }.orEmpty(),
+                            Modifier.weight(1f)
+                        )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         OutlineCtaButton(
@@ -416,6 +422,13 @@ fun PropertyCardScreen(
                     iconRes = R.drawable.ic_plus_circle_white,
                     onClick = { onAddCounter(propertyId) }
                 )
+                // Список счётчиков объекта (Figma 2574:20899): белые карточки
+                // стеком gap 8 под CTA — добавили счётчик, здесь стало на один больше
+                if (uiState.meters.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        uiState.meters.forEach { meter -> MeterCard(meter) }
+                    }
+                }
             }
         }
 
@@ -555,7 +568,10 @@ private fun PhotoSlider(property: PropertyDto?, onEdit: () -> Unit = {}) {
         modifier = Modifier
             .fillMaxWidth()
             .height(316.dp)
-            .clip(RoundedCornerShape(20.dp))
+            // Скругление только верхних углов (Figma 2578:21817: radii [20,20,0,0]):
+            // нижние должны быть прямыми — белая панель с r20 перекрывает их наложением,
+            // а скруглённые низы фото оставляли белые «рога» по краям стыка
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             .background(CardBackground)
     ) {
         if (photos.isEmpty()) {
@@ -1007,6 +1023,75 @@ private fun InlineIconField(
                 }
             }
         )
+    }
+}
+
+// Карточка счётчика в жёлтой секции «Счетчики» (Figma 2574:20905):
+// белая 372×146 r20 pad 12; строка «Тип + №зав.номер», три строки
+// показаний (лейбл 13/400 + значение 13 Medium #212121), «Внести новые показания»
+@Composable
+private fun MeterCard(meter: MeterDto) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(meterTypeName(meter.type), style = Headline2MobStyle)
+            Text(
+                "№${meter.factoryNumber}",
+                style = Headline2MobStyle.copy(color = GreyText),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MeterInfoRow("Текущие показания:", formatMeterValue(meter.currentValue, meter.unit))
+            MeterInfoRow("Последнее изменение:", formatMeterDate(meter.lastUpdated))
+            MeterInfoRow("Дата следующей проверки:", formatMeterDate(meter.nextVerificationDate))
+        }
+        Text("Внести новые показания", style = Headline2MobStyle.copy(color = Graphite85))
+    }
+}
+
+// Строка «лейбл: значение» внутри карточки счётчика (13sp; значение — Medium)
+@Composable
+private fun MeterInfoRow(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = CardSubtitleStyle.copy(color = Graphite))
+        Text(value, style = CardSubtitleStyle.copy(fontWeight = FontWeight.Medium))
+    }
+}
+
+// electricity → «Электроэнергия» и т.д. (обратное преобразование типа из API)
+private fun meterTypeName(apiType: String): String = when (apiType) {
+    "electricity" -> "Электроэнергия"
+    "cold_water" -> "Холодная вода"
+    "hot_water" -> "Горячая вода"
+    "heat" -> "Отопление"
+    else -> apiType
+}
+
+// 456.0 → «456 кВт·ч»; дробные — как есть
+private fun formatMeterValue(value: Double, unit: String): String {
+    val v = if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+    return if (unit.isBlank()) v else "$v $unit"
+}
+
+// yyyy-MM-dd → dd.MM.yyyy; пусто/нераспарсенное → «—»
+private fun formatMeterDate(raw: String?): String {
+    if (raw.isNullOrBlank()) return "—"
+    return try {
+        val parts = raw.split("-")
+        if (parts.size == 3) "${parts[2]}.${parts[1]}.${parts[0]}" else raw
+    } catch (_: Exception) {
+        raw
     }
 }
 

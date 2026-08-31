@@ -4,6 +4,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.local.PropertyDetailCache
+import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PhotoUploader
 import com.rentmanager.app.data.repository.PropertyRepository
@@ -20,6 +21,8 @@ import javax.inject.Inject
 data class PropertyCardUiState(
     val isLoading: Boolean = true,
     val property: PropertyDto? = null,
+    /** Счётчики объекта для жёлтой секции «Счетчики» (Figma 2574:20899). */
+    val meters: List<MeterDto> = emptyList(),
     /** Блокировка действий, пока выполняется публикация/удаление. */
     val isActionInProgress: Boolean = false
 )
@@ -49,18 +52,26 @@ class PropertyCardViewModel @Inject constructor(
     fun load(propertyId: String) {
         if (propertyId.isBlank()) return
         viewModelScope.launch {
+            val previousMeters = _uiState.value.meters
             _uiState.value = PropertyCardUiState(isLoading = true)
             try {
                 val resp = repository.getProperty(propertyId)
                 val body = if (resp.isSuccessful) resp.body() else null
-                _uiState.value = PropertyCardUiState(isLoading = false, property = body)
+                // Счётчики грузим отдельным эндпоинтом и не роняем карточку при ошибке
+                val meters = try {
+                    val mResp = repository.getMeters(propertyId)
+                    if (mResp.isSuccessful) mResp.body().orEmpty() else previousMeters
+                } catch (_: Exception) {
+                    previousMeters
+                }
+                _uiState.value = PropertyCardUiState(isLoading = false, property = body, meters = meters)
                 if (body != null) {
                     detailCache.saveProperty(body)
                 } else {
                     _errorEvents.emit("Не удалось загрузить объект (${resp.code()})")
                 }
             } catch (e: Exception) {
-                _uiState.value = PropertyCardUiState(isLoading = false)
+                _uiState.value = _uiState.value.copy(isLoading = false)
                 _errorEvents.emit(e.message ?: "Ошибка сети")
             }
         }

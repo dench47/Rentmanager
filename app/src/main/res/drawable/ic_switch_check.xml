@@ -1,0 +1,15 @@
+<!-- Галочка внутри бегунка включённого тумблера (Figma Switch 2691:29404:
+     16×16, штрих #212121) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path
+        android:pathData="M3.5,8.5L6.5,11.5L12.5,4.5"
+        android:strokeColor="#212121"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+</vector>

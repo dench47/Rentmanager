@@ -29,12 +29,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -66,6 +71,9 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 // #79747E — drag handle шита (как в PropertyActionsSheet)
 private val SheetHandleGrey = Color(0xFF79747E)
@@ -140,6 +148,7 @@ fun RentEditSheet(
 ) {
     var rentAmount by remember(property.id) { mutableStateOf(formatAmount(property.rentAmount.toFieldText())) }
     var rentEndDate by remember(property.id) { mutableStateOf(property.rentEndDate.orEmpty()) }
+    var showRentDatePicker by remember(property.id) { mutableStateOf(false) }
     EditSheetScaffold(title = "Аренда и платежи", onDismiss = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SheetCaptionField(
@@ -150,10 +159,11 @@ fun RentEditSheet(
                 // Суффикс по типу аренды (Figma 2700-23463: «25 000 ₽ / сутки»)
                 suffix = " ₽ / " + if (property.rentType == "длительно") "месяц" else "сутки"
             )
-            SheetCaptionField(
-                caption = "Арендовано",
-                value = rentEndDate,
-                onValueChange = { rentEndDate = it }
+            // «Арендовано»: дата выбирается в окне ввода (как «календарь → карандаш»),
+            // в поле всегда стоит префикс «до», затем дата
+            RentedUntilField(
+                date = rentEndDate,
+                onClick = { showRentDatePicker = true }
             )
         }
         // 12dp от spacedBy + 8dp паддинга = 20dp до кнопки (Figma: Content itemSpacing 20)
@@ -163,6 +173,70 @@ fun RentEditSheet(
             enabled = !isSaving,
             onClick = { onSave(rentAmount, rentEndDate) }
         )
+    }
+    if (showRentDatePicker) {
+        SheetDatePickerDialog(
+            onConfirm = {
+                showRentDatePicker = false
+                rentEndDate = it
+            },
+            onDismiss = { showRentDatePicker = false }
+        )
+    }
+}
+
+// Поле «Арендовано» (Figma 2692:31197-стиль даты): пилюля 64dp r20,
+// значение «до {дата}» сверху, подпись «Арендовано» снизу; тап — окно даты
+@Composable
+private fun RentedUntilField(
+    date: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBackground)
+            .clickable(onClick = onClick)
+            .padding(start = 20.dp, end = 20.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            // «до» стоит всегда; без даты — только «до»
+            Text(
+                text = if (date.isBlank()) "до" else "до $date",
+                style = CardSubtitleStyle.copy(color = if (date.isBlank()) GreyText else Graphite)
+            )
+            Text("Арендовано", style = Headline2MobStyle)
+        }
+    }
+}
+
+// Окно даты в режиме ввода (то же, что «календарь → карандаш»): dd.MM.yyyy
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SheetDatePickerDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val state = rememberDatePickerState(initialDisplayMode = DisplayMode.Input)
+    val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                state.selectedDateMillis?.let { millis ->
+                    val cal = Calendar.getInstance().apply { timeInMillis = millis }
+                    onConfirm(dateFormat.format(cal.time))
+                } ?: onDismiss()
+            }) { Text("ОК") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        }
+    ) {
+        DatePicker(state = state, showModeToggle = true)
     }
 }
 
