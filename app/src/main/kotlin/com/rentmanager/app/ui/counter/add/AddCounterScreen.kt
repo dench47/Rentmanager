@@ -1,6 +1,7 @@
 package com.rentmanager.app.ui.counter.add
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,6 +54,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
@@ -62,6 +66,7 @@ import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.TextIconeStyle
+import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -92,6 +97,20 @@ fun AddCounterScreen(
 
     var showVerificationPicker by remember { mutableStateOf(false) }
     var showSubmitReadingsPicker by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
+
+    // «Начал хоть что-то делать» — любое отличие от пустой формы
+    val formDirty = uiState.counterType.isNotBlank() ||
+        uiState.counterNumber.isNotBlank() ||
+        uiState.initialValue.isNotBlank() ||
+        uiState.nextVerificationDate.isNotBlank() ||
+        uiState.submitReadingsBy.isNotBlank() ||
+        uiState.remindVerification ||
+        uiState.remindReadings
+
+    val requestExit = { if (formDirty) showExitDialog = true else onBack() }
+    // Системный «назад» с грязной формой — тоже через диалог
+    BackHandler(enabled = formDirty) { showExitDialog = true }
 
     Column(
         modifier = Modifier
@@ -99,7 +118,7 @@ fun AddCounterScreen(
             .background(BrandTint)
             .statusBarsPadding()
     ) {
-        ScreenToolbar(title = "Добавить счетчик", onBack = onBack)
+        ScreenToolbar(title = "Добавить счетчик", onBack = requestExit)
 
         // Белая область: контент + таббар
         Column(
@@ -133,12 +152,10 @@ fun AddCounterScreen(
                         keyboardType = KeyboardType.Number,
                         prefix = "№"
                     )
-                    CounterInputField(
-                        label = "Внести начальное показание",
+                    InitialReadingField(
                         value = uiState.initialValue,
                         onValueChange = viewModel::onValueChange,
-                        keyboardType = KeyboardType.Decimal,
-                        suffix = uiState.counterType.toDisplayUnit()
+                        unit = uiState.counterType.toDisplayUnit()
                     )
                     // Дата поверки: тап по полю/иконке календаря открывает пикер
                     CalendarPickerField(
@@ -223,6 +240,15 @@ fun AddCounterScreen(
             onDismiss = { showSubmitReadingsPicker = false }
         )
     }
+    if (showExitDialog) {
+        ExitConfirmDialog(
+            onContinueEditing = { showExitDialog = false },
+            onExit = {
+                showExitDialog = false
+                onBack()
+            }
+        )
+    }
 }
 
 // ---------- вспомогательные ----------
@@ -270,8 +296,8 @@ private fun TypeSelectorField(
     }
 }
 
-// Поле даты с иконкой календаря (Figma 2692:31197): дата сверху (13/400),
-// подпись снизу (15/600 #212121); иконка 24dp в зоне 40dp
+// Поле даты с иконкой календаря: название и значение в одну строку
+// («Дата следующей поверки 30.08.2026»), иконка 24dp в зоне 40dp
 @Composable
 private fun CalendarPickerField(
     label: String,
@@ -289,11 +315,7 @@ private fun CalendarPickerField(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        FieldValueColumn(
-            modifier = Modifier.weight(1f),
-            value = value,
-            label = label
-        )
+        DateLabelValueLine(label = label, value = value, modifier = Modifier.weight(1f))
         Box(
             modifier = Modifier.size(40.dp),
             contentAlignment = Alignment.Center
@@ -307,8 +329,7 @@ private fun CalendarPickerField(
     }
 }
 
-// Поле-дата без иконки (Figma: иконка календаря в макете — ошибка):
-// тап по всему полю открывает окно ввода даты
+// Поле-дата без иконки: тап по всему полю открывает окно ввода даты
 @Composable
 private fun DateTapField(
     label: String,
@@ -325,34 +346,25 @@ private fun DateTapField(
             .padding(start = 20.dp, end = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FieldValueColumn(
-            modifier = Modifier.weight(1f),
-            value = value,
-            label = label
-        )
+        DateLabelValueLine(label = label, value = value, modifier = Modifier.weight(1f))
     }
 }
 
-// Значение (дата) сверху 13/400 + подпись снизу 15/600 (Figma 2692:31197)
+// Одна строка: название (15/600) + значение через пробел (15/400)
 @Composable
-private fun FieldValueColumn(
-    modifier: Modifier = Modifier,
-    value: String,
-    label: String
-) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = value.ifBlank { " " },
-            style = CardSubtitleStyle.copy(color = Graphite),
-            maxLines = 1
-        )
+private fun DateLabelValueLine(label: String, value: String, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = Headline2MobStyle, maxLines = 1)
+        if (value.isNotBlank()) {
+            Spacer(Modifier.width(4.dp))
+            Text(value, style = Headline2MobStyle.copy(fontWeight = FontWeight.Normal), maxLines = 1)
+        }
     }
 }
 
-// Поле ввода (Figma 2692:31197): ввод сверху 13/400 #212121 (пусто — серый
-// плейсхолдер), подпись снизу 15/600 #212121; 64dp r20 #EFEFEF, L20/R10.
-// prefix — постоянный не удаляемый префикс («№»), suffix — хвост («м³»)
+// Поле ввода (Figma): подпись сверху тонким (13/400 #727272),
+// значение ниже жирным (15/600 #212121); «№» — постоянный жирный префикс,
+// курсор сразу после него; suffix — хвост значения
 @Composable
 private fun CounterInputField(
     label: String,
@@ -375,30 +387,84 @@ private fun CounterInputField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
-            textStyle = CardSubtitleStyle.copy(color = Graphite),
+            textStyle = Headline2MobStyle,
             cursorBrush = SolidColor(Graphite),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
             decorationBox = { innerTextField ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(label, style = CardSubtitleStyle)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         if (prefix != null) {
-                            Text(prefix, style = CardSubtitleStyle.copy(color = Graphite))
+                            Text(prefix, style = Headline2MobStyle)
                         }
-                        Box(Modifier.weight(1f).heightIn(min = 16.dp)) {
-                            if (value.isBlank() && prefix == null && suffix == null) {
-                                Text(" ", style = CardSubtitleStyle)
-                            }
+                        Box(Modifier.weight(1f).heightIn(min = 18.dp)) {
                             innerTextField()
                         }
                         if (suffix != null) {
-                            Text(suffix, style = CardSubtitleStyle.copy(color = Graphite))
+                            Text(suffix, style = Headline2MobStyle)
                         }
                     }
-                    Text(label, style = Headline2MobStyle, maxLines = 1)
+                }
+            }
+        )
+    }
+}
+
+// «Внести начальное показание»: пусто — фраза одна строка слева, по центру
+// высоты; при вводе поле двустрочное: подпись «Начальное показание» тонким
+// сверху, значение (и единица) жирным на второй строке
+@Composable
+private fun InitialReadingField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    unit: String?
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(CardBackground)
+            .padding(start = 20.dp, end = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = Headline2MobStyle,
+            cursorBrush = SolidColor(Graphite),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+            decorationBox = { innerTextField ->
+                if (value.isBlank()) {
+                    // Плейсхолдер-фраза по центру строки; ввод прозрачен, но уже может получить фокус
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                        Text(
+                            "Внести начальное показание",
+                            style = Headline2MobStyle.copy(fontWeight = FontWeight.Normal, color = GreyText)
+                        )
+                        innerTextField()
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Начальное показание", style = CardSubtitleStyle)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(Modifier.weight(1f).heightIn(min = 18.dp)) {
+                                innerTextField()
+                            }
+                            if (unit != null) {
+                                Text(unit, style = Headline2MobStyle)
+                            }
+                        }
+                    }
                 }
             }
         )
@@ -468,6 +534,55 @@ private fun RemindSwitchRow(
                         .clip(CircleShape)
                         .background(GreyText)
                 )
+            }
+        }
+    }
+}
+
+
+// Диалог «Выйти без сохранения?» (Figma 2711:39066): карточка r20, заголовок
+// 20/600, подпись 15/600 #727272, чёрная CTA «Продолжить редактирование» и
+// контурная «Выйти без сохранения». Закрывается ТОЛЬКО кнопками — ни тап
+// мимо, ни системный «назад» его не скрывают
+@Composable
+private fun ExitConfirmDialog(
+    onContinueEditing: () -> Unit,
+    onExit: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = { },
+        properties = DialogProperties(dismissOnClickOutside = false, dismissOnBackPress = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("Выйти без сохранения?", style = ToolbarTitleStyle)
+            Text(
+                "Внесенные изменения не сохранятся",
+                style = Headline2MobStyle.copy(color = GreyText)
+            )
+            Spacer(Modifier.height(14.dp))
+            BlackCtaButton(
+                text = "Продолжить редактирование",
+                onClick = onContinueEditing
+            )
+            // Контурная кнопка выхода (1dp #212121, r100)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .border(1.dp, Graphite, RoundedCornerShape(100.dp))
+                    .clickable(onClick = onExit),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Выйти без сохранения", style = Headline2MobStyle)
             }
         }
     }

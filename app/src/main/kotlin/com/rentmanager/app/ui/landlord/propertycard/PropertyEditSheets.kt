@@ -450,13 +450,15 @@ fun MetersSheet(onDismiss: () -> Unit) {
 
 // Шит редактирования фотографий (Figma 2523-27049): сетка 2 в ряд,
 // на каждой фотографии крестик удаления, последняя плитка «Добавить фото»,
-// ниже разделитель и кнопка «Сохранить изменения»
+// ниже разделитель и кнопка «Сохранить изменения».
+// Крестик удаляет фото сразу: из списка и из БД/S3 (onDeletePhoto)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotoEditSheet(
     initialPhotoUris: List<String>,
     isSaving: Boolean,
     onSave: (photoUris: List<String>) -> Unit,
+    onDeletePhoto: (uri: String) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val photoUris = remember(initialPhotoUris) { initialPhotoUris.toMutableStateList() }
@@ -513,7 +515,10 @@ fun PhotoEditSheet(
                             } else {
                                 PhotoSheetTile(
                                     uri = uri,
-                                    onRemove = { photoUris.remove(uri) },
+                                    onRemove = {
+                                        photoUris.remove(uri)
+                                        onDeletePhoto(uri)
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
                             }

@@ -252,6 +252,36 @@ class PropertyCardViewModel @Inject constructor(
         }
     }
 
+    /** Удаление фото крестиком в шите: сразу из БД и S3 (серверный DeletePhoto),
+     *  локально добавленные (ещё не загруженные) файлы просто уходят из списка. */
+    fun deletePhoto(uri: String) {
+        val current = _uiState.value.property ?: return
+        val photo = current.photos.orEmpty().firstOrNull { it.url == uri }
+        val photoId = photo?.id
+        if (photoId == null) {
+            // Локальный файл (content://) — на сервере его нет, убираем только из состояния
+            return
+        }
+        if (_uiState.value.isActionInProgress) return
+        _uiState.value = _uiState.value.copy(isActionInProgress = true)
+        viewModelScope.launch {
+            try {
+                val resp = repository.deletePhoto(photoId)
+                if (resp.isSuccessful) {
+                    val updated = current.copy(photos = current.photos.orEmpty().filterNot { it.url == uri })
+                    detailCache.saveProperty(updated)
+                    _uiState.value = _uiState.value.copy(isActionInProgress = false, property = updated)
+                } else {
+                    _uiState.value = _uiState.value.copy(isActionInProgress = false)
+                    _errorEvents.emit("Не удалось удалить фото (${resp.code()})")
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isActionInProgress = false)
+                _errorEvents.emit(e.message ?: "Ошибка сети")
+            }
+        }
+    }
+
     /** Шит фотографий: добавить/удалить и сохранить (как в CreatePropertyViewModel.updateProperty). */
     fun savePhotos(photoUris: List<String>) {
         val current = _uiState.value.property ?: return

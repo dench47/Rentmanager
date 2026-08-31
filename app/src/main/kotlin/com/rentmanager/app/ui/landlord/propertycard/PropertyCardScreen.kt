@@ -552,6 +552,7 @@ fun PropertyCardScreen(
                     showPhotosSheet = false
                     viewModel.savePhotos(uris)
                 },
+                onDeletePhoto = { uri -> viewModel.deletePhoto(uri) },
                 onDismiss = { showPhotosSheet = false }
             )
         }
