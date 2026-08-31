@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.services
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,7 +35,7 @@ fun ServicesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Услуги", style = MaterialTheme.typography.titleLarge) },
+                title = { Text("Услуги", style = MaterialTheme.typography.titleLarge, modifier = Modifier.clickable(onClickLabel = "Назад") { onBack() }) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = OnPrimary)

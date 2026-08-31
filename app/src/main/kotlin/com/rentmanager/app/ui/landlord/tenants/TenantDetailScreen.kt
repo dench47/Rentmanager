@@ -58,7 +58,7 @@ fun TenantDetailScreen(
         containerColor = Color.White,
         topBar = {
             TopAppBar(
-                title = { Text("Арендатор", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily) },
+                title = { Text("Арендатор", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily, modifier = Modifier.clickable(onClickLabel = "Назад") { onBack() }) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = Color(0xFF212121))

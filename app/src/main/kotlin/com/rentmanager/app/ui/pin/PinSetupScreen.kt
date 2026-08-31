@@ -45,27 +45,33 @@ fun PinSetupScreen(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 60.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (!isOnboarding) {
-                Image(
-                    painter = painterResource(R.drawable.ic_arrow_left),
-                    contentDescription = "Назад",
-                    modifier = Modifier.size(24.dp).clickable { onBack() },
-                    contentScale = ContentScale.Fit
+            // Клик по всей зоне «стрелка + название» = назад (единый стандарт приложения)
+            Row(
+                modifier = Modifier.clickable(enabled = !isOnboarding, onClickLabel = "Назад") { onBack() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!isOnboarding) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_arrow_left),
+                        contentDescription = "Назад",
+                        modifier = Modifier.size(24.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Spacer(Modifier.size(24.dp))
+                }
+                Text(
+                    when (uiState.step) {
+                        PinSetupStep.VERIFY_CURRENT -> "Введите текущий код"
+                        PinSetupStep.CONFIRM -> "Повторите код"
+                        else -> "Придумайте новый код"
+                    },
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF212121),
+                    modifier = Modifier.padding(start = 16.dp)
                 )
-            } else {
-                Spacer(Modifier.size(24.dp))
             }
-            Text(
-                when (uiState.step) {
-                    PinSetupStep.VERIFY_CURRENT -> "Введите текущий код"
-                    PinSetupStep.CONFIRM -> "Повторите код"
-                    else -> "Придумайте новый код"
-                },
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF212121),
-                modifier = Modifier.padding(start = 16.dp)
-            )
         }
 
         Spacer(Modifier.height(32.dp))

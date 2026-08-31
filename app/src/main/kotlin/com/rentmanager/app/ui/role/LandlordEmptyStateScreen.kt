@@ -27,7 +27,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
-import com.rentmanager.app.ui.landlord.createproperty.OutlineCtaButton
 import com.rentmanager.app.ui.theme.InterFontFamily
 
 /**
@@ -57,22 +56,26 @@ fun LandlordEmptyStateScreen(
                 .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_landlord_back),
-                contentDescription = "Назад",
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable(onClickLabel = "Назад") { onBack() }
-            )
-            Spacer(Modifier.size(8.dp))
-            Text(
-                "Арендодатель",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = InterFontFamily,
-                color = Color(0xFF212121),
-                letterSpacing = (-0.3).sp
-            )
+            // Клик по всей зоне «стрелка + название» = назад (единый стандарт приложения)
+            Row(
+                modifier = Modifier.clickable(onClickLabel = "Назад") { onBack() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_landlord_back),
+                    contentDescription = "Назад",
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    "Арендодатель",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = InterFontFamily,
+                    color = Color(0xFF212121),
+                    letterSpacing = (-0.3).sp
+                )
+            }
         }
 
         // Карточка по центру оставшейся области (Figma: card 372×435)
@@ -117,7 +120,8 @@ fun LandlordEmptyStateScreen(
                 onClick = onAddFirstObject
             )
             Spacer(Modifier.height(12.dp))
-            OutlineCtaButton(
+            // Градиентная кнопка (Figma 2533-17817: #F6D85E → #E89B5A → #D97D5D, тёмный текст)
+            GradientCtaButton(
                 text = "Управление подпиской",
                 iconRes = R.drawable.ic_cta_diamond,
                 onClick = onSubscription

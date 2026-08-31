@@ -130,15 +130,19 @@ fun AddCounterScreen(
                 .height(36.dp)
                 .padding(start = 20.dp, end = 20.dp)
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_landlord_back),
-                contentDescription = "Назад",
-                modifier = Modifier
-                    .size(24.dp)
-                    .clickable(onClickLabel = "Назад") { requestExit() }
-            )
-            Spacer(Modifier.size(10.dp))
-            Text("Добавить счетчик", style = ToolbarTitleStyle)
+            // Клик по всей зоне «стрелка + название» = выход (с проверкой несохранённой формы)
+            Row(
+                modifier = Modifier.clickable(onClickLabel = "Назад") { requestExit() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_landlord_back),
+                    contentDescription = "Назад",
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.size(10.dp))
+                Text("Добавить счетчик", style = ToolbarTitleStyle)
+            }
         }
 
         // Белая область: контент + таббар

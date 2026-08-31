@@ -116,7 +116,7 @@ fun AttachTenantScreen(
         containerColor = Color(0xFFF5F7FA),
         topBar = {
             TopAppBar(
-                title = { Text("Добавить арендатора", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily) },
+                title = { Text("Добавить арендатора", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily, modifier = Modifier.clickable(onClickLabel = "Назад") { onDismiss() }) },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = Color(0xFF212121))

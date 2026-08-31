@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.landlord.messages
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -19,7 +20,7 @@ fun MessagesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Сообщения", style = MaterialTheme.typography.titleLarge) },
+                title = { Text("Сообщения", style = MaterialTheme.typography.titleLarge, modifier = Modifier.clickable(onClickLabel = "Назад") { onBack() }) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = OnPrimary)

@@ -272,9 +272,10 @@ private fun LandlordInfBlock(onAddFirstObject: () -> Unit) {
 
 /**
  * Градиентная CTA-кнопка (Figma: linear-gradient 136°, #F6D85E 19% → #E89B5A 60% → #D97D5D 100%).
+ * Общая для экранов роли и пустого состояния (тёмный текст/иконка на градиенте).
  */
 @Composable
-private fun GradientCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
+fun GradientCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

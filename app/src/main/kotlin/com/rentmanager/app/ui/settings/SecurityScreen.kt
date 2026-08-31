@@ -47,19 +47,25 @@ fun SecurityScreen(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 60.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_arrow_left),
-                contentDescription = "Назад",
-                modifier = Modifier.size(24.dp).clickable { onBack() },
-                contentScale = ContentScale.Fit
-            )
-            Text(
-                "Настройки безопасности",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF212121),
-                modifier = Modifier.padding(start = 16.dp)
-            )
+            // Клик по всей зоне «стрелка + название» = назад (единый стандарт приложения)
+            Row(
+                modifier = Modifier.clickable(onClickLabel = "Назад") { onBack() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_arrow_left),
+                    contentDescription = "Назад",
+                    modifier = Modifier.size(24.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Text(
+                    "Настройки безопасности",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF212121),
+                    modifier = Modifier.padding(start = 16.dp)
+                )
+            }
         }
 
         Spacer(Modifier.height(16.dp))
