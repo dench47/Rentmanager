@@ -1,6 +1,22 @@
 package com.rentmanager.app.ui.landlord.createproperty
 
 /**
+ * Черновик счётчика на шаге 4 создания: объект ещё не создан, счётчик
+ * сохраняется локально и отправляется в API после создания объекта.
+ */
+data class MeterDraft(
+    val type: String, // api-тип: electricity / cold_water / hot_water / heat
+    val typeLabel: String, // русское название: «Электроэнергия» и т.д.
+    val factoryNumber: String,
+    val nextVerificationDate: String, // yyyy-MM-dd
+    val currentValue: Double,
+    val unit: String,
+    val submitReadingsBy: String, // день месяца
+    val remindVerification: Boolean,
+    val remindReadings: Boolean
+)
+
+/**
  * Черновик флоу создания объекта.
  *
  * Сохраняется при навигации назад/вперёд по шагам 1–4 и при выходе из флоу
@@ -27,6 +43,8 @@ object CreateDraftHolder {
     var wifiPassword: String = ""
     var rulesText: String = ""
     var serviceInfo: String = ""
+    /** Черновые счётчики шага 4 — отправляются в API после создания объекта */
+    var meters: List<MeterDraft> = emptyList()
 
     private var entryRequested = false
     private var autoContinue = false
@@ -36,7 +54,7 @@ object CreateDraftHolder {
         name.isNotBlank() || area.isNotBlank() || price.isNotBlank() || description.isNotBlank() ||
             rooms != null || sleepingPlaces != null || floor != null || floorsInHouse != null ||
             photoUris.isNotEmpty() || phoneNumber.isNotBlank() || wifiPassword.isNotBlank() ||
-            rulesText.isNotBlank() || serviceInfo.isNotBlank()
+            rulesText.isNotBlank() || serviceInfo.isNotBlank() || meters.isNotEmpty()
 
     /** Пометить вход в флоу извне (кнопка «Создать»), чтобы шаг 1 знал о проверке черновика */
     fun markEntryRequested() {
@@ -80,6 +98,7 @@ object CreateDraftHolder {
         wifiPassword = ""
         rulesText = ""
         serviceInfo = ""
+        meters = emptyList()
         entryRequested = false
         autoContinue = false
         // Черновик завершён — убираем и его персистентную копию
@@ -103,7 +122,8 @@ object CreateDraftHolder {
         "phoneNumber" to phoneNumber,
         "wifiPassword" to wifiPassword,
         "rulesText" to rulesText,
-        "serviceInfo" to serviceInfo
+        "serviceInfo" to serviceInfo,
+        "meters" to meters
     )
 
     /** Восстановление полей шага 4 из снимка [snapshot]. */
@@ -121,5 +141,23 @@ object CreateDraftHolder {
         wifiPassword = snapshot["wifiPassword"] as? String ?: ""
         rulesText = snapshot["rulesText"] as? String ?: ""
         serviceInfo = snapshot["serviceInfo"] as? String ?: ""
+        meters = metersFromSnapshot(snapshot["meters"])
+    }
+
+    /** Gson из DataStore даёт LinkedTreeMap — конвертируем в MeterDraft. */
+    private fun metersFromSnapshot(raw: Any?): List<MeterDraft> {
+        val list = raw as? List<*> ?: return emptyList()
+        val gson = com.google.gson.Gson()
+        return list.mapNotNull { item ->
+            when (item) {
+                is MeterDraft -> item
+                null -> null
+                else -> try {
+                    gson.fromJson(gson.toJson(item), MeterDraft::class.java)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        }
     }
 }

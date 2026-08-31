@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,6 +45,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,6 +65,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -68,7 +73,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -104,6 +111,7 @@ fun CreatePropertyScreen(
     onBack: () -> Unit,
     onCreated: (String) -> Unit = {},
     onPaymentSchedule: (String) -> Unit = {},
+    onAddCounter: () -> Unit = {},
     viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
     val isEditMode = editPropertyId != null
@@ -194,6 +202,20 @@ fun CreatePropertyScreen(
     var addressError by remember { mutableStateOf(false) }
     var areaError by remember { mutableStateOf(false) }
     var priceError by remember { mutableStateOf(false) }
+    var sleepingError by remember { mutableStateOf(false) }
+
+    // Черновые счётчики (шаг 4): обновляются при возврате с экрана «Добавить счетчик»
+    var draftMeters by remember(editKey) { mutableStateOf(CreateDraftHolder.meters) }
+    val metersLifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(metersLifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                draftMeters = CreateDraftHolder.meters
+            }
+        }
+        metersLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { metersLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var photoUris by remember(editKey) {
         mutableStateOf(
@@ -259,7 +281,8 @@ fun CreatePropertyScreen(
         addressError = effAddress.isBlank()
         areaError = area.isBlank()
         priceError = price.isBlank()
-        val hasErrors = nameError || roomsError || addressError || areaError || priceError
+        sleepingError = sleepingPlaces == null
+        val hasErrors = nameError || roomsError || addressError || areaError || priceError || sleepingError
         if (!hasErrors) {
             viewModel.updateProperty(
                 propertyId = editPropertyId ?: "",
@@ -345,15 +368,21 @@ fun CreatePropertyScreen(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                    .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } },
+                // Боковой паддинг НЕ здесь: каждая секция несёт свой (20dp),
+                // а жёлтая панель «Счетчики» — full-bleed во всю ширину экрана
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 // 1. Фото (Figma: плитка 183x130, r30, камера 50, подпись Grey/Text)
                 if (photoUris.isEmpty()) {
-                    AddPhotoTile { galleryLauncher.launch("image/*") }
+                    Box(Modifier.padding(horizontal = 20.dp)) {
+                        AddPhotoTile { galleryLauncher.launch("image/*") }
+                    }
                 } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(18.dp),
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    ) {
                         itemsIndexed(photoUris) { index, uri ->
                             Box {
                                 AsyncImage(
@@ -399,7 +428,10 @@ fun CreatePropertyScreen(
                 }
 
                 // 2. О квартире (Figma: заголовок + 12, чипы комнат r30, gap 6)
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     FlowSectionTitle("О квартире")
                     RoomsChips(
                         selected = rooms,
@@ -413,7 +445,10 @@ fun CreatePropertyScreen(
                 }
 
                 // 3. Поля (Figma: gap 6; Название/Адрес 64, сетка 2x2 по 65)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     CardInput(
                         value = name,
                         onValueChange = {
@@ -422,7 +457,8 @@ fun CreatePropertyScreen(
                             CreateDraftHolder.name = it
                         },
                         placeholder = "Название",
-                        isError = nameError
+                        isError = nameError,
+                        errorHint = "Это поле обязательно для заполнения"
                     )
                     // Адрес перенесён на шаг 3 — здесь только отображение
                     CardAddressDisplay(address = effAddress, isError = addressError)
@@ -437,22 +473,25 @@ fun CreatePropertyScreen(
                                 areaError = false
                                 CreateDraftHolder.area = it
                             },
-                            placeholder = "Площадь, м2",
+                            placeholder = "Площадь, м2*",
                             keyboardType = KeyboardType.Decimal,
                             // После ввода рядом со значением показываем единицы
                             suffix = "м²",
                             modifier = Modifier.weight(1f),
-                            isError = areaError
+                            isError = areaError,
+                            errorHint = "Это поле обязательно для заполнения"
                         )
                         CardDropdown(
                             selected = sleepingPlaces,
                             options = SleepingOptions,
-                            placeholder = "Спальные места",
+                            placeholder = "Спальные места*",
                             onSelect = {
                                 sleepingPlaces = it
+                                sleepingError = false
                                 CreateDraftHolder.sleepingPlaces = it
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            isError = sleepingError
                         )
                     }
                     Row(
@@ -482,8 +521,12 @@ fun CreatePropertyScreen(
                     }
                 }
 
-                // 4. Описание объявления (Figma: заголовок + 12, карточка 155, padding 10)
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 4. Описание объявления (Figma 5: блок полей → описание — зазор 16, карточка 155)
+                Column(
+                    // Внешний зазор секций 20 → сдвигаем блок на 4dp вверх, чтобы получить 16
+                    modifier = Modifier.offset(y = (-4).dp).padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     FlowSectionTitle("Описание объявления")
                     DescriptionCard(
                         value = description,
@@ -495,7 +538,10 @@ fun CreatePropertyScreen(
                 }
 
                 // 5. Стоимость (Figma: заголовок + 12, карточка 64)
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     FlowSectionTitle("Стоимость")
                     CardInput(
                         value = price,
@@ -504,45 +550,43 @@ fun CreatePropertyScreen(
                             priceError = false
                             CreateDraftHolder.price = it
                         },
-                        placeholder = if (effRentType == "длительно") "Цена за месяц, ₽" else "Цена за сутки, ₽",
+                        placeholder = if (effRentType == "длительно") "Цена за месяц, ₽*" else "Цена за сутки, ₽*",
                         keyboardType = KeyboardType.Decimal,
-                        isError = priceError
+                        isError = priceError,
+                        errorHint = "Это поле обязательно для заполнения"
                     )
                 }
 
-                // 6. Дополнительно (Figma: заголовок + 12, контурные кнопки 55 r100, gap 6)
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 6. Дополнительно (Figma 5: только «График платежей и реквизиты»)
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     FlowSectionTitle("Дополнительно")
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlineCtaButton(
-                            text = "График платежей и реквизиты",
-                            iconRes = R.drawable.ic_payment_schedule,
-                            borderColor = Color(0xD9212121)
-                        ) {
-                            if (schedulePropertyId != null) {
-                                onPaymentSchedule(schedulePropertyId)
-                            } else if (canCreate) {
-                                submitCreate(
-                                    viewModel, name, effAddress, area, price, description,
-                                    photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
-                                    effPropertyType, effRentType, rooms, sleepingPlaces, floor,
-                                    floorsInHouse, effLatitude, effLongitude
-                                ) { newId -> onPaymentSchedule(newId) }
-                            }
-                        }
-                        OutlineCtaButton(
-                            text = "Добавить счетчики",
-                            iconRes = R.drawable.ic_add_counter,
-                            borderColor = Graphite
-                        ) {
-                            // Заглушка: экран счетчиков будет добавлен позже
+                    OutlineCtaButton(
+                        text = "График платежей и реквизиты",
+                        iconRes = R.drawable.ic_payment_schedule,
+                        borderColor = Color(0xD9212121)
+                    ) {
+                        if (schedulePropertyId != null) {
+                            onPaymentSchedule(schedulePropertyId)
+                        } else if (canCreate) {
+                            submitCreate(
+                                viewModel, name, effAddress, area, price, description,
+                                photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
+                                effPropertyType, effRentType, rooms, sleepingPlaces, floor,
+                                floorsInHouse, effLatitude, effLongitude
+                            ) { newId -> onPaymentSchedule(newId) }
                         }
                     }
                 }
 
 
                 // 7. Аккордеоны (Figma: карточки 64, r20, подзаголовок Text 1 mob, шеврон 40)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     InfoAccordionCard(
                         title = "Информация об объекте",
                         subtitle = "Эта информация будет видна арендатору",
@@ -608,9 +652,54 @@ fun CreatePropertyScreen(
                     }
                 }
 
-                // 8. Кнопки (создание: «Создать объект» + «Создать и опубликовать»;
+                // 7b. Счётчики — жёлтая full-bleed панель (Figma 5: 2751-36069 / 2751-35798).
+                // Скролл-колонка без бокового паддинга — панель естественно во всю ширину
+                if (!isEditMode) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFFFFF1CF))
+                            .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(if (draftMeters.isEmpty()) 24.dp else 40.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Счетчики", style = ToolbarTitleStyle)
+                            // Карандаш появляется, когда есть счётчики (Figma 2751-35798);
+                            // редактирование списка пока не определено дизайном — TODO
+                            if (draftMeters.isNotEmpty()) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_edit_pencil_white),
+                                    contentDescription = "Редактировать счетчики",
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
+                        // Контурная кнопка на жёлтом: белая заливка, рамка #212121
+                        OutlineCtaButton(
+                            text = "Добавить счетчики",
+                            iconRes = R.drawable.ic_plus_circle_graphite,
+                            borderColor = Graphite,
+                            onClick = onAddCounter
+                        )
+                        if (draftMeters.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                draftMeters.forEach { meter -> DraftMeterCard(meter) }
+                            }
+                        }
+                    }
+                }
+
+                // 8. Кнопки (создание: «Создать и опубликовать» + «Создать объект»;
                 // редактирование: чёрная «Сохранить изменения» + контурная «Сбросить изменения», Figma 2677-26609)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     if (isEditMode) {
                         BlackCtaButton(
                             text = "Сохранить изменения",
@@ -623,26 +712,31 @@ fun CreatePropertyScreen(
                             enabled = !uiState.isCreating
                         ) { showResetDialog = true }
                     } else {
-                        OutlineCtaButton(text = "Создать объект") {
-                            // Валидация обязательных полей: кнопка всегда чёрная, но создание
-                            // запускается только когда все обязательные поля заполнены
+                        // Валидация + создание (общая для обеих кнопок)
+                        fun validateAndCreate() {
                             nameError = name.isBlank()
                             roomsError = rooms == null
                             addressError = effAddress.isBlank()
                             areaError = area.isBlank()
                             priceError = price.isBlank()
-                            val hasErrors = nameError || roomsError || addressError || areaError || priceError
+                            sleepingError = sleepingPlaces == null
+                            val hasErrors = nameError || roomsError || addressError || areaError || priceError || sleepingError
                             if (!hasErrors) {
                                 submitCreate(
                                     viewModel, name, effAddress, area, price, description,
                                     photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
                                     effPropertyType, effRentType, rooms, sleepingPlaces, floor,
                                     floorsInHouse, effLatitude, effLongitude
-                                ) { onCreated(it) }
+                                ) { newId ->
+                                    // Черновые счётчики шага 4 — в API после создания объекта
+                                    viewModel.createDraftMeters(newId, CreateDraftHolder.meters)
+                                    onCreated(newId)
+                                }
                             }
                         }
-                        // Публикация — отдельный шаг (как и раньше, неактивна)
-                        GradientCtaButton(text = "Создать и опубликовать", enabled = false) {}
+                        // Figma 5: градиентная «Создать и опубликовать» первой, затем контурная
+                        GradientCtaButton(text = "Создать и опубликовать") { validateAndCreate() }
+                        OutlineCtaButton(text = "Создать объект") { validateAndCreate() }
                     }
                 }
 
@@ -800,6 +894,60 @@ private fun submitCreate(
 private fun Double.toFieldText(): String =
     if (this == toLong().toDouble()) toLong().toString() else toString()
 
+// Карточка чернового счётчика на жёлтой панели шага 4 (Figma 2751-35798):
+// белая 372×146 r20 pad12 — как карточка счётчика в карточке объекта
+@Composable
+private fun DraftMeterCard(meter: MeterDraft) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(meter.typeLabel, style = Headline2MobStyle)
+            Text(
+                "№${meter.factoryNumber}",
+                style = Headline2MobStyle.copy(color = GreyText),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            MeterDraftInfoRow("Текущие показания:", formatDraftMeterValue(meter.currentValue, meter.unit))
+            MeterDraftInfoRow("Последнее изменение:", "—")
+            MeterDraftInfoRow("Дата следующей проверки:", formatDraftDate(meter.nextVerificationDate))
+        }
+        Text("Внести новые показания", style = Headline2MobStyle.copy(color = Color(0xD9212121)))
+    }
+}
+
+@Composable
+private fun MeterDraftInfoRow(label: String, value: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = CardSubtitleStyle.copy(color = Graphite))
+        Text(value, style = CardSubtitleStyle.copy(fontWeight = FontWeight.Medium))
+    }
+}
+
+// 456.0 → «456 кВт·ч»; дробные — как есть
+private fun formatDraftMeterValue(value: Double, unit: String): String {
+    val v = if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+    return if (unit.isBlank()) v else "$v $unit"
+}
+
+// yyyy-MM-dd → dd.MM.yyyy; пусто — «—»
+private fun formatDraftDate(raw: String): String {
+    if (raw.isBlank()) return "—"
+    val parts = raw.split("-")
+    return if (parts.size == 3) "${parts[2]}.${parts[1]}.${parts[0]}" else raw.ifBlank { "—" }
+}
+
 // Плитка «Добавить фото» (Figma: 183x130, r30, камера 50, подпись 15 SemiBold Grey/Text)
 @Composable
 private fun AddPhotoTile(onClick: () -> Unit) {
@@ -837,7 +985,7 @@ private fun RoomsChips(selected: String?, onSelect: (String) -> Unit, isError: B
                     label = option,
                     selected = selected == option,
                     modifier = Modifier.weight(1f),
-                    showError = isError && selected == null
+                    showError = false
                 ) { onSelect(option) }
             }
         }
@@ -846,12 +994,12 @@ private fun RoomsChips(selected: String?, onSelect: (String) -> Unit, isError: B
                 label = "5",
                 selected = selected == "5",
                 modifier = Modifier.width(69.6.dp),
-                showError = isError && selected == null
+                showError = false
             ) { onSelect("5") }
             RoomChip(
                 label = "6+ комнат",
                 selected = selected == "6+",
-                showError = isError && selected == null
+                showError = false
             ) { onSelect("6+") }
         }
     }
@@ -895,7 +1043,8 @@ private fun RoomChip(
 }
 
 // Текстовое поле в карточке card_inf (Figma: 64, r20, #EFEFEF, padding 20/10, плейсхолдер Headline 2 mob Grey/Text).
-// suffix — единицы измерения после введённого значения («м²»)
+// suffix — единицы измерения после введённого значения («м²»).
+// Ошибка (Figma 5): рамка #FF4249, подпись 13/400 красная, под полем подсказка 9.5sp
 @Composable
 private fun CardInput(
     value: String,
@@ -904,88 +1053,113 @@ private fun CardInput(
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
     isError: Boolean = false,
-    suffix: String? = null
+    suffix: String? = null,
+    errorHint: String? = null
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardBackground)
-            .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
-            .padding(start = 20.dp, end = 10.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = Headline2MobStyle,
-            cursorBrush = SolidColor(Graphite),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
-            decorationBox = { innerTextField ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Box(Modifier.weight(1f)) {
-                        if (value.isEmpty()) {
-                            Text(
-                                placeholder,
-                                style = if (isError) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
-                                else Headline2MobPlaceholderStyle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(CardBackground)
+                .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
+                .padding(start = 20.dp, end = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = Headline2MobStyle,
+                cursorBrush = SolidColor(Graphite),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
+                decorationBox = { innerTextField ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(Modifier.weight(1f)) {
+                            if (value.isEmpty()) {
+                                Text(
+                                    placeholder,
+                                    style = if (isError) CardSubtitleStyle.copy(color = ErrorRed)
+                                    else Headline2MobPlaceholderStyle,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            innerTextField()
                         }
-                        innerTextField()
-                    }
-                    // Единицы измерения — рядом с введённым значением
-                    if (suffix != null && value.isNotEmpty()) {
-                        Text(suffix, style = Headline2MobStyle)
+                        // Единицы измерения — рядом с введённым значением
+                        if (suffix != null && value.isNotEmpty()) {
+                            Text(suffix, style = Headline2MobStyle)
+                        }
                     }
                 }
-            }
-        )
+            )
+        }
+        if (isError && errorHint != null) {
+            FieldErrorHint(errorHint)
+        }
     }
 }
 
-// Адрес — только отображение (карта на шаге 3)
+// Подсказка ошибки под полем (Figma 5: 9.5/400 #FF4249, отступ слева 20)
+@Composable
+private fun FieldErrorHint(text: String) {
+    Text(
+        text,
+        fontSize = 9.5.sp,
+        lineHeight = 11.5.sp,
+        letterSpacing = (-0.2).sp,
+        color = ErrorRed,
+        modifier = Modifier.padding(start = 20.dp)
+    )
+}
+
+// Адрес — только отображение (карта на шаге 3); ошибка — рамка + подпись + подсказка (Figma 5)
 @Composable
 private fun CardAddressDisplay(
     address: String,
     modifier: Modifier = Modifier,
     isError: Boolean = false
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardBackground)
-            .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
-            .padding(start = 20.dp, end = 10.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        if (address.isBlank()) {
-            Text(
-                "Адрес",
-                style = if (isError) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
-                else Headline2MobPlaceholderStyle
-            )
-        } else {
-            Text(
-                address,
-                style = Headline2MobStyle,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(CardBackground)
+                .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
+                .padding(start = 20.dp, end = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (address.isBlank()) {
+                Text(
+                    "Адрес*",
+                    style = if (isError) CardSubtitleStyle.copy(color = ErrorRed)
+                    else Headline2MobPlaceholderStyle
+                )
+            } else {
+                Text(
+                    address,
+                    style = Headline2MobStyle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        if (isError) {
+            FieldErrorHint("Это поле обязательно для заполнения")
         }
     }
 }
 
-// Дропдаун в карточке card_inf (ячейка 65, шеврон 40 справа, padding 20/10)
+// Дропдаун в карточке card_inf (ячейка 65, шеврон 40 справа, padding 20/10);
+// ошибка (Figma 5): рамка + подпись 13/400 красная + подсказка «Выберите значение»
 @Composable
 private fun CardDropdown(
     selected: String?,
@@ -996,56 +1170,61 @@ private fun CardDropdown(
     isError: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(65.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(CardBackground)
-                .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
-                .clickable { expanded = true }
-                .padding(start = 20.dp, end = 10.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(65.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CardBackground)
+                    .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
+                    .clickable { expanded = true }
+                    .padding(start = 20.dp, end = 10.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
-                Text(
-                    text = selected ?: placeholder,
-                    style = when {
-                        selected == null && isError -> Headline2MobPlaceholderStyle.copy(color = ErrorRed)
-                        selected == null -> Headline2MobPlaceholderStyle
-                        else -> Headline2MobStyle
-                    },
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Image(
-                    painter = painterResource(R.drawable.ic_card_chevron),
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = selected ?: placeholder,
+                        style = when {
+                            selected == null && isError -> CardSubtitleStyle.copy(color = ErrorRed)
+                            selected == null -> Headline2MobPlaceholderStyle
+                            else -> Headline2MobStyle
+                        },
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Image(
+                        painter = painterResource(R.drawable.ic_card_chevron),
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.heightIn(max = 304.dp),
+                containerColor = Color.White
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option, style = FieldTextStyle) },
+                        onClick = {
+                            onSelect(option)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 304.dp),
-            containerColor = Color.White
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option, style = FieldTextStyle) },
-                    onClick = {
-                        onSelect(option)
-                        expanded = false
-                    }
-                )
-            }
+        if (isError && selected == null) {
+            FieldErrorHint("Выберите значение")
         }
     }
 }

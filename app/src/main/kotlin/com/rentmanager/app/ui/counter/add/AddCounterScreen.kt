@@ -81,6 +81,9 @@ private val SwitchOnTrack = Color(0xFF151515)
 
 /**
  * Экран «Добавить счетчик» (Figma 2713:40952).
+ *
+ * @param draftMode объект ещё не создан (шаг 4): счётчик НЕ отправляется в API,
+ *   а возвращается колбэком [onDraftSaved] в черновик создания.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,6 +91,8 @@ fun AddCounterScreen(
     propertyId: String,
     onBack: () -> Unit,
     onAdded: () -> Unit,
+    draftMode: Boolean = false,
+    onDraftSaved: (com.rentmanager.app.ui.landlord.createproperty.MeterDraft) -> Unit = {},
     viewModel: AddCounterViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -209,7 +214,10 @@ fun AddCounterScreen(
                 BlackCtaButton(
                     text = "Добавить счетчик",
                     enabled = !uiState.isSaving,
-                    onClick = { viewModel.addMeter(propertyId) }
+                    onClick = {
+                        if (draftMode) viewModel.buildDraft()?.let(onDraftSaved)
+                        else viewModel.addMeter(propertyId)
+                    }
                 )
             }
 

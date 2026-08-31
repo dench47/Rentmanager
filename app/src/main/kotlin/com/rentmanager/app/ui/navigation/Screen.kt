@@ -101,8 +101,10 @@ sealed class Screen(val route: String) {
             "landlord/meter_detail/$propertyId/$meterId"
     }
 
-    // Экран добавления счётчика (Figma 2713:40952)
-    data object AddCounter : Screen("landlord/add_counter/{propertyId}") {
-        fun createRoute(propertyId: String) = "landlord/add_counter/$propertyId"
+    // Экран добавления счётчика (Figma 2713:40952).
+    // draft=true — режим черновика шага 4 создания: без API, счётчик возвращается в черновик
+    data object AddCounter : Screen("landlord/add_counter/{propertyId}?draft={draft}") {
+        fun createRoute(propertyId: String, draft: Boolean = false) =
+            "landlord/add_counter/${propertyId.ifBlank { "draft" }}?draft=$draft"
     }
 }

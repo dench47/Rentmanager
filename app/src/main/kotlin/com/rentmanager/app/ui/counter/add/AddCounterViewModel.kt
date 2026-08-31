@@ -85,9 +85,37 @@ class AddCounterViewModel @Inject constructor(
         _uiState.update { it.copy(remindReadings = !it.remindReadings) }
     }
 
+    /**
+     * Режим черновика (шаг 4 создания — объекта ещё нет): валидирует форму
+     * и собирает MeterDraft без запроса к API; отправит его CreateProperty-флоу
+     * после создания объекта.
+     */
+    fun buildDraft(): com.rentmanager.app.ui.landlord.createproperty.MeterDraft? {
+        val state = _uiState.value
+        val apiType = state.counterType.toApiType()
+        if (apiType.isBlank()) {
+            viewModelScope.launch { _errorEvents.emit("Выберите тип счётчика") }
+            return null
+        }
+        if (state.counterNumber.isBlank()) {
+            viewModelScope.launch { _errorEvents.emit("Введите заводской номер") }
+            return null
+        }
+        return com.rentmanager.app.ui.landlord.createproperty.MeterDraft(
+            type = apiType,
+            typeLabel = state.counterType,
+            factoryNumber = state.counterNumber.trim(),
+            nextVerificationDate = state.nextVerificationDate.toApiDate(),
+            currentValue = state.initialValue.toDoubleOrNull() ?: 0.0,
+            unit = apiType.toUnit(),
+            submitReadingsBy = state.submitReadingsBy.trim(),
+            remindVerification = state.remindVerification,
+            remindReadings = state.remindReadings
+        )
+    }
+
     /** Создаёт счётчик на сервере (POST /properties/{id}/meters). */
-    fun addMeter(propertyId: String) {
-        if (_uiState.value.isSaving) return
+    fun addMeter(propertyId: String) {        if (_uiState.value.isSaving) return
         val state = _uiState.value
         val apiType = state.counterType.toApiType()
         if (apiType.isBlank()) {

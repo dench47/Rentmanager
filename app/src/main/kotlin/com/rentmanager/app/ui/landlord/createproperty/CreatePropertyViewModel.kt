@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.local.LocationProvider
 import com.rentmanager.app.data.local.PropertyDetailCache
+import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PhotoDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.AddressSuggestion
@@ -203,6 +204,37 @@ class CreatePropertyViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Черновые счётчики шага 4: отправляются в API после того, как объект создан
+     * и появился его id. Ошибки не блокируют завершение создания объекта.
+     */
+    fun createDraftMeters(propertyId: String, meters: List<MeterDraft>) {
+        if (meters.isEmpty()) return
+        viewModelScope.launch {
+            meters.forEach { draft ->
+                try {
+                    propertyRepository.createMeter(
+                        propertyId,
+                        MeterDto(
+                            id = "",
+                            propertyId = propertyId,
+                            type = draft.type,
+                            factoryNumber = draft.factoryNumber,
+                            nextVerificationDate = draft.nextVerificationDate,
+                            currentValue = draft.currentValue,
+                            unit = draft.unit,
+                            submitReadingsBy = draft.submitReadingsBy,
+                            lastUpdated = null,
+                            remindVerification = draft.remindVerification,
+                            remindReadings = draft.remindReadings
+                        )
+                    )
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
     fun createProperty(
         name: String,
         address: String,
@@ -223,8 +255,7 @@ class CreatePropertyViewModel @Inject constructor(
         latitude: Double?,
         longitude: Double?,
         onSuccess: (String) -> Unit
-    ) {
-        viewModelScope.launch {
+    ) {        viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreating = true)
             try {
                 // 1. Загружаем фото в S3 (папка photos), по аналогии с аватаркой

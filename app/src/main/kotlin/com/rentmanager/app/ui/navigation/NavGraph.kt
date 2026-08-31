@@ -312,7 +312,9 @@ fun RentManagerNavGraph(
                     }
                     navController.navigate(Screen.PropertyCard.createRoute(newId))
                 },
-                onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) }
+                onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) },
+                // Шаг 4: счётчик уходит в черновик (без API) — отправится после создания объекта
+                onAddCounter = { navController.navigate(Screen.AddCounter.createRoute(propertyId = "", draft = true)) }
             )
         }
 
@@ -338,13 +340,22 @@ fun RentManagerNavGraph(
         // ========== Add Counter (добавление счётчика, Figma 2713:40952) ==========
         composable(
             route = Screen.AddCounter.route,
-            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("propertyId") { type = NavType.StringType },
+                navArgument("draft") { type = NavType.BoolType; defaultValue = false }
+            )
         ) { backStackEntry ->
             val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
+            val draftMode = backStackEntry.arguments?.getBoolean("draft") ?: false
             AddCounterScreen(
                 propertyId = propertyId,
                 onBack = { navController.popBackStack() },
-                onAdded = { navController.popBackStack() }
+                onAdded = { navController.popBackStack() },
+                draftMode = draftMode,
+                onDraftSaved = { draft ->
+                    CreateDraftHolder.meters = CreateDraftHolder.meters + draft
+                    navController.popBackStack()
+                }
             )
         }
 
