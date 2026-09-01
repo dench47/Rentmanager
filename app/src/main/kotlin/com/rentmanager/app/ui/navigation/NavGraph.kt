@@ -332,6 +332,7 @@ fun RentManagerNavGraph(
                 // Карандаш «Об объекте» — полноценный экран (Figma 2726-33827)
                 onEditAbout = { pid -> navController.navigate(Screen.AboutEdit.createRoute(pid)) },
                 onAddCounter = { pid -> navController.navigate(Screen.AddCounter.createRoute(pid)) },
+                onOpenMeters = { pid -> navController.navigate(Screen.MetersList.createRoute(pid)) },
                 onDeleted = {
                     propertiesViewModel.refresh()
                     navController.popBackStack()
@@ -444,7 +445,7 @@ fun RentManagerNavGraph(
             )
         }
 
-        // ========== Meter Detail ==========
+        // ========== Meter Detail (редактирование счётчика, Figma 2755-37555) ==========
         composable(
             route = Screen.MeterDetail.route,
             arguments = listOf(
@@ -454,10 +455,28 @@ fun RentManagerNavGraph(
         ) { backStackEntry ->
             val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
             val meterId = backStackEntry.arguments?.getString("meterId") ?: ""
-            com.rentmanager.app.ui.landlord.myproperties.propertydetail.MeterDetailScreen(
+            com.rentmanager.app.ui.counter.edit.EditMeterScreen(
                 propertyId = propertyId,
                 meterId = meterId,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        // ========== Meters List («Редактировать счетчики», Figma 2755-37699) ==========
+        composable(
+            route = Screen.MetersList.route,
+            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
+            com.rentmanager.app.ui.counter.list.MetersListScreen(
+                propertyId = propertyId,
+                onBack = { navController.popBackStack() },
+                onOpenMeter = { pid, mid ->
+                    navController.navigate(Screen.MeterDetail.createRoute(pid, mid))
+                },
+                onAddMeter = { pid ->
+                    navController.navigate(Screen.AddCounter.createRoute(pid))
+                }
             )
         }
 

@@ -115,6 +115,11 @@ sealed class Screen(val route: String) {
             "landlord/meter_detail/$propertyId/$meterId"
     }
 
+    // Экран «Редактировать счетчики» — список счётчиков объекта (Figma 2755-37699)
+    data object MetersList : Screen("landlord/meters/{propertyId}") {
+        fun createRoute(propertyId: String) = "landlord/meters/$propertyId"
+    }
+
     // Экран добавления счётчика (Figma 2713:40952).
     // draft=true — режим черновика шага 4 создания: без API, счётчик возвращается в черновик
     data object AddCounter : Screen("landlord/add_counter/{propertyId}?draft={draft}") {

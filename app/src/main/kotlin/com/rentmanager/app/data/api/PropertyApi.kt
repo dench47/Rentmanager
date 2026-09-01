@@ -2,8 +2,10 @@ package com.rentmanager.app.data.api
 
 import com.google.gson.annotations.SerializedName
 import com.rentmanager.app.data.model.MeterDto
+import com.rentmanager.app.data.model.MeterReadingDto
 import com.rentmanager.app.data.model.PhotoDto
 import com.rentmanager.app.data.model.PropertyDto
+import com.rentmanager.app.data.model.SubmitReadingRequest
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -44,6 +46,18 @@ interface PropertyApi {
 
     @POST("properties/{id}/meters")
     suspend fun createMeter(@Path("id") id: String, @Body meter: MeterDto): Response<MeterDto>
+
+    @PUT("meters/{meterId}")
+    suspend fun updateMeter(@Path("meterId") meterId: String, @Body meter: MeterDto): Response<MeterDto>
+
+    @DELETE("meters/{meterId}")
+    suspend fun deleteMeter(@Path("meterId") meterId: String): Response<Unit>
+
+    @GET("meters/{meterId}/readings")
+    suspend fun listReadings(@Path("meterId") meterId: String): Response<List<MeterReadingDto>>
+
+    @POST("meters/{meterId}/readings")
+    suspend fun submitReading(@Path("meterId") meterId: String, @Body request: SubmitReadingRequest): Response<MeterReadingDto>
 
     @POST("properties/{id}/attach_tenant")
     suspend fun attachTenant(@Path("id") id: String, @Body request: AttachTenantRequest): Response<MessageResponse>

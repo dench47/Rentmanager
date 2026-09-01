@@ -4,6 +4,7 @@ import com.rentmanager.app.data.api.AddPhotoRequest
 import com.rentmanager.app.data.api.PropertyApi
 import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PropertyDto
+import com.rentmanager.app.data.model.SubmitReadingRequest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,4 +23,9 @@ class PropertyRepository @Inject constructor(
     suspend fun deletePhoto(photoId: String) = propertyApi.deletePhoto(photoId)
     suspend fun getMeters(id: String) = propertyApi.getMeters(id)
     suspend fun createMeter(id: String, meter: MeterDto) = propertyApi.createMeter(id, meter)
+    suspend fun updateMeter(meterId: String, meter: MeterDto) = propertyApi.updateMeter(meterId, meter)
+    suspend fun deleteMeter(meterId: String) = propertyApi.deleteMeter(meterId)
+    suspend fun listReadings(meterId: String) = propertyApi.listReadings(meterId)
+    suspend fun submitReading(meterId: String, value: Double) =
+        propertyApi.submitReading(meterId, SubmitReadingRequest(value))
 }

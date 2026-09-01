@@ -27,16 +27,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
 import com.rentmanager.app.ui.components.DesignWidthDialog
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.theme.CardBackground
@@ -68,9 +64,6 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.TextIconeStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 // Фон тулбара и системного бара (Figma Brand/tint)
 private val BrandTint = Color(0xFFFFF1CF)
@@ -104,6 +97,9 @@ fun AddCounterScreen(
     var showVerificationPicker by remember { mutableStateOf(false) }
     var showDayPickerSheet by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
+    // Брошенная в прошлый раз форма: шит «Продолжить / Начать заново»
+    var pendingDraft by remember { mutableStateOf<AddCounterUiState?>(null) }
+    LaunchedEffect(Unit) { pendingDraft = CounterFormDraft.consume() }
 
     // «Начал хоть что-то делать» — любое отличие от пустой формы
     val formDirty = uiState.counterType.isNotBlank() ||
@@ -190,13 +186,20 @@ fun AddCounterScreen(
                     // Дата поверки: подпись сверху тонко, значение снизу жирно (Figma 2713-41541),
                     // тап по полю/иконке календаря открывает пикер
                     CalendarPickerField(
-                        label = "Дата следующей поверки",
+                        label = "Дата следующей проверки",
                         value = uiState.nextVerificationDate,
                         onClick = { showVerificationPicker = true }
                     )
                     RemindSwitchRow(
                         checked = uiState.remindVerification,
-                        onCheckedChange = { viewModel.toggleRemindVerification() }
+                        onCheckedChange = { checked ->
+                            viewModel.setRemindVerification(checked)
+                            // Включили напоминание, а дата не задана — сразу
+                            // открываем выбор даты, без ошибки при сохранении
+                            if (checked && uiState.nextVerificationDate.isBlank()) {
+                                showVerificationPicker = true
+                            }
+                        }
                     )
                     // День месяца (Figma 2738-26960): шеврон открывает боттомшит
                     // с сеткой дней 1–31; значение «N-го числа»
@@ -207,7 +210,14 @@ fun AddCounterScreen(
                     )
                     RemindSwitchRow(
                         checked = uiState.remindReadings,
-                        onCheckedChange = { viewModel.toggleRemindReadings() }
+                        onCheckedChange = { checked ->
+                            viewModel.setRemindReadings(checked)
+                            // Включили напоминание, а день не задан — сразу
+                            // открываем выбор дня месяца
+                            if (checked && uiState.submitReadingsBy.isBlank()) {
+                                showDayPickerSheet = true
+                            }
+                        }
                     )
                 }
 
@@ -254,11 +264,14 @@ fun AddCounterScreen(
     }
 
     if (showVerificationPicker) {
-        CounterDatePickerDialog(
-            initialDisplayMode = DisplayMode.Picker,
-            onConfirm = {
+        com.rentmanager.app.ui.components.DatePickerSheet(
+            title = "Дата следующей проверки",
+            initialDate = uiState.nextVerificationDate.toLocalDateOrNull() ?: java.time.LocalDate.now(),
+            onDone = { date ->
                 showVerificationPicker = false
-                viewModel.onNextVerificationDateChange(it)
+                viewModel.onNextVerificationDateChange(
+                    "%02d.%02d.%d".format(date.dayOfMonth, date.monthValue, date.year)
+                )
             },
             onDismiss = { showVerificationPicker = false }
         )
@@ -273,11 +286,24 @@ fun AddCounterScreen(
             onDismiss = { showDayPickerSheet = false }
         )
     }
+    pendingDraft?.let { draft ->
+        ResumeCounterSheet(
+            onContinue = {
+                viewModel.restore(draft)
+                pendingDraft = null
+            },
+            onRestart = {
+                viewModel.resetForm()
+                pendingDraft = null
+            }
+        )
+    }
     if (showExitDialog) {
         ExitConfirmDialog(
             onContinueEditing = { showExitDialog = false },
             onExit = {
                 showExitDialog = false
+                CounterFormDraft.save(uiState)
                 onBack()
             }
         )
@@ -654,119 +680,7 @@ private fun ExitConfirmDialog(
 }
 
 
-// Боттомшит выбора дня месяца (Figma 2743-30852): ручка 32×4 #212121,
-// «День месяца» 20/600 + подпись 13/400, сетка дней 1–31 по 7 в ряд
-// (кружок 40dp; выбранный — #212121 с белой цифрой), CTA «Готово»
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DayOfMonthPickerSheet(
-    selectedDay: Int?,
-    onDone: (Int) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var picked by remember { mutableStateOf(selectedDay) }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        containerColor = Color.White,
-        dragHandle = null
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 20.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp, bottom = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier
-                        .size(width = 32.dp, height = 4.dp)
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(Graphite)
-                )
-            }
-            Text("День месяца", style = ToolbarTitleStyle)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Выберите число, до которого нужно передавать показания каждый месяц",
-                style = CardSubtitleStyle
-            )
-            Spacer(Modifier.height(12.dp))
-            (1..31).chunked(7).forEach { week ->
-                Row(modifier = Modifier.fillMaxWidth().height(44.dp)) {
-                    week.forEach { day ->
-                        Box(
-                            modifier = Modifier.weight(1f).fillMaxHeight(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .then(
-                                        if (picked == day) Modifier.background(Graphite)
-                                        else Modifier.background(Color.Transparent)
-                                    )
-                                    .clickable { picked = day },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    day.toString(),
-                                    style = CardSubtitleStyle.copy(color = if (picked == day) Color.White else Graphite)
-                                )
-                            }
-                        }
-                    }
-                    repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
-                }
-            }
-            Spacer(Modifier.height(20.dp))
-            BlackCtaButton(
-                text = "Готово",
-                enabled = picked != null,
-                onClick = { picked?.let(onDone) }
-            )
-        }
-    }
-}
 
-
-// Пикер даты (Material3): возвращает выбранную дату в виде dd.MM.yyyy.
-// initialDisplayMode = Input — то же окно, что открывается по «карандашу»
-// внутри календаря (режим ручного ввода даты)
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CounterDatePickerDialog(
-    initialDisplayMode: DisplayMode = DisplayMode.Picker,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val state = rememberDatePickerState(initialDisplayMode = initialDisplayMode)
-    val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                state.selectedDateMillis?.let { millis ->
-                    val cal = Calendar.getInstance().apply { timeInMillis = millis }
-                    onConfirm(dateFormat.format(cal.time))
-                } ?: onDismiss()
-            }) { Text("ОК") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Отмена") }
-        }
-    ) {
-        DatePicker(state = state, showModeToggle = true)
-    }
-}
 
 // Таб-кнопка нижнего таббара (копия TabButton из карточки объекта)
 @Composable
@@ -786,3 +700,58 @@ private fun CounterTabButton(label: String, iconRes: Int, onClick: () -> Unit) {
     }
 }
 
+
+
+// dd.MM.yyyy → LocalDate (для календарного шита)
+private fun String.toLocalDateOrNull(): java.time.LocalDate? = try {
+    val parts = split(".")
+    if (parts.size == 3) java.time.LocalDate.of(parts[2].toInt(), parts[1].toInt(), parts[0].toInt()) else null
+} catch (_: Exception) {
+    null
+}
+
+// Шит возобновления брошенной формы (Figma 2761-43441): «Продолжить» / «Начать заново»
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ResumeCounterSheet(
+    onContinue: () -> Unit,
+    onRestart: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onContinue,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White,
+        dragHandle = null
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 20.dp)
+        ) {
+            com.rentmanager.app.ui.components.SheetDragHandle()
+            Text("Добавление счетчика", style = ToolbarTitleStyle)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Вы начали добавлять счетчик. Хотите продолжить?",
+                style = CardSubtitleStyle
+            )
+            Spacer(Modifier.height(16.dp))
+            BlackCtaButton(text = "Продолжить", onClick = onContinue)
+            Spacer(Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .border(1.dp, Graphite, RoundedCornerShape(100.dp))
+                    .clickable(onClick = onRestart),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Начать заново", style = Headline2MobStyle)
+            }
+        }
+    }
+}

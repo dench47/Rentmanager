@@ -117,6 +117,7 @@ fun PropertyCardScreen(
     onEditProperty: (String) -> Unit,
     onEditAbout: (String) -> Unit = {},
     onAddCounter: (String) -> Unit = {},
+    onOpenMeters: (String) -> Unit = {},
     onDeleted: () -> Unit = {},
     viewModel: PropertyCardViewModel = hiltViewModel()
 ) {
@@ -125,13 +126,28 @@ fun PropertyCardScreen(
     LaunchedEffect(propertyId) { viewModel.load(propertyId) }
     val property = uiState.property
 
+    // Возврат с экрана «Редактировать счетчики»/редактирования счётчика/
+    // добавлении — освежаем список счётчиков карточки
+    val cardLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(cardLifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME &&
+                uiState.property?.id != null
+            ) {
+                viewModel.reloadMeters(uiState.property!!.id)
+            }
+        }
+        cardLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { cardLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     var showActionsSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     // Шиты быстрого редактирования секций (карандаши у заголовков) и сетки фото
     var showRentSheet by remember { mutableStateOf(false) }
     var showTenantSheet by remember { mutableStateOf(false) }
-    var showMetersSheet by remember { mutableStateOf(false) }
+    var readingMeter by remember { mutableStateOf<com.rentmanager.app.data.model.MeterDto?>(null) }
     var showPhotosSheet by remember { mutableStateOf(false) }
 
     // Инлайн-редактирование «Информация об объекте» (Figma 2677-26576):
@@ -422,7 +438,7 @@ fun PropertyCardScreen(
                     .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SectionHeader("Счетчики", pencilRes = R.drawable.ic_edit_pencil_white, onPencilClick = { showMetersSheet = true })
+                SectionHeader("Счетчики", pencilRes = R.drawable.ic_edit_pencil_white, onPencilClick = { onOpenMeters(propertyId) })
                 BlackCtaButton(
                     text = "Добавить счетчики",
                     iconRes = R.drawable.ic_plus_circle_white,
@@ -432,7 +448,7 @@ fun PropertyCardScreen(
                 // стеком gap 8 под CTA — добавили счётчик, здесь стало на один больше
                 if (uiState.meters.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        uiState.meters.forEach { meter -> MeterCard(meter) }
+                        uiState.meters.forEach { meter -> MeterCard(meter) { readingMeter = it } }
                     }
                 }
             }
@@ -534,8 +550,16 @@ fun PropertyCardScreen(
             )
         }
     }
-    if (showMetersSheet) {
-        MetersSheet(onDismiss = { showMetersSheet = false })
+    readingMeter?.let { meter ->
+        com.rentmanager.app.ui.counter.readings.EnterReadingSheet(
+            meter = meter,
+            isSaving = uiState.isActionInProgress,
+            onSave = { value ->
+                viewModel.submitReading(meter.id, value)
+                readingMeter = null
+            },
+            onDismiss = { readingMeter = null }
+        )
     }
     if (showPhotosSheet) {
         property?.let { p ->
@@ -1030,7 +1054,7 @@ private fun InlineIconField(
 // белая 372×146 r20 pad 12; строка «Тип + №зав.номер», три строки
 // показаний (лейбл 13/400 + значение 13 Medium #212121), «Внести новые показания»
 @Composable
-private fun MeterCard(meter: MeterDto) {
+private fun MeterCard(meter: MeterDto, onEnterReading: (MeterDto) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1056,7 +1080,11 @@ private fun MeterCard(meter: MeterDto) {
             MeterInfoRow("Последнее изменение:", formatMeterDate(meter.lastUpdated))
             MeterInfoRow("Дата следующей проверки:", formatMeterDate(meter.nextVerificationDate))
         }
-        Text("Внести новые показания", style = Headline2MobStyle.copy(color = Graphite85))
+        Text(
+            "Внести новые показания",
+            style = Headline2MobStyle.copy(color = Graphite85),
+            modifier = Modifier.clickable { onEnterReading(meter) }
+        )
     }
 }
 

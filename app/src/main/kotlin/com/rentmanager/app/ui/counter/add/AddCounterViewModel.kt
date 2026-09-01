@@ -85,6 +85,24 @@ class AddCounterViewModel @Inject constructor(
         _uiState.update { it.copy(remindReadings = !it.remindReadings) }
     }
 
+    /** Тумблер с заданным состоянием: включение без даты/дня открывает шит выбора. */
+    fun setRemindVerification(enabled: Boolean) {
+        _uiState.update { it.copy(remindVerification = enabled) }
+    }
+
+    fun setRemindReadings(enabled: Boolean) {
+        _uiState.update { it.copy(remindReadings = enabled) }
+    }
+
+    /** Продолжить брошенную форму (шит «Добавление счетчика»). */
+    fun restore(state: AddCounterUiState) {
+        _uiState.value = state.copy(isTypeDropdownOpen = false, isSaving = false)
+    }
+
+    fun resetForm() {
+        _uiState.value = AddCounterUiState()
+    }
+
     /**
      * Режим черновика (шаг 4 создания — объекта ещё нет): валидирует форму
      * и собирает MeterDraft без запроса к API; отправит его CreateProperty-флоу

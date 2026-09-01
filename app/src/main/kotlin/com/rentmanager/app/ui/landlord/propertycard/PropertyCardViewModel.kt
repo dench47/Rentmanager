@@ -103,6 +103,30 @@ class PropertyCardViewModel @Inject constructor(
 
     fun unpublish() = setPublished(published = false)
 
+    /** «Внести показание» из шита: пишет в историю и обновляет список счётчиков. */
+    fun submitReading(meterId: String, value: Double) {
+        val propertyId = _uiState.value.property?.id ?: return
+        viewModelScope.launch {
+            try {
+                repository.submitReading(meterId, value)
+                reloadMeters(propertyId)
+                _savedEvents.emit("Показание сохранено")
+            } catch (_: Exception) {
+                _errorEvents.emit("Не удалось сохранить показание")
+            }
+        }
+    }
+
+    /** Обновляет только счётчики (возврат с экранов счётчиков/ввода показания). */
+    fun reloadMeters(propertyId: String) {
+        viewModelScope.launch {
+            try {
+                val meters = repository.getMeters(propertyId).body().orEmpty()
+                _uiState.value = _uiState.value.copy(meters = meters)
+            } catch (_: Exception) { }
+        }
+    }
+
     private fun setPublished(published: Boolean) {
         val id = _uiState.value.property?.id ?: return
         if (_uiState.value.isActionInProgress) return
