@@ -473,9 +473,6 @@ fun RentManagerNavGraph(
                 onBack = { navController.popBackStack() },
                 onOpenMeter = { pid, mid ->
                     navController.navigate(Screen.MeterDetail.createRoute(pid, mid))
-                },
-                onAddMeter = { pid ->
-                    navController.navigate(Screen.AddCounter.createRoute(pid))
                 }
             )
         }

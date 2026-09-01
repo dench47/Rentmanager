@@ -1079,11 +1079,14 @@ private fun MeterCard(meter: MeterDto, onEnterReading: (MeterDto) -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             MeterInfoRow("Текущие показания:", formatMeterValue(meter.currentValue, meter.unit))
             MeterInfoRow("Последнее изменение:", formatMeterDate(meter.lastUpdated))
-            MeterInfoRow("Дата следующей проверки:", formatMeterDate(meter.nextVerificationDate))
+            MeterInfoRow("Дата следующей поверки:", formatMeterDate(meter.nextVerificationDate))
         }
         Text(
             "Внести новые показания",
-            style = Headline2MobStyle.copy(color = Graphite85),
+            style = Headline2MobStyle.copy(
+                color = Graphite85,
+                textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+            ),
             modifier = Modifier.clickable { onEnterReading(meter) }
         )
     }

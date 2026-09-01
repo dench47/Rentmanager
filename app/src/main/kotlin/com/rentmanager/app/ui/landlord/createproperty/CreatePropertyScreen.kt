@@ -964,7 +964,7 @@ private fun DraftMeterCard(meter: MeterDraft) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             MeterDraftInfoRow("Текущие показания:", formatDraftMeterValue(meter.currentValue, meter.unit))
             MeterDraftInfoRow("Последнее изменение:", "—")
-            MeterDraftInfoRow("Дата следующей проверки:", formatDraftDate(meter.nextVerificationDate))
+            MeterDraftInfoRow("Дата следующей поверки:", formatDraftDate(meter.nextVerificationDate))
         }
         Text("Внести новые показания", style = Headline2MobStyle.copy(color = Color(0xD9212121)))
     }

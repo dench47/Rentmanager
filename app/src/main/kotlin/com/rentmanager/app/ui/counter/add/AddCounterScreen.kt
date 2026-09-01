@@ -1,11 +1,14 @@
 package com.rentmanager.app.ui.counter.add
 
 import android.widget.Toast
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +46,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -58,6 +63,7 @@ import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
 import com.rentmanager.app.ui.components.DesignWidthDialog
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.theme.CardBackground
+import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.CardSubtitleStyle
 import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
@@ -96,7 +102,6 @@ fun AddCounterScreen(
 
     var showVerificationPicker by remember { mutableStateOf(false) }
     var showDayPickerSheet by remember { mutableStateOf(false) }
-    var showExitDialog by remember { mutableStateOf(false) }
     // Брошенная в прошлый раз форма: шит «Продолжить / Начать заново»
     var pendingDraft by remember { mutableStateOf<AddCounterUiState?>(null) }
     LaunchedEffect(Unit) { pendingDraft = CounterFormDraft.consume() }
@@ -110,15 +115,25 @@ fun AddCounterScreen(
         uiState.remindVerification ||
         uiState.remindReadings
 
-    val requestExit = { if (formDirty) showExitDialog = true else onBack() }
-    // Системный «назад» с грязной формой — тоже через диалог
-    BackHandler(enabled = formDirty) { showExitDialog = true }
+    // Выход без диалога: брошенная форма уходит в черновик (шит «Продолжить»)
+    val requestExit = {
+        if (formDirty) CounterFormDraft.save(uiState)
+        onBack()
+    }
+    BackHandler { requestExit() }
 
+    val rootFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BrandTint)
             .statusBarsPadding()
+            // Тап вне полей ввода — гасит курсор и клавиатуру
+            .pointerInput(Unit) {
+                detectTapGestures {
+                    rootFocusManager.clearFocus()
+                }
+            }
     ) {
         // Шапка по макету 2692:31197: 36dp пустой кремовой зоны над заголовком
         // (ручка шита в макете есть, но с opacity 0.4 — визуально невидима),
@@ -171,22 +186,34 @@ fun AddCounterScreen(
                         onToggle = viewModel::toggleTypeDropdown,
                         onSelect = viewModel::selectType
                     )
+                    // Пока тип не выбран — ввод в поля 2-3 заблокирован;
+                    // тап по ним показывает ошибку «Сначала выберите тип счётчика»
+                    val typeSelected = uiState.counterType.isNotBlank()
+                    var typeNotSelectedError by remember { mutableStateOf(false) }
+                    LaunchedEffect(uiState.counterType) {
+                        if (typeSelected) typeNotSelectedError = false
+                    }
                     CounterInputField(
                         label = "Заводской номер",
+                        placeholder = "Заводской номер, №",
                         value = uiState.counterNumber,
                         onValueChange = viewModel::onNumberChange,
                         keyboardType = KeyboardType.Number,
-                        prefix = "№"
+                        enabled = typeSelected,
+                        onBlocked = { typeNotSelectedError = true }
                     )
                     InitialReadingField(
                         value = uiState.initialValue,
                         onValueChange = viewModel::onValueChange,
-                        unit = uiState.counterType.toDisplayUnit()
+                        unit = uiState.counterType.toDisplayUnit(),
+                        enabled = typeSelected,
+                        isError = typeNotSelectedError && !typeSelected,
+                        onBlocked = { typeNotSelectedError = true }
                     )
                     // Дата поверки: подпись сверху тонко, значение снизу жирно (Figma 2713-41541),
                     // тап по полю/иконке календаря открывает пикер
                     CalendarPickerField(
-                        label = "Дата следующей проверки",
+                        label = "Дата следующей поверки",
                         value = uiState.nextVerificationDate,
                         onClick = { showVerificationPicker = true }
                     )
@@ -263,17 +290,24 @@ fun AddCounterScreen(
         }
     }
 
+    // Закрытие шита выбора гасит фокус: иначе курсор прыгает в «Начальное
+    // показание» и открывается цифровая клавиатура
+    val sheetsFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
     if (showVerificationPicker) {
         com.rentmanager.app.ui.components.DatePickerSheet(
-            title = "Дата следующей проверки",
+            title = "Дата следующей поверки",
             initialDate = uiState.nextVerificationDate.toLocalDateOrNull() ?: java.time.LocalDate.now(),
             onDone = { date ->
                 showVerificationPicker = false
+                sheetsFocusManager.clearFocus()
                 viewModel.onNextVerificationDateChange(
                     "%02d.%02d.%d".format(date.dayOfMonth, date.monthValue, date.year)
                 )
             },
-            onDismiss = { showVerificationPicker = false }
+            onDismiss = {
+                showVerificationPicker = false
+                sheetsFocusManager.clearFocus()
+            }
         )
     }
     if (showDayPickerSheet) {
@@ -281,9 +315,13 @@ fun AddCounterScreen(
             selectedDay = uiState.submitReadingsBy.trim().toIntOrNull(),
             onDone = { day ->
                 showDayPickerSheet = false
+                sheetsFocusManager.clearFocus()
                 viewModel.onSubmitReadingsByChange(day.toString())
             },
-            onDismiss = { showDayPickerSheet = false }
+            onDismiss = {
+                showDayPickerSheet = false
+                sheetsFocusManager.clearFocus()
+            }
         )
     }
     pendingDraft?.let { draft ->
@@ -298,21 +336,17 @@ fun AddCounterScreen(
             }
         )
     }
-    if (showExitDialog) {
-        ExitConfirmDialog(
-            onContinueEditing = { showExitDialog = false },
-            onExit = {
-                showExitDialog = false
-                CounterFormDraft.save(uiState)
-                onBack()
-            }
-        )
-    }
 }
 
 // ---------- вспомогательные ----------
 
-// Карточка выбора типа счётчика: шеврон вниз (Figma arrow 2425:7132)
+/**
+ * Поле выбора типа счётчика — раскрывающийся баян (Figma 2750-33827/33843):
+ * поле 372×64 #EFEFEF r20 с плейсхолдером «Выберите тип счетчика» 15/600 #212121
+ * и шевроном; под ним панель #EFEFEF r20 (зазор 4) со строками 42dp r10
+ * (текст 15/600 #212121, отступ 10); выбранная строка — белая 48dp с галочкой.
+ * Выбор сразу сворачивает список.
+ */
 @Composable
 private fun TypeSelectorField(
     selectedType: String,
@@ -321,7 +355,13 @@ private fun TypeSelectorField(
     onToggle: () -> Unit,
     onSelect: (String) -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxWidth()) {
+    // Аннотация дизайнера (2750-33862): после выбора список сворачивается сразу,
+    // с короткой анимацией — чтобы кнопка «Добавить счётчик» не уходила вниз
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = tween(durationMillis = 150))
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -335,8 +375,13 @@ private fun TypeSelectorField(
         ) {
             Text(
                 text = selectedType.ifBlank { "Выберите тип счетчика" },
-                style = Headline2MobStyle,
-                maxLines = 1
+                style = if (selectedType.isBlank()) {
+                    com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
+                } else {
+                    Headline2MobStyle.copy(color = Graphite)
+                },
+                maxLines = 1,
+                modifier = Modifier.weight(1f)
             )
             Image(
                 painter = painterResource(R.drawable.ic_card_chevron),
@@ -344,12 +389,48 @@ private fun TypeSelectorField(
                 modifier = Modifier.size(40.dp)
             )
         }
-        DropdownMenu(expanded = isOpen, onDismissRequest = onToggle) {
-            types.forEach { type ->
-                DropdownMenuItem(
-                    text = { Text(type, style = Headline2MobStyle) },
-                    onClick = { onSelect(type) }
-                )
+        if (isOpen) {
+            Spacer(Modifier.height(4.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(CardBackground)
+                    .padding(start = 10.dp, end = 10.dp, top = 20.dp, bottom = 20.dp)
+            ) {
+                types.forEachIndexed { index, type ->
+                    val selected = type == selectedType
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (selected) Modifier.height(48.dp) else Modifier.height(42.dp))
+                            .clip(RoundedCornerShape(10.dp))
+                            .then(
+                                if (selected) Modifier.background(Color.White)
+                                else Modifier.background(Color.Transparent)
+                            )
+                            .clickable { onSelect(type) }
+                            .padding(start = 10.dp, end = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            type,
+                            style = Headline2MobStyle.copy(color = Graphite),
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (selected) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_switch_check),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    if (index != types.lastIndex) {
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
             }
         }
     }
@@ -375,23 +456,30 @@ private fun CalendarPickerField(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (value.isBlank()) {
-            Text(label, style = Headline2MobStyle, modifier = Modifier.weight(1f), maxLines = 1)
+            // Серый плейсхолдер одной строкой
+            Text(
+                label,
+                style = com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle,
+                modifier = Modifier.weight(1f),
+                maxLines = 1
+            )
         } else {
             LabelValueColumn(
                 label = label,
                 value = value,
                 modifier = Modifier.weight(1f)
             )
-            Box(
-                modifier = Modifier.size(40.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_calendar),
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+        }
+        // Иконка календаря — постоянная (макет 2750-33896), зона 40dp
+        Box(
+            modifier = Modifier.size(40.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_calendar),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
         }
     }
 }
@@ -416,19 +504,26 @@ private fun DayPickerField(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (value.isBlank()) {
-            Text(label, style = Headline2MobStyle, modifier = Modifier.weight(1f), maxLines = 1)
+            // Серый плейсхолдер одной строкой
+            Text(
+                label,
+                style = com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle,
+                modifier = Modifier.weight(1f),
+                maxLines = 1
+            )
         } else {
             LabelValueColumn(
                 label = label,
                 value = value,
                 modifier = Modifier.weight(1f)
             )
-            Image(
-                painter = painterResource(R.drawable.ic_card_chevron),
-                contentDescription = null,
-                modifier = Modifier.size(40.dp)
-            )
         }
+        // Шеврон — постоянный (макет 2750-33896)
+        Image(
+            painter = painterResource(R.drawable.ic_card_chevron),
+            contentDescription = null,
+            modifier = Modifier.size(40.dp)
+        )
     }
 }
 
@@ -465,41 +560,53 @@ private fun CounterInputField(
     value: String,
     onValueChange: (String) -> Unit,
     keyboardType: KeyboardType = KeyboardType.Text,
-    prefix: String? = null,
-    suffix: String? = null
+    placeholder: String = label,
+    enabled: Boolean = true,
+    onBlocked: () -> Unit = {}
 ) {
+    val fieldFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
+            // Тап в любом месте: клавиатура или ошибка «сначала выберите тип»
+            .clickable { if (enabled) fieldFocus.requestFocus() else onBlocked() }
             .padding(start = 20.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(fieldFocus),
+            enabled = enabled,
             textStyle = Headline2MobStyle,
             cursorBrush = SolidColor(Graphite),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
+            // Обычный Enter: гасит курсор и клавиатуру
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                onDone = { focusManager.clearFocus() }
+            ),
             decorationBox = { innerTextField ->
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(label, style = CardSubtitleStyle)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        if (prefix != null) {
-                            Text(prefix, style = Headline2MobStyle)
-                        }
-                        Box(Modifier.weight(1f).heightIn(min = 18.dp)) {
+                if (value.isEmpty()) {
+                    // Пусто — серый плейсхолдер одной строкой
+                    Box(Modifier.fillMaxWidth()) {
+                        Text(
+                            placeholder,
+                            style = com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
+                        )
+                        innerTextField()
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(label, style = CardSubtitleStyle)
+                        Box(Modifier.heightIn(min = 18.dp)) {
                             innerTextField()
-                        }
-                        if (suffix != null) {
-                            Text(suffix, style = Headline2MobStyle)
                         }
                     }
                 }
@@ -515,50 +622,84 @@ private fun CounterInputField(
 private fun InitialReadingField(
     value: String,
     onValueChange: (String) -> Unit,
-    unit: String?
+    unit: String?,
+    enabled: Boolean = true,
+    isError: Boolean = false,
+    onBlocked: () -> Unit = {}
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardBackground)
-            .padding(start = 20.dp, end = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = Headline2MobStyle,
-            cursorBrush = SolidColor(Graphite),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
-            decorationBox = { innerTextField ->
-                if (value.isBlank()) {
-                    // Пусто — фраза-плейсхолдер жирным, одна строка по центру высоты
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-                        Text("Внести начальное показание", style = Headline2MobStyle)
-                        innerTextField()
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Начальное показание", style = CardSubtitleStyle)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Box(Modifier.weight(1f).heightIn(min = 18.dp)) {
+    val fieldFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(CardBackground)
+                .then(
+                    if (isError) Modifier.border(
+                        1.dp,
+                        com.rentmanager.app.ui.theme.ErrorRed,
+                        RoundedCornerShape(20.dp)
+                    ) else Modifier
+                )
+                .clickable { if (enabled) fieldFocus.requestFocus() else onBlocked() }
+                .padding(start = 20.dp, end = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(fieldFocus),
+                enabled = enabled,
+                textStyle = Headline2MobStyle,
+                cursorBrush = SolidColor(Graphite),
+                singleLine = true,
+                // Обычный Enter: гасит курсор и клавиатуру
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onDone = { focusManager.clearFocus() }
+                ),
+                decorationBox = { innerTextField ->
+                    if (value.isBlank()) {
+                        // Пусто — серый плейсхолдер одной строкой, с юнитом типа
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                            Text(
+                                if (unit != null) "Начальное показание, $unit" else "Начальное показание",
+                                style = com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
+                            )
+                            innerTextField()
+                        }
+                    } else {
+                        // Заполнено (2761-42105): юнит — в подписи, значение одно,
+                        // суффикса рядом нет — падать некуда
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                if (unit != null) "Начальное показание, $unit" else "Начальное показание",
+                                style = if (isError) CardSubtitleStyle.copy(
+                                    color = com.rentmanager.app.ui.theme.ErrorRed
+                                ) else CardSubtitleStyle
+                            )
+                            Box(Modifier.heightIn(min = 18.dp)) {
                                 innerTextField()
-                            }
-                            if (unit != null) {
-                                Text(unit, style = Headline2MobStyle)
                             }
                         }
                     }
                 }
-            }
-        )
+            )
+        }
+        if (isError) {
+            // Ошибка по макету 2755-37844
+            Text(
+                "Сначала выберите тип счётчика",
+                fontSize = 9.5.sp,
+                fontFamily = InterFontFamily,
+                color = com.rentmanager.app.ui.theme.ErrorRed,
+                modifier = Modifier.padding(start = 20.dp)
+            )
+        }
     }
 }
 

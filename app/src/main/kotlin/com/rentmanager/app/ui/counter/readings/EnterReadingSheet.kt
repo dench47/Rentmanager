@@ -314,4 +314,5 @@ fun EnterReadingSheet(
 
 /** 456.0 → «456», дробные как есть. */
 private fun formatReadingNumber(value: Double): String =
-    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+    (if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString())
+        .replace('.', ',')

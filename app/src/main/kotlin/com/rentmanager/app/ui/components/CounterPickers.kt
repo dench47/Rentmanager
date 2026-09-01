@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,7 +57,7 @@ private val WeekdayNames = listOf("ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"
 private val PickerYears = (2024..2035).toList()
 
 /**
- * Календарный шит «Дата следующей проверки» (Figma 2755-37947).
+ * Календарный шит «Дата следующей поверки» (Figma 2755-37947).
  * Дропдаун «Месяц Год» открывает панель с двумя колонками (месяцы | годы):
  * тап сразу обновляет календарь, список остаётся открытым — повторный тап
  * по тому же значению закрывает панель. Стрелки ‹ › листают месяцы
@@ -76,6 +77,8 @@ fun DatePickerSheet(
     }
     var picked by remember { mutableStateOf(initialDate) }
     var panelOpen by remember { mutableStateOf(false) }
+    // Прошедшие даты в календаре поверки выбрать нельзя
+    val today = LocalDate.now()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -122,8 +125,12 @@ fun DatePickerSheet(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                // Стрелки неактивны при открытом выборе месяца/года
-                MonthArrow(text = "‹", enabled = !panelOpen) { displayMonth = displayMonth.minusMonths(1) }
+                // Стрелки неактивны при открытом выборе месяца/года;
+                // назад раньше текущего месяца листать нельзя (прошедшее не выбирается)
+                MonthArrow(
+                    text = "‹",
+                    enabled = !panelOpen && displayMonth > YearMonth.from(today)
+                ) { displayMonth = displayMonth.minusMonths(1) }
                 Spacer(Modifier.width(16.dp))
                 MonthArrow(text = "›", enabled = !panelOpen) { displayMonth = displayMonth.plusMonths(1) }
             }
@@ -134,14 +141,20 @@ fun DatePickerSheet(
                     displayMonth = displayMonth,
                     onPick = { ym ->
                         // Тап обновляет календарь сразу; повторный тап по тому же
-                        // значению закрывает список
-                        if (ym == displayMonth) panelOpen = false else displayMonth = ym
+                        // значению закрывает список. Месяц раньше текущего —
+                        // игнорируем: прошедшие даты выбирать нельзя
+                        when {
+                            ym < YearMonth.from(today) -> Unit
+                            ym == displayMonth -> panelOpen = false
+                            else -> displayMonth = ym
+                        }
                     }
                 )
             } else {
                 CalendarGrid(
                     displayMonth = displayMonth,
                     picked = picked,
+                    today = today,
                     onPickDay = { picked = it }
                 )
             }
@@ -171,7 +184,12 @@ private fun MonthArrow(text: String, enabled: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** Панель выбора месяца/года: две скролл-колонки с разделителем (352×280, r20). */
+/**
+ * Панель барабанов месяца/года (Figma 2768-52717): белая 352×280 r20 с тенью;
+ * внутри две скролл-колонки 110dp (отступ 30, между ними разделитель),
+ * строки-пилюли 30dp r20 с зазором 6, текст 15/600 по центру,
+ * выбранная строка — #212121 с белым текстом.
+ */
 @Composable
 private fun MonthYearPanel(
     displayMonth: YearMonth,
@@ -181,32 +199,37 @@ private fun MonthYearPanel(
         modifier = Modifier
             .fillMaxWidth()
             .height(280.dp)
+            .shadow(8.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFFEFEFEF))
-            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .background(Color.White)
     ) {
+        Spacer(Modifier.width(30.dp))
         ScrollColumn(
             items = MonthNames,
             selectedIndex = displayMonth.monthValue - 1,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(110.dp),
             scrollTo = displayMonth.monthValue - 1
         ) { index ->
             onPick(YearMonth.of(displayMonth.year, index + 1))
         }
-        Box(
-            Modifier
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(Color(0xFFD9D9D9))
-        )
+        // Разделитель между колонками (в 72dp-зазоре по центру)
+        Box(Modifier.width(72.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .width(1.dp)
+                    .height(240.dp)
+                    .background(Color(0xFFD9D9D9))
+            )
+        }
         ScrollColumn(
             items = PickerYears.map { it.toString() },
             selectedIndex = PickerYears.indexOf(displayMonth.year).coerceAtLeast(0),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(110.dp),
             scrollTo = PickerYears.indexOf(displayMonth.year).coerceAtLeast(0)
         ) { index ->
             onPick(YearMonth.of(PickerYears[index], displayMonth.monthValue))
         }
+        Spacer(Modifier.width(30.dp))
     }
 }
 
@@ -224,25 +247,25 @@ private fun ScrollColumn(
     }
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxHeight(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        modifier = modifier.height(240.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         itemsIndexed(items) { index, label ->
             val selected = index == selectedIndex
+            // Строка-пилюля 30dp r20 (2768-52717), текст 15/600 по центру
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(40.dp)
-                    .padding(horizontal = 6.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .height(30.dp)
+                    .clip(RoundedCornerShape(20.dp))
                     .then(if (selected) Modifier.background(Graphite) else Modifier.background(Color.Transparent))
                     .clickable { onSelect(index) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     label,
-                    fontSize = 14.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
                     fontFamily = InterFontFamily,
                     color = if (selected) Color.White else Graphite
                 )
@@ -256,6 +279,7 @@ private fun ScrollColumn(
 private fun CalendarGrid(
     displayMonth: YearMonth,
     picked: LocalDate?,
+    today: LocalDate,
     onPickDay: (LocalDate) -> Unit
 ) {
     val firstDay = displayMonth.atDay(1)
@@ -273,6 +297,8 @@ private fun CalendarGrid(
                 repeat(7) { dayIndex ->
                     val date = gridStart.plusDays((weekIndex * 7 + dayIndex).toLong())
                     val inMonth = date.month == displayMonth.month
+                    // Прошедшие дни выбрать нельзя: серые, без реакции на тап
+                    val isPast = date.isBefore(today)
                     val selected = picked == date
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                         Box(
@@ -283,17 +309,17 @@ private fun CalendarGrid(
                                     if (selected) Modifier.background(Graphite)
                                     else Modifier.background(Color.Transparent)
                                 )
-                                .clickable { if (inMonth) onPickDay(date) },
+                                .clickable { if (inMonth && !isPast) onPickDay(date) },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 date.dayOfMonth.toString(),
-                                fontSize = if (inMonth) 13.sp else 14.sp,
-                                fontWeight = if (inMonth) FontWeight.Medium else FontWeight.Normal,
+                                fontSize = if (inMonth && !isPast) 13.sp else 14.sp,
+                                fontWeight = if (inMonth && !isPast) FontWeight.Medium else FontWeight.Normal,
                                 fontFamily = InterFontFamily,
                                 color = when {
                                     selected -> Color.White
-                                    inMonth -> Graphite
+                                    inMonth && !isPast -> Graphite
                                     else -> Color(0xFFB3B3B3)
                                 }
                             )
@@ -383,9 +409,9 @@ fun DayOfMonthPickerSheet(
     }
 }
 
-/** Ручка шита 32×4 #212121 r100. */
+/** Ручка шита 32×4 r100 (по умолчанию #212121; в некоторых шитах серая #79747E). */
 @Composable
-fun SheetDragHandle() {
+fun SheetDragHandle(color: Color = Graphite) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -396,7 +422,7 @@ fun SheetDragHandle() {
             Modifier
                 .size(width = 32.dp, height = 4.dp)
                 .clip(RoundedCornerShape(100.dp))
-                .background(Graphite)
+                .background(color)
         )
     }
 }

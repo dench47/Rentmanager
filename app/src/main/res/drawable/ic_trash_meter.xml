@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Точная копия иконки из макета 2756-40767 (stroke 1.5, round) -->
+    <group
+        android:translateX="5"
+        android:translateY="3.5">
+        <path
+            android:pathData="M1,3.44 L1.75,14.56 C1.75,15.09 1.96,15.6 2.34,15.97 C2.71,16.35 3.22,16.56 3.75,16.56 L10.25,16.56 C10.78,16.56 11.29,16.35 11.66,15.97 C12.04,15.6 12.25,15.09 12.25,14.56 L13,3.44"
+            android:strokeColor="#FF4249"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"/>
+        <path
+            android:pathData="M8.5,9.06 L8.5,13.56"
+            android:strokeColor="#FF4249"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"/>
+        <path
+            android:pathData="M5.5,9.06 L5.5,13.56"
+            android:strokeColor="#FF4249"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"/>
+        <path
+            android:pathData="M0,3.44 L14,3.44"
+            android:strokeColor="#FF4249"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"/>
+        <path
+            android:pathData="M9.5,3.44 L9.5,1.44 C9.5,1.17 9.39,0.92 9.21,0.73 C9.02,0.55 8.77,0.44 8.5,0.44 L5.5,0.44 C5.23,0.44 4.98,0.55 4.79,0.73 C4.61,0.92 4.5,1.17 4.5,1.44 L4.5,3.44"
+            android:strokeColor="#FF4249"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"/>
+    </group>
+</vector>

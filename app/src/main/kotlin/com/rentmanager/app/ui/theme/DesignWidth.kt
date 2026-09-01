@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.util.DisplayMetrics
+import android.view.Display
+import android.view.WindowManager
 
 /**
  * Дизайнерская ширина макетов Figma (фреймы экранов — 412dp).
@@ -13,39 +15,26 @@ import android.util.DisplayMetrics
  * bottom sheet'ы, диалоги, попапы, включая будущие, — потому что их контексты
  * строятся от контекста Activity.
  *
- * НАДЁЖНОСТЬ: плотность из ресурсов (configuration.densityDpi, metrics.density)
- * и даже из display.getRealMetrics() на части холодных стартов приходит
- * мусорной (заниженной) — каждый раз экран «оказывался» шире 412dp, масштаб
- * молча отключался, и всё становилось крупно. Поэтому плотность НИГДЕ не
- * используется для решения о масштабе:
- * — целевая плотность считается ТОЛЬКО из пиксельной ширины дисплея
- *   (DisplayManager, ширина приходит корректной всегда): 160 × px / 412;
- * — исключение только для уже широких экранов (планшеты): screenWidthDp
- *   из конфигурации, и только когда он адекватен (> 0);
- * — страховка — shouldRecreateForDesignWidth(): проверяет уже ОТРИСОВАННУЮ
- *   ширину в dp и пересоздаёт Activity, если она меньше 412dp (см. MainActivity).
+ * НАДЁЖНОСТЬ: единственное число, нужное для расчёта, — пиксельная ширина
+ * экрана. Плотность НЕ читается вообще: и configuration.densityDpi, и
+ * metrics.density, и xdpi, и screenWidthDp на части холодных стартов приходят
+ * мусорными (нулевыми или завышенными), и каждое из них «доказывало», что
+ * масштаб не нужен. Целевая плотность = 160 × px / 412 — детерминированно.
+ * Источники пикселей (по убыванию надёжности): DisplayManager, дефолтный
+ * дисплей WindowManager, метрики ресурсов. Страховка на случай полного провала
+ * — shouldRecreateForDesignWidth(): пересоздание Activity один раз.
  */
 private const val DESIGN_WIDTH_DP = 412f
 
 fun Context.createDesignWidthContext(): Context {
-    val widthPx = realDisplayWidthPx()
+    val widthPx = displayWidthPixels()
     if (widthPx > 0) {
-        // Планшеты/широкие экраны не ужимаем — но верим screenWidthDp,
-        // только когда он заполнен (мусор приходит нулём)
-        val screenWidthDp = resources.configuration.screenWidthDp
-        if (screenWidthDp > 0 && screenWidthDp >= DESIGN_WIDTH_DP) return this
         val targetDpi = (160f * widthPx / DESIGN_WIDTH_DP).toInt()
-        return scaledContext(resources.configuration, targetDpi)
+        if (targetDpi > 0) {
+            return scaledContext(resources.configuration, targetDpi)
+        }
     }
-
-    // Запасной путь (DisplayManager недоступен): старая логика по конфигурации
-    val configuration = resources.configuration
-    val metrics = resources.displayMetrics
-    val fallbackWidthDp = configuration.screenWidthDp.takeIf { it > 0 }?.toFloat()
-        ?: (if (metrics.density > 0f) metrics.widthPixels / metrics.density else 0f)
-    val scale = if (fallbackWidthDp > 0f) (fallbackWidthDp / DESIGN_WIDTH_DP).coerceAtMost(1f) else 1f
-    if (scale >= 0.999f) return this
-    return scaledContext(configuration, (configuration.densityDpi * scale).toInt())
+    return this
 }
 
 private fun Context.scaledContext(configuration: Configuration, targetDpi: Int): Context {
@@ -54,23 +43,63 @@ private fun Context.scaledContext(configuration: Configuration, targetDpi: Int):
     return createConfigurationContext(scaled)
 }
 
-/** Реальная ширина дисплея в пикселях через DisplayManager — работает в attachBaseContext. */
-private fun Context.realDisplayWidthPx(): Int = try {
-    val displayManager = getSystemService(DisplayManager::class.java) ?: return 0
-    val display = displayManager.getDisplay(android.view.Display.DEFAULT_DISPLAY) ?: return 0
-    val metrics = DisplayMetrics()
-    @Suppress("DEPRECATION")
-    display.getRealMetrics(metrics)
-    metrics.widthPixels
+/** Пиксельная ширина экрана: DisplayManager → WindowManager → ресурсы. */
+private fun Context.displayWidthPixels(): Int {
+    displayMetricsFromDisplayManager()?.let { if (it.widthPixels > 0) return it.widthPixels }
+    displayMetricsFromWindowManager()?.let { if (it.widthPixels > 0) return it.widthPixels }
+    return try {
+        resources.displayMetrics.widthPixels
+    } catch (_: Exception) {
+        0
+    }
+}
+
+private fun Context.displayMetricsFromDisplayManager(): DisplayMetrics? = try {
+    val context = appContext()
+    val dm = context.getSystemService(DisplayManager::class.java)
+        ?: (context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)
+    val display: Display? = dm?.getDisplay(Display.DEFAULT_DISPLAY)
+    if (display != null) {
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        display.getRealMetrics(metrics)
+        metrics
+    } else {
+        null
+    }
 } catch (_: Exception) {
-    0
+    null
+}
+
+private fun Context.displayMetricsFromWindowManager(): DisplayMetrics? = try {
+    val context = appContext()
+    val wm = context.getSystemService(WindowManager::class.java)
+        ?: (context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager)
+    @Suppress("DEPRECATION")
+    val display = wm?.defaultDisplay
+    if (display != null) {
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        display.getRealMetrics(metrics)
+        metrics
+    } else {
+        null
+    }
+} catch (_: Exception) {
+    null
+}
+
+/** Application context живёт дольше всех и инициализирован к attachBaseContext. */
+private fun Context.appContext(): Context = try {
+    applicationContext ?: this
+} catch (_: Exception) {
+    this
 }
 
 /**
- * Страховка после отрисовки: фактическая ширина экрана в dp МЕНЬШЕ 412dp —
- * масштаб не применился (полуинициализированный старт), Activity нужно
- * пересоздать один раз. Планшеты (>= 412dp от природы) не задевает.
- * Плотность дисплея не читает вообще — только сам факт отрисованной ширины.
+ * Страховка после отрисовки: фактическая ширина экрана в dp меньше 412dp —
+ * масштаб не применился, Activity пересоздаётся один раз (к этому моменту
+ * ресурсы гарантированно настоящие). См. MainActivity.onCreate.
  */
 fun Context.shouldRecreateForDesignWidth(): Boolean {
     val metrics = resources.displayMetrics

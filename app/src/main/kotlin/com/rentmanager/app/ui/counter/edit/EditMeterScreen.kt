@@ -1,6 +1,7 @@
 package com.rentmanager.app.ui.counter.edit
 
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,13 +32,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -44,22 +50,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.rentmanager.app.data.model.MeterDto
-import com.rentmanager.app.data.repository.PropertyRepository
+import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
 import com.rentmanager.app.ui.components.DatePickerSheet
 import com.rentmanager.app.ui.counter.readings.formatMeterDateShort
 import com.rentmanager.app.ui.counter.readings.meterName
 import com.rentmanager.app.ui.counter.readings.meterTypeColors
-import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
-import com.rentmanager.app.ui.theme.CardSubtitleStyle
 import com.rentmanager.app.ui.theme.ErrorRed
 import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
-import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
-import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.InterFontFamily
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -72,6 +71,11 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.rentmanager.app.data.model.MeterDto
+import com.rentmanager.app.data.repository.PropertyRepository
+import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 
 data class EditMeterUiState(
     val isLoading: Boolean = true,
@@ -170,12 +174,16 @@ class EditMeterViewModel @Inject constructor(
     }
 }
 
+private val FieldBg = Color(0xFFEFEFEF)
+
 /**
- * Экран редактирования счётчика (Figma 2755-37555): тулбар и полоса инфо
- * в цвете типа; поля Заводской № / Новое показание / Дата следующей проверки /
- * тумблеры напоминаний / Передавать показания до; «Сохранить изменения»
- * (неактивна при ошибке показания) и «Удалить счетчик» (красный контур)
- * с шитом подтверждения.
+ * Экран редактирования счётчика (Figma 2756-40749/40780): цвет типа заливает
+ * экран до самого верха (статус-бар на цвете), под шапкой — белая панель со
+ * скруглением верхних углов 20dp. Поля 372×64 #EFEFEF r20, между полями 12dp;
+ * «Дата следующей поверки» — с иконкой календаря, «Передавать показания до» —
+ * с шевроном вниз; под каждым тумблер-строка 32dp. Кнопки: чёрная
+ * «Сохранить изменения» (серых состояний нет) и контурная красная
+ * «Удалить счетчик» с иконкой из макета 2756-40767.
  */
 @Composable
 fun EditMeterScreen(
@@ -195,45 +203,33 @@ fun EditMeterScreen(
     LaunchedEffect(uiState.deleted) { if (uiState.deleted) onBack() }
 
     val meter = uiState.meter
+    val colors = meterTypeColors(meter?.type ?: "cold_water")
     if (uiState.isLoading || meter == null) {
         Column(
             Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(colors.header)
                 .statusBarsPadding()
         ) {
-            ToolbarColored(title = "", onBack = onBack)
+            EditMeterToolbar("", colors.header, colors.onHeader, onBack)
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color.White)
+                CircularProgressIndicator(color = colors.onHeader)
             }
         }
         return
     }
 
-    val colors = meterTypeColors(meter.type)
     val ddMmYyyy = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy") }
 
     // Локальные правки (rememberSaveable — переживают уход на шит выбора даты)
-    var factoryNumber by androidx.compose.runtime.saveable.rememberSaveable(meter.id) {
-        mutableStateOf(meter.factoryNumber)
+    var factoryNumber by rememberSaveable(meter.id) { mutableStateOf(meter.factoryNumber) }
+    var newValueText by rememberSaveable(meter.id) { mutableStateOf("") }
+    var verificationDate by rememberSaveable(meter.id) {
+        mutableStateOf(runCatching { LocalDate.parse(meter.nextVerificationDate) }.getOrNull())
     }
-    var newValueText by androidx.compose.runtime.saveable.rememberSaveable(meter.id) {
-        mutableStateOf("")
-    }
-    var verificationDate by androidx.compose.runtime.saveable.rememberSaveable(meter.id) {
-        mutableStateOf(
-            runCatching { LocalDate.parse(meter.nextVerificationDate) }.getOrNull()
-        )
-    }
-    var remindVerification by androidx.compose.runtime.saveable.rememberSaveable(meter.id) {
-        mutableStateOf(meter.remindVerification)
-    }
-    var submitDay by androidx.compose.runtime.saveable.rememberSaveable(meter.id) {
-        mutableStateOf(meter.submitReadingsBy.toIntOrNull())
-    }
-    var remindReadings by androidx.compose.runtime.saveable.rememberSaveable(meter.id) {
-        mutableStateOf(meter.remindReadings)
-    }
+    var remindVerification by rememberSaveable(meter.id) { mutableStateOf(meter.remindVerification) }
+    var submitDay by rememberSaveable(meter.id) { mutableStateOf(meter.submitReadingsBy.toIntOrNull()) }
+    var remindReadings by rememberSaveable(meter.id) { mutableStateOf(meter.remindReadings) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showDayPicker by remember { mutableStateOf(false) }
@@ -243,105 +239,77 @@ fun EditMeterScreen(
     // ошибка снимается сразу, до повторного нажатия «Сохранить»
     val newValue = newValueText.replace(',', '.').toDoubleOrNull()
     val readingError = newValue != null && newValue < meter.currentValue
-    val canSave = factoryNumber.isNotBlank() && !readingError && !uiState.isSaving
+    // Сохранение блокируется, пока включено напоминание без выбранной даты/дня —
+    // тумблер при включении открывает шит выбора, но если выбор отменили,
+    // CTA не срабатывает
+    val remindersIncomplete =
+        (remindVerification && verificationDate == null) ||
+            (remindReadings && submitDay == null)
+    val canSave = factoryNumber.isNotBlank() && !readingError && !remindersIncomplete && !uiState.isSaving
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            // Цвет типа заливает экран до самого верха — часы тоже на цвете
+            .background(colors.header)
             .statusBarsPadding()
             .imePadding()
     ) {
-        ToolbarColored(
-            title = meterName(meter.type),
-            color = colors.header,
-            onColor = colors.onHeader,
-            onBack = onBack
-        )
+        EditMeterToolbar(meterName(meter.type), colors.header, colors.onHeader, onBack)
 
-        // Инфо-полоса в цвете типа
+        // Инфо-полоса на цвете: текущее показание и последнее изменение
+        // (изменение сегодня → «Сегодня» вместо даты)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.header)
-                .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(start = 20.dp, end = 20.dp, bottom = 14.dp)
         ) {
-            Column {
-                Text(
-                    "Текущие показания",
-                    fontSize = 13.sp,
-                    fontFamily = InterFontFamily,
-                    color = colors.onHeader.copy(alpha = 0.85f)
-                )
-                Text(
-                    "${meter.currentValue} ${meter.unit}",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = InterFontFamily,
-                    color = colors.onHeader
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    "Последнее изменение",
-                    fontSize = 13.sp,
-                    fontFamily = InterFontFamily,
-                    color = colors.onHeader.copy(alpha = 0.85f)
-                )
-                Text(
-                    formatMeterDateShort(meter.lastUpdated),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = InterFontFamily,
-                    color = colors.onHeader
-                )
-            }
+            InfoStripValue("Текущие показания", "${formatMeterNumber(meter.currentValue)} ${meter.unit}", colors.onHeader, Modifier.weight(1f))
+            InfoStripValue("Последнее изменение", lastChangeText(meter.lastUpdated), colors.onHeader, Modifier.weight(1f))
         }
-        Spacer(Modifier.height(20.dp))
 
+        // Белая панель со скруглением верхних углов
         Column(
             modifier = Modifier
-                .weight(1f)
+                .fillMaxSize()
+                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .background(Color.White)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 20.dp)
         ) {
-            EditMeterField(
+            MeterTextField(
+                placeholder = "Заводской номер",
                 caption = "Заводской номер",
-                prefix = "№",
                 value = factoryNumber,
-                onValueChange = { factoryNumber = it }
+                keyboardType = KeyboardType.Number,
+                onValueChange = { factoryNumber = it.filter { c -> c.isDigit() } }
             )
-            NewValueField(
-                caption = "Новое показание",
-                unit = meter.unit,
+            Spacer(Modifier.height(12.dp))
+            MeterTextField(
+                placeholder = "Новое показание, ${meter.unit}",
+                caption = "Новое показание, ${meter.unit}",
                 value = newValueText,
                 isError = readingError,
+                errorHint = "Проверьте правильность заполнения",
+                keyboardType = KeyboardType.Decimal,
                 onValueChange = { newValueText = it }
             )
-            // Дата следующей проверки: тап открывает календарный шит
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFFEFEFEF))
-                    .clickable { showDatePicker = true }
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (verificationDate == null) {
-                    Text("Дата следующей проверки", style = Headline2MobPlaceholderStyle)
-                } else {
-                    Column {
-                        Text("Дата следующей проверки", style = CardSubtitleStyle.copy(color = GreyText))
-                        Text(verificationDate!!.format(ddMmYyyy), style = Headline2MobStyle)
-                    }
-                }
-            }
-            SwitchRow(
-                title = "Напоминание о проверке",
+            Spacer(Modifier.height(12.dp))
+
+            // Дата следующей поверки: иконка календаря справа
+            PickerField(
+                placeholder = "Дата следующей поверки",
+                caption = "Дата следующей поверки",
+                value = verificationDate?.format(ddMmYyyy).orEmpty(),
+                iconRes = R.drawable.ic_calendar,
+                onClick = { showDatePicker = true },
+                // Тумблер напоминания включён, а дата не выбрана — поле красное
+                isError = remindVerification && verificationDate == null,
+                errorHint = "Выберите дату"
+            )
+            Spacer(Modifier.height(12.dp))
+            EditSwitchRow(
+                title = "Напоминание о поверке",
                 checked = remindVerification,
                 onChecked = { checked ->
                     remindVerification = checked
@@ -349,27 +317,26 @@ fun EditMeterScreen(
                     if (checked && verificationDate == null) showDatePicker = true
                 }
             )
-            // Передавать показания до: тап открывает шит дня месяца
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFFEFEFEF))
-                    .clickable { showDayPicker = true }
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (submitDay == null) {
-                    Text("Передавать показания до", style = Headline2MobPlaceholderStyle)
-                } else {
-                    Column {
-                        Text("Передавать показания до", style = CardSubtitleStyle.copy(color = GreyText))
-                        Text("${submitDay}-го числа", style = Headline2MobStyle)
-                    }
-                }
-            }
-            SwitchRow(
+            // От тумблера до следующего поля — 18dp (макет 2756-40789 → 2756-40791),
+            // тогда как поле → тумблер — 12dp
+            Spacer(Modifier.height(18.dp))
+
+            // Передавать показания до: шеврон вниз справа
+            PickerField(
+                placeholder = "Передавать показания до",
+                caption = "Передавать показания до",
+                value = submitDay?.let { "$it-го числа" }.orEmpty(),
+                // Шеврон из макета (40-viewport) — отрисовка в полные 40dp,
+                // иначе 11x5.5dp сжимаются до 6.6dp
+                iconRes = R.drawable.ic_card_chevron,
+                onClick = { showDayPicker = true },
+                iconSize = 40.dp,
+                // Тумблер напоминания включён, а день не выбран — поле красное
+                isError = remindReadings && submitDay == null,
+                errorHint = "Выберите день месяца"
+            )
+            Spacer(Modifier.height(12.dp))
+            EditSwitchRow(
                 title = "Напоминание о передаче показаний",
                 checked = remindReadings,
                 onChecked = { checked ->
@@ -379,24 +346,28 @@ fun EditMeterScreen(
                 }
             )
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(26.dp))
+            // Кнопка всегда чёрная (серых состояний в макете нет);
+            // клик без эффекта, пока форма некорректна
             BlackCtaButton(
                 text = if (uiState.isSaving) "Сохранение…" else "Сохранить изменения",
-                enabled = canSave,
+                enabled = true,
                 onClick = {
-                    viewModel.save(
-                        meter = meter,
-                        factoryNumber = factoryNumber.trim(),
-                        newValue = newValue,
-                        verificationDate = verificationDate,
-                        remindVerification = remindVerification,
-                        submitDay = submitDay,
-                        remindReadings = remindReadings
-                    )
+                    if (canSave) {
+                        viewModel.save(
+                            meter = meter,
+                            factoryNumber = factoryNumber.trim(),
+                            newValue = newValue,
+                            verificationDate = verificationDate,
+                            remindVerification = remindVerification,
+                            submitDay = submitDay,
+                            remindReadings = remindReadings
+                        )
+                    }
                 }
             )
-            Spacer(Modifier.height(12.dp))
-            // «Удалить счетчик» — красный контур с корзиной
+            Spacer(Modifier.height(6.dp))
+            // «Удалить счетчик»: красный контур + иконка из макета 2756-40767
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -407,27 +378,38 @@ fun EditMeterScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_trash_meter),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.size(10.dp))
                 Text(
-                    "🗑 Удалить счетчик",
+                    "Удалить счетчик",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = InterFontFamily,
                     color = ErrorRed
                 )
             }
-            Spacer(Modifier.height(20.dp))
         }
     }
 
+    // Закрытие шита гасит фокус — курсор не прыгает в поля ввода
+    val sheetsFocusManager = androidx.compose.ui.platform.LocalFocusManager.current
     if (showDatePicker) {
         DatePickerSheet(
-            title = "Дата следующей проверки",
+            title = "Дата следующей поверки",
             initialDate = verificationDate ?: LocalDate.now(),
             onDone = {
                 verificationDate = it
                 showDatePicker = false
+                sheetsFocusManager.clearFocus()
             },
-            onDismiss = { showDatePicker = false }
+            onDismiss = {
+                showDatePicker = false
+                sheetsFocusManager.clearFocus()
+            }
         )
     }
     if (showDayPicker) {
@@ -436,8 +418,12 @@ fun EditMeterScreen(
             onDone = {
                 submitDay = it
                 showDayPicker = false
+                sheetsFocusManager.clearFocus()
             },
-            onDismiss = { showDayPicker = false }
+            onDismiss = {
+                showDayPicker = false
+                sheetsFocusManager.clearFocus()
+            }
         )
     }
     if (showDeleteSheet) {
@@ -452,32 +438,35 @@ fun EditMeterScreen(
     }
 }
 
+/** yyyy-MM-dd → «Сегодня» или dd.MM.yyyy. */
+private fun lastChangeText(raw: String?): String {
+    if (raw.isNullOrBlank()) return "—"
+    return try {
+        val date = LocalDate.parse(raw)
+        if (date == LocalDate.now()) "Сегодня" else formatMeterDateShort(raw)
+    } catch (_: Exception) {
+        formatMeterDateShort(raw)
+    }
+}
+
 @Composable
-private fun ToolbarColored(
-    title: String,
-    color: Color = Graphite,
-    onColor: Color = Color.White,
-    onBack: () -> Unit
+private fun InfoStripValue(
+    caption: String,
+    value: String,
+    onColor: Color,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(color)
-            .padding(horizontal = 20.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        androidx.compose.foundation.Image(
-            painter = androidx.compose.ui.res.painterResource(com.rentmanager.app.R.drawable.ic_landlord_back),
-            contentDescription = "Назад",
-            modifier = Modifier
-                .size(24.dp)
-                .clickable(onClick = onBack),
-            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(onColor)
-        )
-        Spacer(Modifier.size(8.dp))
+    Column(modifier) {
         Text(
-            title,
-            fontSize = 20.sp,
+            caption,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Normal,
+            fontFamily = InterFontFamily,
+            color = onColor
+        )
+        Text(
+            value,
+            fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = InterFontFamily,
             color = onColor
@@ -485,99 +474,263 @@ private fun ToolbarColored(
     }
 }
 
-@Composable
-private fun EditMeterField(
-    caption: String,
-    prefix: String,
-    value: String,
-    onValueChange: (String) -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFFEFEFEF))
-            .padding(horizontal = 20.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            textStyle = Headline2MobStyle,
-            cursorBrush = SolidColor(Graphite),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-            decorationBox = { inner ->
-                if (value.isEmpty()) {
-                    Text("$caption $prefix", style = Headline2MobPlaceholderStyle)
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(prefix, style = Headline2MobStyle.copy(color = GreyText))
-                        inner()
-                    }
-                }
-            }
-        )
-    }
+/** 456.0 -> "456"; 9.5 -> "9,5" (целые без дробной части, запятая как в макете). */
+private fun formatMeterNumber(value: Double): String {
+    val v = if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+    return v.replace('.', ',')
 }
 
 @Composable
-private fun NewValueField(
-    caption: String,
-    unit: String,
-    value: String,
-    isError: Boolean,
-    onValueChange: (String) -> Unit
+private fun EditMeterToolbar(
+    title: String,
+    color: Color,
+    onColor: Color,
+    onBack: () -> Unit
 ) {
-    Column {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color)
+            .padding(start = 20.dp, end = 20.dp, top = 13.dp, bottom = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Назад — клик по всей зоне «стрелка + название» (глобальное правило)
+        Row(
+            modifier = Modifier.clickable(onClick = onBack),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_landlord_back),
+                contentDescription = "Назад",
+                modifier = Modifier.size(24.dp),
+                colorFilter = ColorFilter.tint(onColor)
+            )
+            Spacer(Modifier.size(8.dp))
+            Text(
+                title,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = InterFontFamily,
+                color = onColor
+            )
+        }
+    }
+}
+
+/**
+ * Поле 372×64 #EFEFEF r20: пустое — плейсхолдер 15/600 #727272,
+ * заполненное — подпись 13/400 сверху + значение 15/600 снизу.
+ */
+@Composable
+private fun MeterTextField(
+    placeholder: String,
+    caption: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    prefix: String? = null,
+    suffix: String? = null,
+    isError: Boolean = false,
+    errorHint: String? = null,
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
+    val fieldFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFFEFEFEF))
+                .background(FieldBg)
                 .then(
                     if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp))
                     else Modifier
                 )
-                .padding(horizontal = 20.dp),
+                // Тап в любом месте поля открывает клавиатуру
+                .clickable { fieldFocus.requestFocus() }
+                .padding(start = 20.dp, end = 20.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             BasicTextField(
                 value = value,
-                onValueChange = { onValueChange(it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(10)) },
+                onValueChange = onValueChange,
+                // fillMaxWidth: иначе пустое поле схлопывается, декорация
+                // сжимается и плейсхолдер переносится на вторую строку
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(fieldFocus),
                 singleLine = true,
-                textStyle = Headline2MobStyle.copy(color = if (isError) ErrorRed else Color.Unspecified),
+                textStyle = TextStyle(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = InterFontFamily,
+                    color = if (isError) ErrorRed else Graphite
+                ),
                 cursorBrush = SolidColor(Graphite),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onDone = { focusManager.clearFocus() }
+                ),
                 decorationBox = { inner ->
                     if (value.isEmpty()) {
-                        Text("$caption, $unit", style = Headline2MobPlaceholderStyle)
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // Плейсхолдер + само поле: курсор виден сразу при тапе
+                        Box {
+                            Text(
+                                placeholder,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = InterFontFamily,
+                                color = GreyText,
+                                maxLines = 1
+                            )
                             inner()
-                            Text(unit, style = Headline2MobStyle.copy(color = GreyText))
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    caption,
+                                    fontSize = 13.sp,
+                                    fontFamily = InterFontFamily,
+                                    color = GreyText
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    if (prefix != null) {
+                                        Text(
+                                            prefix,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontFamily = InterFontFamily,
+                                            color = GreyText
+                                        )
+                                    }
+                                    // Редактор занимает остаток строки: суффикс-юнит
+                                    // никогда не выдавливается и не падает на вторую строку
+                                    Box(Modifier.weight(1f, fill = false)) { inner() }
+                                    if (suffix != null) {
+                                        Text(
+                                            suffix,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontFamily = InterFontFamily,
+                                            color = GreyText
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             )
         }
-        if (isError) {
+        if (isError && errorHint != null) {
             Text(
-                "Проверьте правильность заполнения",
+                errorHint,
                 fontSize = 9.5.sp,
                 fontFamily = InterFontFamily,
                 color = ErrorRed,
-                modifier = Modifier.padding(start = 20.dp, top = 2.dp)
+                modifier = Modifier.padding(start = 20.dp)
             )
         }
     }
 }
 
-/** Тумблер 52×32: off #EFEFEF c контуром, on #212121 (Figma 2713-49720). */
+/**
+ * Поле-кнопка выбора (дата / день месяца): 372×64 #EFEFEF r20,
+ * справа иконка 24 в белой зоне 40×40 (отступ 10 от края).
+ */
 @Composable
-private fun SwitchRow(
+private fun PickerField(
+    placeholder: String,
+    caption: String,
+    value: String,
+    iconRes: Int,
+    onClick: () -> Unit,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp,
+    isError: Boolean = false,
+    errorHint: String? = null
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(FieldBg)
+                .then(
+                    if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp))
+                    else Modifier
+                )
+                .clickable(onClick = onClick)
+                .padding(start = 20.dp, end = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (value.isEmpty()) {
+                Text(
+                    placeholder,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = InterFontFamily,
+                    color = GreyText,
+                    modifier = Modifier.padding(end = 50.dp)
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        caption,
+                        fontSize = 13.sp,
+                        fontFamily = InterFontFamily,
+                        color = GreyText
+                    )
+                    Text(
+                        value,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = InterFontFamily,
+                        color = Graphite
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 0.dp)
+                    .size(40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(iconSize)
+                )
+            }
+        }
+        if (isError && errorHint != null) {
+            Text(
+                errorHint,
+                fontSize = 9.5.sp,
+                fontFamily = InterFontFamily,
+                color = ErrorRed,
+                modifier = Modifier.padding(start = 20.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Тумблер-строка (Figma 2756-40749/40780): текст 13/500 #212121 слева,
+ * тумблер 52×32 справа. OFF: трек #EFEFEF без рамки, ручка 16 #727272 слева;
+ * ON: трек #212121, ручка 24 белая с галочкой справа.
+ */
+@Composable
+private fun EditSwitchRow(
     title: String,
     checked: Boolean,
     onChecked: (Boolean) -> Unit
@@ -585,40 +738,58 @@ private fun SwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onChecked(!checked) }
-            .padding(vertical = 8.dp),
+            .height(32.dp)
+            // По макету 2756-40749: подпись с доп. отступом 20dp от края поля,
+            // тумблер — 20dp от правого края
+            .padding(start = 20.dp, end = 20.dp)
+            .clickable { onChecked(!checked) },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             title,
-            style = Headline2MobStyle.copy(fontWeight = FontWeight.Medium),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = InterFontFamily,
+            color = Graphite,
             modifier = Modifier.weight(1f)
         )
         Box(
             modifier = Modifier
                 .size(width = 52.dp, height = 32.dp)
                 .clip(RoundedCornerShape(100.dp))
+                .background(if (checked) Graphite else FieldBg)
                 .then(
-                    if (checked) Modifier.background(Graphite)
-                    else Modifier
-                        .background(Color(0xFFEFEFEF))
-                        .border(1.dp, GreyText, RoundedCornerShape(100.dp))
+                    // Выключенный тумблер — обводка #727272 2dp (2756-40794)
+                    if (checked) Modifier
+                    else Modifier.border(2.dp, GreyText, RoundedCornerShape(100.dp))
                 )
                 .clickable { onChecked(!checked) },
-            contentAlignment = Alignment.CenterStart
+            contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
         ) {
-            Box(
-                Modifier
-                    .padding(horizontal = 2.dp)
-                    .size(width = 44.dp, height = 28.dp)
-                    .clip(RoundedCornerShape(100.dp))
-                    .background(Color.White)
-                    .then(
-                        if (checked) Modifier.padding(start = 6.dp)
-                        else Modifier.padding(start = 0.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {}
+            if (checked) {
+                Box(
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_switch_check),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(GreyText)
+                )
+            }
         }
     }
 }
@@ -645,17 +816,29 @@ private fun DeleteMeterSheet(
                 .navigationBarsPadding()
                 .padding(bottom = 20.dp)
         ) {
-            com.rentmanager.app.ui.components.SheetDragHandle()
+            // Ручка серая #79747E (2761-43513); заголовок 20/600 ls-0.3 lh24 —
+            // «?» доходит ровно до левого края ручки
+            com.rentmanager.app.ui.components.SheetDragHandle(color = Color(0xFF79747E))
             Text(
                 "Удалить счетчик?",
-                style = com.rentmanager.app.ui.theme.ToolbarTitleStyle
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = InterFontFamily,
+                color = Graphite,
+                lineHeight = 24.sp,
+                letterSpacing = (-0.3).sp
             )
             Spacer(Modifier.height(6.dp))
+            // 15/600 #727272 — при этой жирности текст ложится в три строки (2761-43513)
             Text(
                 "Счётчик «$meterName» будет удален вместе с показаниями и напоминаниями. Это действие нельзя отменить",
-                style = CardSubtitleStyle
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = InterFontFamily,
+                color = GreyText,
+                lineHeight = 18.sp
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -683,7 +866,13 @@ private fun DeleteMeterSheet(
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Отменить", style = Headline2MobStyle)
+                Text(
+                    "Отменить",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = InterFontFamily,
+                    color = Graphite
+                )
             }
         }
     }
