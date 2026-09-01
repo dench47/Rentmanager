@@ -239,7 +239,7 @@ fun PropertyCardScreen(
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
                     ) {
-                        InfoPair("Арендная плата", property?.let { rentText(it) } ?: "", Modifier.weight(1f))
+                        InfoPair("Арендная плата", property?.let { rentText(it, uiState.schedule) } ?: "", Modifier.weight(1f))
                         // Нет даты → значение пустое, «до» в карточке не показываем
                         InfoPair(
                             "Срок аренды",
@@ -349,7 +349,9 @@ fun PropertyCardScreen(
                         property?.description.orEmpty()
                     )
                     ValueCard(
-                        if (property?.rentType == "длительно") "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
+                        if ((uiState.schedule?.type
+                                ?: if (property?.rentType == "длительно") "auto" else "manual") == "auto"
+                        ) "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
                         property?.rentAmount?.let {
                             val s = if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
                             formatAmount(s)
@@ -511,6 +513,7 @@ fun PropertyCardScreen(
         if (showRentSheet) {
             RentEditSheet(
                 property = p,
+                schedule = uiState.schedule,
                 isSaving = uiState.isActionInProgress,
                 onSave = { rentAmount, rentEndDate ->
                     showRentSheet = false
@@ -765,10 +768,15 @@ private fun TabButton(label: String, iconRes: Int, onClick: () -> Unit) {
     }
 }
 
-private fun rentText(p: PropertyDto): String {
-    val amount = p.rentAmount ?: 0.0
-    val formatted = if (amount == amount.toLong().toDouble()) amount.toLong().toString() else amount.toString()
-    return "${formatAmount(formatted)} ₽ / ${if (p.rentType == "длительно") "месяц" else "сутки"}"
+private fun rentText(p: PropertyDto, schedule: com.rentmanager.app.data.model.PaymentScheduleDto?): String {
+    // Тип графика задаёт и сумму (актуальная из графика), и «/ месяц(сутки)»;
+    // без графика — по типу аренды объекта
+    val type = schedule?.type ?: if (p.rentType == "длительно") "auto" else "manual"
+    val amount = if (type == "auto") (schedule?.amount ?: p.rentAmount) else p.rentAmount
+    val formatted = amount?.let {
+        if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+    } ?: "0"
+    return "${formatAmount(formatted)} ₽ / ${if (type == "auto") "месяц" else "сутки"}"
 }
 
 @Composable

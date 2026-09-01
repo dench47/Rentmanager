@@ -40,11 +40,14 @@ object PaymentOverdue {
                 NextPayment(candidate, s.amount)
             }
             s.customDates != null -> {
+                // Даты в custom_dates хранятся в формате дд.ММ.гггг
+                val ddMMyyyy = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
                 val items = parseCustomDates(s.customDates)
                     .mapNotNull { entry ->
-                        runCatching { LocalDate.parse(entry.date) }.getOrNull()
+                        runCatching { LocalDate.parse(entry.date, ddMMyyyy) }.getOrNull()
                             ?.let { it to entry.amount }
                     }
+                // Ближайшая — только относительно сегодняшней даты (прошедшие не берём)
                 val upcoming = items.filter { !it.first.isBefore(today) }.minByOrNull { it.first }
                 NextPayment(upcoming?.first, upcoming?.second?.toDoubleOrNull())
             }
@@ -69,9 +72,10 @@ object PaymentOverdue {
         return when {
             s.dayOfMonth != null -> if (isOverdue(s, payments, today)) s.amount ?: 0.0 else 0.0
             s.customDates != null -> {
+                val ddMMyyyy = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
                 val dueDates = parseCustomDates(s.customDates)
                     .mapNotNull { entry ->
-                        runCatching { LocalDate.parse(entry.date) }.getOrNull()
+                        runCatching { LocalDate.parse(entry.date, ddMMyyyy) }.getOrNull()
                             ?.let { it to (entry.amount.toDoubleOrNull() ?: 0.0) }
                     }
                 val paidDates = payments.filter { it.status == "paid" }.map { it.date }
@@ -84,7 +88,9 @@ object PaymentOverdue {
     }
 
     private fun hasOverdueCustom(customDatesJson: String, payments: List<PaymentDto>, today: LocalDate): Boolean {
-        val dueDates = parseCustomDates(customDatesJson).mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
+        val ddMMyyyy = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
+        val dueDates = parseCustomDates(customDatesJson)
+            .mapNotNull { runCatching { LocalDate.parse(it.date, ddMMyyyy) }.getOrNull() }
         val paidDates = payments.filter { it.status == "paid" }.map { it.date }
         return dueDates.any { due ->
             !due.isAfter(today) && paidDates.none { it >= due.toString() }

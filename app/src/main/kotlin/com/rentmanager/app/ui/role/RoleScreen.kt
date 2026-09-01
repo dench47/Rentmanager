@@ -346,15 +346,19 @@ private fun LandlordStatsSection(
                     letterSpacing = (-0.4).sp,
                     maxLines = 2
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    paymentAmount.ifBlank { "—" },
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = InterFontFamily,
-                    color = Color(0xFF212121),
-                    letterSpacing = (-0.4).sp
-                )
+                // С датой под лейблом ничего нет — ниже сразу плашка (макет 2596-22510);
+                // без даты — прочерк
+                if (paymentDate.isBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "—",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = InterFontFamily,
+                        color = Color(0xFF212121),
+                        letterSpacing = (-0.4).sp
+                    )
+                }
             }
             Column(modifier = Modifier.width(183.dp)) {
                 Text("Доход по всем объектам", fontSize = 13.sp, fontWeight = FontWeight.Normal, fontFamily = InterFontFamily, color = Color(0xFF727272), lineHeight = 18.sp, letterSpacing = (-0.4).sp, maxLines = 1)

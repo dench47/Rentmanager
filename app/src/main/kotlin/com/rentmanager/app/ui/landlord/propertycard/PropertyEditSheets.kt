@@ -138,9 +138,19 @@ fun RentEditSheet(
     property: PropertyDto,
     isSaving: Boolean,
     onSave: (rentAmount: String, rentEndDate: String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    schedule: com.rentmanager.app.data.model.PaymentScheduleDto? = null
 ) {
-    var rentAmount by remember(property.id) { mutableStateOf(formatAmount(property.rentAmount.toFieldText())) }
+    // Сумма и «/ месяц(сутки)» — по актуальному графику платежей:
+    // постоянный (auto) → сумма графика «/ месяц», переменный (manual) → ставка «/ сутки»
+    val scheduleType = schedule?.type
+        ?: if (property.rentType == "длительно") "auto" else "manual"
+    val prefilledAmount = if (scheduleType == "auto") {
+        (schedule?.amount ?: property.rentAmount).toFieldText()
+    } else {
+        property.rentAmount.toFieldText()
+    }
+    var rentAmount by remember(property.id) { mutableStateOf(formatAmount(prefilledAmount)) }
     var rentEndDate by remember(property.id) { mutableStateOf(property.rentEndDate.orEmpty()) }
     var dateErrorHint by remember(property.id) { mutableStateOf<String?>(null) }
     EditSheetScaffold(title = "Аренда и платежи", onDismiss = onDismiss) {
@@ -150,8 +160,8 @@ fun RentEditSheet(
                 value = rentAmount,
                 onValueChange = { rentAmount = formatAmount(it) },
                 keyboardType = KeyboardType.Decimal,
-                // Суффикс по типу аренды (Figma 2700-23463: «25 000 ₽ / сутки»)
-                suffix = " ₽ / " + if (property.rentType == "длительно") "месяц" else "сутки"
+                // Суффикс по типу графика (Figma 2700-23463: «25 000 ₽ / сутки»)
+                suffix = " ₽ / " + if (scheduleType == "auto") "месяц" else "сутки"
             )
             // «Арендовано»: подпись сверху, снизу «до» и ввод даты прямо в поле (дд.мм.гггг)
             RentedUntilField(

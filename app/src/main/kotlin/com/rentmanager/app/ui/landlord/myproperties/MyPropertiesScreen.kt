@@ -128,7 +128,7 @@ fun MyPropertiesScreen(
     onWriteClick: () -> Unit,
     viewModel: MyPropertiesViewModel = viewModel()
 ) {
-    val properties by viewModel.properties.collectAsState()
+    val properties by viewModel.visibleProperties.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val displayMode by viewModel.displayMode.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()

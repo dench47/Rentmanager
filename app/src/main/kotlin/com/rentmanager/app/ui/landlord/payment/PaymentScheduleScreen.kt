@@ -169,15 +169,14 @@ fun PaymentScheduleScreen(
         viewModel.load(propertyId)
     }
 
-    LaunchedEffect(uiState.isLoading, uiState.schedule) {
+    // Посуточная аренда: переменный график живёт бронями (шахматка ↔ график)
+    val isDailyRent = (uiState.property?.rentType ?: "посуточно") == "посуточно"
+
+    LaunchedEffect(uiState.isLoading, uiState.schedule, uiState.property) {
         if (uiState.isLoading) return@LaunchedEffect
         val s = uiState.schedule
         when {
-            s == null -> {
-                resetFixed()
-                resetVariable()
-            }
-            s.dayOfMonth != null -> {
+            s?.dayOfMonth != null -> {
                 resetVariable()
                 fixedActive = true
                 fixedExpanded = true
@@ -185,14 +184,31 @@ fun PaymentScheduleScreen(
                 fixedAmount = doubleToString(s.amount)
                 fixedDirty = true
             }
-            s.customDates != null -> {
+            s?.customDates != null -> {
                 resetFixed()
                 variableActive = true
                 variableExpanded = true
-                variableDates.clear()
-                variableDates.addAll(parseCustomDates(s.customDates))
+                // Посуточно: список дат = брони (приходят из uiState.bookings);
+                // ручной список — только для длительной аренды с переменным графиком
+                if (!isDailyRent) {
+                    variableDates.clear()
+                    variableDates.addAll(parseCustomDates(s.customDates))
+                }
                 variableDirty = true
             }
+            else -> {
+                // Ничего не настроено: активна карточка по типу аренды объекта —
+                // посуточно → переменный, длительно → постоянный (режимы переключаемы вручную)
+                resetFixed()
+                resetVariable()
+                if (s?.type == "manual") { variableActive = true; variableExpanded = true }
+                else if (s?.type == "auto") fixedActive = true
+                else if (isDailyRent) { variableActive = true; variableExpanded = true }
+                else fixedActive = true
+            }
+        }
+        if (selectedRequisite == null && s?.requisites != null) {
+            selectedRequisite = s.requisites
         }
         save()
     }
@@ -536,16 +552,27 @@ fun PaymentScheduleScreen(
                                         minDay = minDayForPicker,
                                         modifier = Modifier.width(80.dp)
                                     )
-                                    NumberTextField(
-                                        value = variableAmount,
-                                        onValueChange = {
-                                            variableAmount = it
-                                            onVariableChange()
-                                            save()
-                                        },
-                                        placeholder = "Сумма",
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                    if (isDailyRent) {
+                                        // Посуточно: сумма = ставка объекта за сутки (руками не вводится)
+                                        val rate = uiState.property?.rentAmount
+                                        Text(
+                                            if (rate != null) "${trimDouble(rate)} ₽/сутки" else "₽/сутки",
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF8E8E93),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    } else {
+                                        NumberTextField(
+                                            value = variableAmount,
+                                            onValueChange = {
+                                                variableAmount = it
+                                                onVariableChange()
+                                                save()
+                                            },
+                                            placeholder = "Сумма",
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                     Box(
                                         modifier = Modifier
                                             .size(44.dp)
@@ -553,18 +580,34 @@ fun PaymentScheduleScreen(
                                             .background(Color(0xFF212121))
                                             .clickable {
                                                 val day = selectedDay.ifEmpty { "1" }.trim()
-                                                val amount = variableAmount.trim()
-                                                if (amount.isNotBlank()) {
-                                                    variableDates.add(
-                                                        VariablePayment(
-                                                            "${day.padStart(2, '0')}.${calendarMonth.toString().padStart(2, '0')}.$calendarYear",
-                                                            amount
-                                                        )
+                                                if (isDailyRent) {
+                                                    // Добавление даты = бронь этих суток →
+                                                    // шахматка красится автоматически.
+                                                    // Занятая дата второй раз не добавляется
+                                                    val d = java.time.LocalDate.of(
+                                                        calendarYear, calendarMonth, day.toIntOrNull() ?: 1
                                                     )
-                                                    selectedDay = ""
-                                                    variableAmount = ""
-                                                    onVariableChange()
-                                                    save()
+                                                    if (!d.isBefore(java.time.LocalDate.now())) {
+                                                        viewModel.addBookingDay(propertyId, d) {
+                                                            selectedDay = ""
+                                                            onVariableChange()
+                                                            save()
+                                                        }
+                                                    }
+                                                } else {
+                                                    val amount = variableAmount.trim()
+                                                    if (amount.isNotBlank()) {
+                                                        variableDates.add(
+                                                            VariablePayment(
+                                                                "${day.padStart(2, '0')}.${calendarMonth.toString().padStart(2, '0')}.$calendarYear",
+                                                                amount
+                                                            )
+                                                        )
+                                                        selectedDay = ""
+                                                        variableAmount = ""
+                                                        onVariableChange()
+                                                        save()
+                                                    }
                                                 }
                                             },
                                         contentAlignment = Alignment.Center
@@ -573,14 +616,63 @@ fun PaymentScheduleScreen(
                                     }
                                 }
 
-                                LazyColumn(Modifier.heightIn(max = 150.dp)) {
-                                    items(variableDates.toList()) { vp ->
-                                        Row(
-                                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(vp.date, fontSize = 14.sp, color = Color(0xFF1D1D1F))
-                                            Text("${vp.amount} руб.", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F))
+                                if (isDailyRent) {
+                                    // Посуточно: список = брони объекта, пересекающиеся
+                                    // периоды слиты (сутки не задваиваются)
+                                    val dd = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
+                                    val rate = uiState.property?.rentAmount ?: 0.0
+                                    val mergedBookings = remember(uiState.bookings) {
+                                        com.rentmanager.app.util.mergeRanges(uiState.bookings)
+                                    }
+                                    LazyColumn(Modifier.heightIn(max = 150.dp)) {
+                                        items(mergedBookings) { (start, end) ->
+                                            val nights =
+                                                java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1
+                                            Row(
+                                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    if (start == end) start.format(dd)
+                                                    else "${start.format(dd)} – ${end.format(dd)}",
+                                                    fontSize = 14.sp,
+                                                    color = Color(0xFF1D1D1F)
+                                                )
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        "${trimDouble(rate * nights)} руб.",
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF1D1D1F)
+                                                    )
+                                                    Text(
+                                                        "✕",
+                                                        fontSize = 14.sp,
+                                                        color = Color(0xFFE53935),
+                                                        modifier = Modifier
+                                                            .clickable {
+                                                                viewModel.deleteBooking(propertyId, start, end) { }
+                                                            }
+                                                            .padding(4.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    LazyColumn(Modifier.heightIn(max = 150.dp)) {
+                                        items(variableDates.toList()) { vp ->
+                                            Row(
+                                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(vp.date, fontSize = 14.sp, color = Color(0xFF1D1D1F))
+                                                Text("${vp.amount} руб.", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F))
+                                            }
                                         }
                                     }
                                 }
@@ -680,13 +772,19 @@ fun PaymentScheduleScreen(
                     // Сохранить график на сервере
                     Button(
                         onClick = {
-                            val day = if (fixedActive && fixedDay.isNotBlank()) fixedDay.toIntOrNull() else null
-                            val amount = if (fixedActive) fixedAmount.toDoubleOrNull() else null
-                            val customJson = if (variableActive && variableDates.isNotEmpty()) {
-                                Gson().toJson(variableDates.map { mapOf("date" to it.date, "amount" to it.amount) })
-                            } else null
-                            save()
-                            viewModel.save(propertyId, day, amount, customJson)
+                            if (variableActive && isDailyRent) {
+                                // Посуточно + переменный: график = брони (ставка × сутки)
+                                save()
+                                viewModel.saveVariableFromBookings(propertyId, selectedRequisite)
+                            } else {
+                                val day = if (fixedActive && fixedDay.isNotBlank()) fixedDay.toIntOrNull() else null
+                                val amount = if (fixedActive) fixedAmount.toDoubleOrNull() else null
+                                val customJson = if (variableActive && variableDates.isNotEmpty()) {
+                                    Gson().toJson(variableDates.map { mapOf("date" to it.date, "amount" to it.amount) })
+                                } else null
+                                save()
+                                viewModel.save(propertyId, day, amount, customJson, selectedRequisite)
+                            }
                         },
                         enabled = !uiState.isLoading,
                         modifier = Modifier.fillMaxWidth().height(55.dp),
@@ -836,6 +934,9 @@ private fun doubleToString(v: Double?): String = when {
     v == v.toLong().toDouble() -> v.toLong().toString()
     else -> v.toString()
 }
+
+private fun trimDouble(v: Double): String =
+    if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString()
 
 private fun monthName(month: Int): String = when (month) {
     1 -> "Январь"

@@ -9,15 +9,23 @@ import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.model.BookingDto
 import com.rentmanager.app.data.model.PaymentScheduleDto
+import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PropertyRepository
 import com.rentmanager.app.util.PaymentOverdue
+import com.rentmanager.app.util.mergeRanges
+import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 /** Диапазон брони. source: app / avito / cian / manual. */
@@ -36,6 +44,10 @@ data class MyPropertyItem(
     val photoUrl: String? = null,
     val bookings: List<BookingRange> = emptyList(),
     val overdue: Boolean = false,
+    val rentType: String = "посуточно",
+    val rentAmount: Double? = null,
+    /** Тип графика платежей: auto = постоянный (месяцы), manual = переменный (сутки). */
+    val scheduleType: String? = null,
     val year: Int = LocalDate.now().year,
     val month: Int = LocalDate.now().monthValue // 1..12
 )
@@ -73,6 +85,21 @@ class MyPropertiesViewModel @Inject constructor(
 
     private val _displayMode = MutableStateFlow(DisplayMode.CARDS)
     val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
+
+    /**
+     * Режим шахматки привязан к типу графика платежей: постоянный (auto) → «Месяцы»,
+     * переменный (manual) → «Сутки». Переключили график в «Графике и реквизитах» —
+     * объект переезжает в другой режим шахматки. Без графика — по типу аренды объекта.
+     */
+    val visibleProperties: StateFlow<List<MyPropertyItem>> =
+        kotlinx.coroutines.flow.combine(_properties, _viewMode) { list, mode ->
+            val wanted = if (mode == ViewMode.MONTHS) "auto" else "manual"
+            list.filter { item ->
+                val type = item.scheduleType
+                    ?: if (item.rentType == "длительно") "auto" else "manual"
+                type == wanted
+            }
+        }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Lazily, emptyList())
 
     init {
         refresh()
@@ -112,7 +139,10 @@ class MyPropertiesViewModel @Inject constructor(
                     propertyId,
                     CreateBookingRequest(start.toString(), end.toString())
                 )
-                if (resp.isSuccessful) refresh()
+                if (resp.isSuccessful) {
+                    syncAfterBookingChange(propertyId)
+                    refresh()
+                }
             } catch (_: Exception) { }
         }
     }
@@ -128,9 +158,77 @@ class MyPropertiesViewModel @Inject constructor(
                 for (b in toDelete) {
                     bookingApi.deleteBooking(propertyId, b.id!!)
                 }
+                syncAfterBookingChange(propertyId)
                 refresh()
             } catch (_: Exception) { }
         }
+    }
+
+    /**
+     * Синхронизация после ручной покраски шахматки. Поведение — по типу графика:
+     * - постоянный (месяцы): «Срок аренды» = последний зелёный месяц + расчётная дата
+     *   (7-е число, покрашено сен–дек → «до 07.12.гггг»);
+     * - переменный (сутки): «Срок аренды» = последняя дата брони,
+     *   custom_dates графика = брони (ставка × сутки, слитые периоды).
+     * Брони сняты → поле очищается.
+     */
+    private suspend fun syncAfterBookingChange(propertyId: String) {
+        try {
+            val dto = propertyRepository.getProperties().body()?.firstOrNull { it.id == propertyId }
+                ?: return
+            val bookings = bookingApi.getBookings(propertyId).body().orEmpty()
+                .map { it.toBookingRange() }
+                .sortedBy { it.start }
+            val schedule = financeApi.getSchedules().body()?.forProperty(propertyId)
+            // Тип отображения = тип графика; без графика — по типу аренды объекта
+            val scheduleType = schedule?.type
+                ?: if ((dto.rentType ?: "посуточно") == "длительно") "auto" else "manual"
+            val dd = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+
+            if (scheduleType == "auto") {
+                val last = bookings.maxByOrNull { it.end }
+                val newRentEnd = if (last != null) {
+                    val day = schedule?.dayOfMonth ?: last.end.dayOfMonth
+                    val lastMonth = YearMonth.from(last.end)
+                    lastMonth.atDay(day.coerceIn(1, lastMonth.lengthOfMonth())).format(dd)
+                } else null
+                if (dto.rentEndDate != newRentEnd) {
+                    val updated = dto.copy(rentEndDate = newRentEnd)
+                    propertyRepository.updateProperty(propertyId, updated)
+                    runCatching { detailCache.saveProperty(updated) }
+                }
+            } else {
+                // Суточный режим: последняя дата брони — в «Срок аренды»
+                val newRentEnd = bookings.maxByOrNull { it.end }?.end?.format(dd)
+                if (dto.rentEndDate != newRentEnd) {
+                    val updated = dto.copy(rentEndDate = newRentEnd)
+                    propertyRepository.updateProperty(propertyId, updated)
+                    runCatching { detailCache.saveProperty(updated) }
+                }
+                // Даты платежей = брони (слитые, чтобы пересекающиеся периоды
+                // не задваивали сутки), сумма = ставка × сутки
+                val rate = dto.rentAmount ?: 0.0
+                val merged = mergeRanges(bookings.map { it.start to it.end })
+                val customJson = if (merged.isEmpty()) null else Gson().toJson(
+                    merged.map { (s, e) ->
+                        mapOf(
+                            "date" to s.format(dd),
+                            "amount" to (rate * (java.time.temporal.ChronoUnit.DAYS.between(s, e) + 1)).toString()
+                        )
+                    }
+                )
+                financeApi.createSchedule(
+                    PaymentScheduleDto(
+                        propertyId = propertyId,
+                        dayOfMonth = null,
+                        amount = null,
+                        type = "manual",
+                        customDates = customJson,
+                        requisites = schedule?.requisites
+                    )
+                )
+            }
+        } catch (_: Exception) { }
     }
 
     fun setViewMode(mode: ViewMode) {
@@ -168,9 +266,9 @@ class MyPropertiesViewModel @Inject constructor(
 
     private suspend fun loadOverdue(item: MyPropertyItem, schedules: List<PaymentScheduleDto>): MyPropertyItem =
         try {
-            val schedule = schedules.firstOrNull { it.propertyId == item.id }
+            val schedule = schedules.forProperty(item.id)
             val payments = financeApi.listPayments(item.id).body() ?: emptyList()
-            item.copy(overdue = PaymentOverdue.isOverdue(schedule, payments))
+            item.copy(overdue = PaymentOverdue.isOverdue(schedule, payments), scheduleType = schedule?.type)
         } catch (_: Exception) {
             item
         }
@@ -181,7 +279,9 @@ private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
     name = name,
     // Макет «Моя недвижимость»: короткий адрес — улица и номер дома (первые 2 сегмента, без города/области/страны)
     address = address.shortAddress(),
-    photoUrl = photos?.firstOrNull()?.url
+    photoUrl = photos?.firstOrNull()?.url,
+    rentType = rentType ?: "посуточно",
+    rentAmount = rentAmount
 )
 
 private fun String.shortAddress(): String =

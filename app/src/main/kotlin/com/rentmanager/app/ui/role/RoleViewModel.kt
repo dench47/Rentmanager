@@ -9,7 +9,10 @@ import com.rentmanager.app.data.api.CreatePaymentRequest
 import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.api.PropertyApi
 import com.rentmanager.app.data.local.RoleStatsCache
+import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.util.PaymentOverdue
+import com.rentmanager.app.util.mergeRanges
+import com.rentmanager.app.util.overlapDays
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -136,7 +139,7 @@ class RoleViewModel @Inject constructor(
                 var hasDebt = false
                 var debtSum = 0.0
                 for (p in props) {
-                    val schedule = schedules.firstOrNull { it.propertyId == p.id }
+                    val schedule = schedules.forProperty(p.id)
                     if (schedule != null) {
                         val payments = financeApi.listPayments(p.id).body() ?: emptyList()
                         if (PaymentOverdue.isOverdue(schedule, payments)) {
@@ -146,34 +149,96 @@ class RoleViewModel @Inject constructor(
                     }
                 }
                 val debtAmount = if (hasDebt) formatAmount(debtSum) + " ₽" else ""
-                val nearest = schedules
-                    .mapNotNull { PaymentOverdue.nextPayment(it) }
-                    .filter { it.date != null }
-                    .minByOrNull { it.date!! }
-                val nextDate = nearest?.date?.let(::formatDate) ?: ""
-                val nextAmount = nearest?.amount?.let(::formatAmount) ?: ""
-                // Доход по всем объектам: график платежей есть — его месячная сумма;
-                // иначе ставка объекта: длительно — как есть, посуточно — приведение к месяцу (×30)
-                val income = formatAmount(
-                    props.sumOf { p ->
-                        val schedule = schedules.firstOrNull { it.propertyId == p.id }
-                        if (schedule != null) {
-                            PaymentOverdue.monthlyAmount(schedule)
-                        } else {
-                            val rate = p.rentAmount ?: 0.0
-                            if (p.rentType == "длительно") rate else rate * 30
-                        }
-                    }
-                ) + "/мес"
-                // Активная аренда = есть зелёные ячейки в шахматке (хоть одна бронь)
+                // Активная аренда = есть зелёные ячейки в шахматке (хоть одна бронь);
+                // «Доход по всем объектам» — сумма за ТЕКУЩИЙ календарный месяц:
+                // длительно — месячная ставка занятых объектов, посуточно — забронированные
+                // сутки этого месяца × ставка. «Ближайшее поступление» — самая ранняя дата
+                // из всех объектов: график платежей либо (посуточно) начало ближайшей брони.
                 var hasActiveRent = false
+                var incomeSum = 0.0
+                val today = LocalDate.now()
+                val monthStart = java.time.YearMonth.from(today).atDay(1)
+                val monthEnd = java.time.YearMonth.from(today).atEndOfMonth()
+                var nearestDate: LocalDate? = null
+                var nearestAmount: Double? = null
                 for (p in props) {
                     val bookings = bookingApi.getBookings(p.id).body().orEmpty()
-                    if (bookings.isNotEmpty()) {
-                        hasActiveRent = true
-                        break
+                    if (bookings.isNotEmpty()) hasActiveRent = true
+                    val schedule = schedules.forProperty(p.id)
+                    // Тип расчёта = тип графика; без графика — по типу аренды объекта
+                    val scheduleType = schedule?.type
+                        ?: if ((p.rentType ?: "посуточно") == "длительно") "auto" else "manual"
+                    if (scheduleType == "auto") {
+                        // Помесячная ставка — только если объект занят в ТЕКУЩЕМ месяце
+                        // (есть зелёная ячейка этого месяца в шахматке);
+                        // закрашен только будущий месяц — дохода в этом месяце нет
+                        val rentedThisMonth = bookings.any { b ->
+                            val s = runCatching { LocalDate.parse(b.startDate) }.getOrNull()
+                            val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
+                            s != null && e != null && !s.isAfter(monthEnd) && !e.isBefore(monthStart)
+                        }
+                        if (rentedThisMonth) {
+                            incomeSum += schedule?.amount ?: p.rentAmount ?: 0.0
+                        }
+                    } else {
+                        val rate = p.rentAmount ?: 0.0
+                        // Слитые периоды: пересекающиеся брони не задваивают сутки
+                        val ranges = mergeRanges(
+                            bookings.mapNotNull { b ->
+                                val s = runCatching { LocalDate.parse(b.startDate) }.getOrNull()
+                                val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
+                                if (s != null && e != null) s to e else null
+                            }
+                        )
+                        var days = 0L
+                        for ((s, e) in ranges) {
+                            days += overlapDays(s, e, monthStart, monthEnd)
+                        }
+                        incomeSum += rate * days
+                        // Ближайшее поступление посуточного объекта — начало ближайшей брони
+                        val upcoming = ranges.firstOrNull { !it.first.isBefore(today) }
+                        if (upcoming != null && (nearestDate == null || upcoming.first.isBefore(nearestDate))) {
+                            nearestDate = upcoming.first
+                            nearestAmount = rate *
+                                (java.time.temporal.ChronoUnit.DAYS.between(upcoming.first, upcoming.second) + 1)
+                        }
+                    }
+                    // Кандидат из графика платежей — только по фактически занятому
+                    // объекту: постоянный (расчётный день) — ближайшая дата, покрытая
+                    // бронью (шахматка пустая → поступлений нет); переменный — его даты
+                    // и так синхронизированы с бронями
+                    if (schedule?.dayOfMonth != null && bookings.isNotEmpty()) {
+                        val day = schedule!!.dayOfMonth!!
+                        val isCovered = { candidate: LocalDate ->
+                            bookings.any { b ->
+                                val s = runCatching { LocalDate.parse(b.startDate) }.getOrNull()
+                                val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
+                                s != null && e != null && !candidate.isBefore(s) && !candidate.isAfter(e)
+                            }
+                        }
+                        var ym = java.time.YearMonth.from(today)
+                        repeat(13) {
+                            val candidate = ym.atDay(day.coerceIn(1, ym.lengthOfMonth()))
+                            if (!candidate.isBefore(today) && isCovered(candidate) &&
+                                (nearestDate == null || candidate.isBefore(nearestDate))
+                            ) {
+                                nearestDate = candidate
+                                nearestAmount = schedule.amount
+                            }
+                            ym = ym.plusMonths(1)
+                        }
+                    } else if (schedule != null && schedule.dayOfMonth == null) {
+                        PaymentOverdue.nextPayment(schedule).date?.let { d ->
+                            if (!d.isBefore(today) && (nearestDate == null || d.isBefore(nearestDate))) {
+                                nearestDate = d
+                                nearestAmount = PaymentOverdue.nextPayment(schedule).amount
+                            }
+                        }
                     }
                 }
+                val income = formatAmount(incomeSum) + "/мес"
+                val nextDate = nearestDate?.let(::formatDate) ?: ""
+                val nextAmount = nearestAmount?.let(::formatAmount) ?: ""
                 statsCache.save("landlord", RoleStatsCache.Stats(hasDeals = true, hasActiveRent = hasActiveRent, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = income, debtAmount = debtAmount))
                 _uiState.update {
                     it.copy(hasDeals = true, hasActiveRent = hasActiveRent, isLoading = false, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = income, debtAmount = debtAmount)
@@ -211,7 +276,7 @@ class RoleViewModel @Inject constructor(
                 var debtPropertyId: String? = null
                 var debtAmount = 0.0
                 for (p in props) {
-                    val schedule = schedules.firstOrNull { it.propertyId == p.id }
+                    val schedule = schedules.forProperty(p.id)
                     if (schedule != null) {
                         val payments = financeApi.listPayments(p.id).body() ?: emptyList()
                         if (PaymentOverdue.isOverdue(schedule, payments)) {

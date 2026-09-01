@@ -3,8 +3,13 @@ package com.rentmanager.app.ui.landlord.propertycard
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rentmanager.app.data.api.BookingApi
+import com.rentmanager.app.data.api.CreateBookingRequest
+import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.model.MeterDto
+import com.rentmanager.app.data.model.PaymentScheduleDto
+import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PhotoUploader
 import com.rentmanager.app.data.repository.PropertyRepository
@@ -16,6 +21,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 data class PropertyCardUiState(
@@ -23,6 +30,8 @@ data class PropertyCardUiState(
     val property: PropertyDto? = null,
     /** Счётчики объекта для жёлтой секции «Счетчики» (Figma 2574:20899). */
     val meters: List<MeterDto> = emptyList(),
+    /** График платежей объекта — задаёт «X ₽ / месяц(сутки)» в «Арендной плате». */
+    val schedule: PaymentScheduleDto? = null,
     /** Блокировка действий, пока выполняется публикация/удаление. */
     val isActionInProgress: Boolean = false
 )
@@ -31,7 +40,9 @@ data class PropertyCardUiState(
 class PropertyCardViewModel @Inject constructor(
     private val repository: PropertyRepository,
     private val photoUploader: PhotoUploader,
-    private val detailCache: PropertyDetailCache
+    private val detailCache: PropertyDetailCache,
+    private val bookingApi: BookingApi,
+    private val financeApi: FinanceApi
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PropertyCardUiState())
@@ -67,7 +78,15 @@ class PropertyCardViewModel @Inject constructor(
                 } catch (_: Exception) {
                     previousMeters
                 }
-                _uiState.value = PropertyCardUiState(isLoading = false, property = body, meters = meters)
+                // График платежей: тип задаёт «₽ / месяц(сутки)», сумма — актуальную ставку
+                val schedule = try {
+                    financeApi.getSchedules().body()?.forProperty(propertyId)
+                } catch (_: Exception) {
+                    null
+                }
+                _uiState.value = PropertyCardUiState(
+                    isLoading = false, property = body, meters = meters, schedule = schedule
+                )
                 if (body != null) {
                     detailCache.saveProperty(body)
                 } else {
@@ -142,13 +161,73 @@ class PropertyCardViewModel @Inject constructor(
     /** Шит «Аренда и платежи»: ставка и дата окончания аренды. */
     fun saveRentInfo(rentAmount: String, rentEndDate: String) {
         val current = _uiState.value.property ?: return
+        val rentEndDateChanged = current.rentEndDate != rentEndDate.takeIf { it.isNotBlank() }
         saveProperty(
             current.copy(
                 rentAmount = parseAmount(rentAmount),
                 rentEndDate = rentEndDate.takeIf { it.isNotBlank() }
             ),
-            "Изменения сохранены"
+            "Изменения сохранены",
+            onSaved = { saved ->
+                val schedule = _uiState.value.schedule
+                // Тип отображения = тип графика; без графика — по типу аренды объекта
+                val type = schedule?.type
+                    ?: if ((saved.rentType ?: "посуточно") == "длительно") "auto" else "manual"
+                // Помесячный режим: срок аренды ↔ шахматка. Изменение поля
+                // перекрашивает шахматку от текущего месяца до месяца даты
+                if (rentEndDateChanged && type == "auto") {
+                    syncBookingsToRentEnd(saved)
+                }
+                if (type == "auto") {
+                    // Ставка в карточке = сумма постоянного графика — держим их равными
+                    runCatching {
+                        financeApi.createSchedule(
+                            com.rentmanager.app.data.model.PaymentScheduleDto(
+                                propertyId = saved.id,
+                                dayOfMonth = schedule?.dayOfMonth,
+                                amount = saved.rentAmount,
+                                type = "auto",
+                                requisites = schedule?.requisites
+                            )
+                        )
+                        _uiState.value = _uiState.value.copy(
+                            schedule = (schedule ?: com.rentmanager.app.data.model.PaymentScheduleDto(
+                                propertyId = saved.id, type = "auto"
+                            )).copy(amount = saved.rentAmount)
+                        )
+                    }
+                }
+            }
         )
+    }
+
+    /**
+     * Длительная аренда: брони = от 1-го числа текущего месяца до «Срок аренды».
+     * Очистка поля — будущие брони снимаются (шахматка очищается).
+     */
+    private suspend fun syncBookingsToRentEnd(property: PropertyDto) {
+        try {
+            val ddMMyyyy = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+            val today = LocalDate.now()
+            val monthStart = today.withDayOfMonth(1)
+            val target = property.rentEndDate?.let {
+                runCatching { LocalDate.parse(it, ddMMyyyy) }.getOrNull()
+            }
+            val existing = bookingApi.getBookings(property.id).body().orEmpty()
+            // Снимаем брони текущего и будущих месяцев (прошлые не трогаем)
+            existing.forEach { b ->
+                val s = runCatching { LocalDate.parse(b.startDate) }.getOrNull()
+                if (s != null && !s.isBefore(monthStart)) {
+                    b.id?.let { runCatching { bookingApi.deleteBooking(property.id, it) } }
+                }
+            }
+            if (target != null && !target.isBefore(today)) {
+                bookingApi.createBooking(
+                    property.id,
+                    CreateBookingRequest(monthStart.toString(), target.toString())
+                )
+            }
+        } catch (_: Exception) { }
     }
 
     // «25 000» / «25,5» → Double: пробелы-разделители разрядов выкидываем, запятую — в точку
@@ -232,7 +311,11 @@ class PropertyCardViewModel @Inject constructor(
         )
     }
 
-    private fun saveProperty(dto: PropertyDto, successMessage: String) {
+    private fun saveProperty(
+        dto: PropertyDto,
+        successMessage: String,
+        onSaved: (suspend (PropertyDto) -> Unit)? = null
+    ) {
         val id = dto.id.ifBlank { _uiState.value.property?.id } ?: return
         if (_uiState.value.isActionInProgress) return
         _uiState.value = _uiState.value.copy(isActionInProgress = true)
@@ -244,6 +327,7 @@ class PropertyCardViewModel @Inject constructor(
                     detailCache.saveProperty(body)
                     _uiState.value = _uiState.value.copy(isActionInProgress = false, property = body)
                     _savedEvents.emit(successMessage)
+                    onSaved?.invoke(body)
                 } else {
                     _uiState.value = _uiState.value.copy(isActionInProgress = false)
                     _errorEvents.emit("Не удалось сохранить изменения (${resp.code()})")
