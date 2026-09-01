@@ -49,10 +49,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.data.model.PropertyDto
@@ -139,6 +142,7 @@ fun RentEditSheet(
 ) {
     var rentAmount by remember(property.id) { mutableStateOf(formatAmount(property.rentAmount.toFieldText())) }
     var rentEndDate by remember(property.id) { mutableStateOf(property.rentEndDate.orEmpty()) }
+    var dateErrorHint by remember(property.id) { mutableStateOf<String?>(null) }
     EditSheetScaffold(title = "Аренда и платежи", onDismiss = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             SheetCaptionField(
@@ -152,7 +156,11 @@ fun RentEditSheet(
             // «Арендовано»: подпись сверху, снизу «до» и ввод даты прямо в поле (дд.мм.гггг)
             RentedUntilField(
                 date = rentEndDate,
-                onDateChange = { rentEndDate = it }
+                onDateChange = {
+                    rentEndDate = it
+                    if (dateErrorHint != null) dateErrorHint = validateRentDate(it)
+                },
+                errorHint = dateErrorHint
             )
         }
         // 12dp от spacedBy + 8dp паддинга = 20dp до кнопки (Figma: Content itemSpacing 20)
@@ -160,54 +168,101 @@ fun RentEditSheet(
             modifier = Modifier.padding(top = 8.dp),
             text = "Сохранить изменения",
             enabled = !isSaving,
-            onClick = { onSave(rentAmount, rentEndDate) }
+            onClick = {
+                // Дата окончания аренды не может быть в прошлом (сегодня — можно)
+                val hint = validateRentDate(rentEndDate)
+                dateErrorHint = hint
+                if (hint == null) onSave(rentAmount, rentEndDate)
+            }
         )
     }
 }
 
+// Проверка даты окончания аренды: null = всё хорошо, иначе текст подсказки
+private fun validateRentDate(date: String): String? {
+    if (date.isBlank()) return null
+    if (date.length != 10) return "Введите дату в формате дд.мм.гггг"
+    return try {
+        val parsed = java.time.LocalDate.of(
+            date.substring(6).toInt(),
+            date.substring(3, 5).toInt(),
+            date.substring(0, 2).toInt()
+        )
+        if (parsed.isBefore(java.time.LocalDate.now())) "Дата не может быть раньше сегодняшней" else null
+    } catch (_: Exception) {
+        "Введите корректную дату"
+    }
+}
+
 // Поле «Арендовано»: подпись «Арендовано» сверху тонко, снизу постоянное «до»
-// и ввод даты dd.MM.yyyy сразу в поле (точки вставляются автоматически)
+// и ввод даты dd.MM.yyyy сразу в поле (точки вставляются автоматически).
+// TextFieldValue с курсором в конце — иначе после вставки точки курсор прыгал назад
 @Composable
 private fun RentedUntilField(
     date: String,
-    onDateChange: (String) -> Unit
+    onDateChange: (String) -> Unit,
+    errorHint: String? = null
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardBackground)
-            .padding(start = 20.dp, end = 20.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        BasicTextField(
-            value = date,
-            onValueChange = { onDateChange(formatDateMask(it)) },
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = Headline2MobStyle,
-            cursorBrush = SolidColor(Graphite),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-            decorationBox = { innerTextField ->
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Арендовано", style = CardSubtitleStyle)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // «до» — постоянный префикс; дата вводится после него
-                        Text("до", style = Headline2MobStyle)
-                        Box {
-                            if (date.isEmpty()) {
-                                Text("дд.мм.гггг", style = Headline2MobStyle.copy(color = GreyText, fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(CardBackground)
+                .then(
+                    if (errorHint != null) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp))
+                    else Modifier
+                )
+                .padding(start = 20.dp, end = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            var dateValue by remember(date) {
+                mutableStateOf(TextFieldValue(date, TextRange(date.length)))
+            }
+            BasicTextField(
+                value = dateValue,
+                onValueChange = { incoming ->
+                    val masked = formatDateMask(incoming.text)
+                    // Курсор всегда в конце отформатированной даты
+                    dateValue = TextFieldValue(masked, TextRange(masked.length))
+                    if (masked != date) onDateChange(masked)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = Headline2MobStyle,
+                cursorBrush = SolidColor(Graphite),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                decorationBox = { innerTextField ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Арендовано", style = CardSubtitleStyle)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // «до» — постоянный префикс; дата вводится после него
+                            Text("до", style = Headline2MobStyle)
+                            Box {
+                                if (date.isEmpty()) {
+                                    Text("дд.мм.гггг", style = Headline2MobStyle.copy(color = GreyText, fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
+                                }
+                                innerTextField()
                             }
-                            innerTextField()
                         }
                     }
                 }
-            }
-        )
+            )
+        }
+        if (errorHint != null) {
+            Text(
+                errorHint,
+                fontSize = 9.5.sp,
+                lineHeight = 11.5.sp,
+                letterSpacing = (-0.2).sp,
+                color = ErrorRed,
+                modifier = Modifier.padding(start = 20.dp)
+            )
+        }
     }
 }
 

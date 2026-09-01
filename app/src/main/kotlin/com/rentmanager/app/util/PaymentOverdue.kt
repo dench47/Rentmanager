@@ -59,6 +59,30 @@ object PaymentOverdue {
         else -> 0.0
     }
 
+    /** Сумма просроченного к оплате (для плашки «Задолженность X ₽» на дашборде). */
+    fun overdueAmount(
+        schedule: PaymentScheduleDto?,
+        payments: List<PaymentDto>,
+        today: LocalDate = LocalDate.now()
+    ): Double {
+        val s = schedule ?: return 0.0
+        return when {
+            s.dayOfMonth != null -> if (isOverdue(s, payments, today)) s.amount ?: 0.0 else 0.0
+            s.customDates != null -> {
+                val dueDates = parseCustomDates(s.customDates)
+                    .mapNotNull { entry ->
+                        runCatching { LocalDate.parse(entry.date) }.getOrNull()
+                            ?.let { it to (entry.amount.toDoubleOrNull() ?: 0.0) }
+                    }
+                val paidDates = payments.filter { it.status == "paid" }.map { it.date }
+                dueDates.filter { (due, _) ->
+                    !due.isAfter(today) && paidDates.none { it >= due.toString() }
+                }.sumOf { it.second }
+            }
+            else -> 0.0
+        }
+    }
+
     private fun hasOverdueCustom(customDatesJson: String, payments: List<PaymentDto>, today: LocalDate): Boolean {
         val dueDates = parseCustomDates(customDatesJson).mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
         val paidDates = payments.filter { it.status == "paid" }.map { it.date }

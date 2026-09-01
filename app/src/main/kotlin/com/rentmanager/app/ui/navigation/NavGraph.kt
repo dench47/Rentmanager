@@ -347,7 +347,43 @@ fun RentManagerNavGraph(
             val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
             com.rentmanager.app.ui.landlord.propertycard.about.AboutPropertyEditScreen(
                 propertyId = propertyId,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onOpenAddressPicker = { address, lat, lon ->
+                    navController.navigate(Screen.AboutAddress.createRoute(address, lat, lon))
+                }
+            )
+        }
+
+        // ========== Выбор адреса для «Об объекте» (шаг 3 без прогресс-бара) ==========
+        composable(
+            route = Screen.AboutAddress.route,
+            arguments = listOf(
+                navArgument("address") { type = NavType.StringType; defaultValue = "" },
+                navArgument("lat") { type = NavType.StringType; defaultValue = "" },
+                navArgument("lon") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            val args = backStackEntry.arguments
+            val address = args?.getString("address")?.let {
+                java.net.URLDecoder.decode(it, "UTF-8")
+            } ?: ""
+            val lat = args?.getString("lat")?.toDoubleOrNull()
+            val lon = args?.getString("lon")?.toDoubleOrNull()
+            com.rentmanager.app.ui.landlord.createproperty.CreatePropertyAddressScreen(
+                propertyType = "Квартира",
+                rentType = "длительно",
+                onBack = { navController.popBackStack() },
+                onAddressConfirmed = { newAddress, newLat, newLon ->
+                    com.rentmanager.app.ui.landlord.propertycard.about.AboutAddressResult.set(newAddress, newLat, newLon)
+                    navController.popBackStack()
+                },
+                onClose = { navController.popBackStack() },
+                showProgress = false,
+                screenTitle = "Об объекте",
+                initialAddress = address,
+                initialLatitude = lat,
+                initialLongitude = lon,
+                useDraftFallback = false
             )
         }
 

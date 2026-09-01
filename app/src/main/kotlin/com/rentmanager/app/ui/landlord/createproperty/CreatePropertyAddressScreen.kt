@@ -48,6 +48,7 @@ import com.rentmanager.app.ui.theme.Headline2MobStyle
 
 // Шаг 3: адрес объекта на карте (Figma 2533:17784).
 // Карта на весь экран, пин по центру, нижний шит с полем «Укажите адрес» и кнопкой «Продолжить».
+// Вызывается и с экрана «Об объекте» (выбор адреса) — тогда без прогресс-бара.
 @Composable
 fun CreatePropertyAddressScreen(
     propertyType: String,
@@ -55,16 +56,37 @@ fun CreatePropertyAddressScreen(
     onBack: () -> Unit,
     onAddressConfirmed: (String, Double?, Double?) -> Unit,
     onClose: () -> Unit,
+    showProgress: Boolean = true,
+    screenTitle: String = "Новый объект",
+    initialAddress: String = "",
+    initialLatitude: Double? = null,
+    initialLongitude: Double? = null,
+    // false = автономный режим (экран «Об объекте»): не подмешивать черновик создания
+    useDraftFallback: Boolean = true,
     viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
-    var address by remember { mutableStateOf(TextFieldValue(CreateDraftHolder.address)) }
+    var address by remember(initialAddress) {
+        mutableStateOf(
+            TextFieldValue(
+                if (useDraftFallback) initialAddress.ifBlank { CreateDraftHolder.address } else initialAddress
+            )
+        )
+    }
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
     // Восстановление адреса/метки после возврата с шага 4,
     // либо автопродолжение после диалога «Продолжить создание?»
     LaunchedEffect(Unit) {
-        if (CreateDraftHolder.consumeAutoContinue() &&
+        if (!useDraftFallback) {
+            // Автономный режим: только восстановление переданной точки, без черновика
+            if (initialLatitude != null && initialLongitude != null) {
+                viewModel.restoreSelection(initialAddress, initialLatitude, initialLongitude)
+            }
+        } else if (initialLatitude != null && initialLongitude != null) {
+            // Повторный вход с уже выбранной точкой (экран «Об объекте»)
+            viewModel.restoreSelection(initialAddress, initialLatitude, initialLongitude)
+        } else if (CreateDraftHolder.consumeAutoContinue() &&
             CreateDraftHolder.latitude != null && CreateDraftHolder.longitude != null
         ) {
             viewModel.restoreSelection(
@@ -129,13 +151,15 @@ fun CreatePropertyAddressScreen(
                     .padding(top = paddingValues.calculateTopPadding())
             ) {
                 ScreenToolbar(
-                    title = "Новый объект",
+                    title = screenTitle,
                     onBack = onBack,
                     showClose = true,
                     onClose = onClose,
                     modifier = Modifier.background(Color(0x99EDEDED))
                 )
-                CreationProgressBar(currentStep = 3)
+                if (showProgress) {
+                    CreationProgressBar(currentStep = 3)
+                }
             }
 
             // Подсказки адреса над шитом
@@ -232,11 +256,15 @@ fun CreatePropertyAddressScreen(
                     text = "Продолжить",
                     enabled = canContinue
                 ) {
-                    CreateDraftHolder.address = address.text.trim()
-                    CreateDraftHolder.latitude = uiState.selectedLatitude
-                    CreateDraftHolder.longitude = uiState.selectedLongitude
-                    // Шаг пройден — фиксируем черновик (адрес/координаты переживают перезапуск)
-                    CreateDraftHolder.persist()
+                    // Черновик создания трогаем только в потоке создания объекта;
+                    // автономный режим («Об объекте») его не перезаписывает
+                    if (useDraftFallback) {
+                        CreateDraftHolder.address = address.text.trim()
+                        CreateDraftHolder.latitude = uiState.selectedLatitude
+                        CreateDraftHolder.longitude = uiState.selectedLongitude
+                        // Шаг пройден — фиксируем черновик (адрес/координаты переживают перезапуск)
+                        CreateDraftHolder.persist()
+                    }
                     onAddressConfirmed(
                         address.text.trim(),
                         uiState.selectedLatitude,

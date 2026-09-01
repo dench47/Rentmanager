@@ -3,6 +3,7 @@ package com.rentmanager.app.ui.landlord.propertycard.about
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,13 +36,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -52,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.data.model.PropertyDto
+import com.rentmanager.app.ui.components.AddressMapPicker
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.OutlineCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.ScreenToolbar
@@ -77,6 +83,7 @@ private val FloorsInHouseOptions = (1..100).map { it.toString() }
 fun AboutPropertyEditScreen(
     propertyId: String,
     onBack: () -> Unit,
+    onOpenAddressPicker: (address: String, lat: Double?, lon: Double?) -> Unit = { _, _, _ -> },
     viewModel: AboutEditViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -89,18 +96,39 @@ fun AboutPropertyEditScreen(
     }
 
     val property = uiState.property
-    var name by remember(property?.id) { mutableStateOf(property?.name.orEmpty()) }
-    var address by remember(property?.id) { mutableStateOf(property?.address.orEmpty()) }
-    var rooms by remember(property?.id) { mutableStateOf(property?.rooms) }
-    var area by remember(property?.id) { mutableStateOf(property?.area.toFieldText()) }
-    var sleepingPlaces by remember(property?.id) { mutableStateOf(property?.sleepingPlaces) }
-    var floor by remember(property?.id) { mutableStateOf(property?.floor) }
-    var floorsInHouse by remember(property?.id) { mutableStateOf(property?.floorsInHouse) }
-    var description by remember(property?.id) { mutableStateOf(property?.description.orEmpty()) }
-    var price by remember(property?.id) { mutableStateOf(property?.rentAmount.toFieldText()) }
+    val focusManager = LocalFocusManager.current
+    // rememberSaveable: форма переживает уход на полноэкранный выбор адреса и назад
+    var name by rememberSaveable(property?.id) { mutableStateOf(property?.name.orEmpty()) }
+    var address by rememberSaveable(property?.id) { mutableStateOf(property?.address.orEmpty()) }
+    var rooms by rememberSaveable(property?.id) { mutableStateOf(property?.rooms) }
+    var area by rememberSaveable(property?.id) { mutableStateOf(property?.area.toFieldText()) }
+    var sleepingPlaces by rememberSaveable(property?.id) { mutableStateOf(property?.sleepingPlaces) }
+    var floor by rememberSaveable(property?.id) { mutableStateOf(property?.floor) }
+    var floorsInHouse by rememberSaveable(property?.id) { mutableStateOf(property?.floorsInHouse) }
+    var description by rememberSaveable(property?.id) { mutableStateOf(property?.description.orEmpty()) }
+    var price by rememberSaveable(property?.id) { mutableStateOf(property?.rentAmount.toFieldText()) }
     var showDescriptionSheet by remember { mutableStateOf(false) }
 
     var addressError by remember { mutableStateOf(false) }
+    // Координаты, выбранные на экране адреса (шаг 3 без прогресс-бара)
+    var pickedLat by rememberSaveable { mutableStateOf<Double?>(null) }
+    var pickedLon by rememberSaveable { mutableStateOf<Double?>(null) }
+
+    // Адрес с полноэкранной карты: применяем при возврате на экран
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                AboutAddressResult.consume()?.let { (newAddress, newLat, newLon) ->
+                    address = newAddress
+                    pickedLat = newLat
+                    pickedLon = newLon
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var roomsError by remember { mutableStateOf(false) }
     var areaError by remember { mutableStateOf(false) }
     var sleepingError by remember { mutableStateOf(false) }
@@ -117,6 +145,8 @@ fun AboutPropertyEditScreen(
         floorsInHouse = p.floorsInHouse
         description = p.description.orEmpty()
         price = p.rentAmount.toFieldText()
+        pickedLat = null
+        pickedLon = null
         addressError = false; roomsError = false; areaError = false; sleepingError = false; priceError = false
     }
 
@@ -134,6 +164,7 @@ fun AboutPropertyEditScreen(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
+                .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -142,12 +173,15 @@ fun AboutPropertyEditScreen(
                 onValueChange = { name = it },
                 placeholder = "Название"
             )
+            // Тап по полю адреса открывает экран выбора с картой (шаг 3 без прогресс-бара)
             AboutField(
                 value = address,
-                onValueChange = { address = it; addressError = false },
+                onValueChange = { },
                 placeholder = "Адрес*",
                 isError = addressError,
-                errorHint = "Обязательное поле"
+                errorHint = "Обязательное поле",
+                readOnly = true,
+                onFieldClick = { onOpenAddressPicker(address, pickedLat ?: property?.latitude, pickedLon ?: property?.longitude) }
             )
             AboutDropdownField(
                 selected = rooms,
@@ -223,7 +257,10 @@ fun AboutPropertyEditScreen(
                         priceError = price.isBlank()
                         val hasErrors = addressError || roomsError || areaError || sleepingError || priceError
                         if (!hasErrors) {
-                            viewModel.save(name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price)
+                            viewModel.save(
+                                name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price,
+                                latitude = pickedLat, longitude = pickedLon
+                            )
                         }
                     }
                 )
@@ -266,7 +303,10 @@ private fun AboutField(
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
     isError: Boolean = false,
-    errorHint: String? = null
+    errorHint: String? = null,
+    onFocusChanged: ((Boolean) -> Unit)? = null,
+    readOnly: Boolean = false,
+    onFieldClick: (() -> Unit)? = null
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
@@ -276,35 +316,63 @@ private fun AboutField(
                 .clip(RoundedCornerShape(20.dp))
                 .background(CardBackground)
                 .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
+                .then(if (onFieldClick != null) Modifier.clickable(onClick = onFieldClick) else Modifier)
                 .padding(start = 20.dp, end = 20.dp),
             contentAlignment = Alignment.CenterStart
         ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = Headline2MobStyle,
-                cursorBrush = SolidColor(Graphite),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next),
-                decorationBox = { innerTextField ->
-                    if (value.isEmpty()) {
+            if (onFieldClick != null) {
+                // Поле-кнопка (адрес): BasicTextField перехватывает тап, поэтому
+                // рисуем статичный текст того же вида — клик получает Box
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        style = if (isError) CardSubtitleStyle.copy(color = ErrorRed)
+                        else Headline2MobPlaceholderStyle
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            placeholder,
-                            style = if (isError) CardSubtitleStyle.copy(color = ErrorRed)
-                            else Headline2MobPlaceholderStyle
+                            placeholder.removeSuffix("*"),
+                            style = CardSubtitleStyle.copy(color = if (isError) ErrorRed else GreyText)
                         )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                placeholder.removeSuffix("*"),
-                                style = CardSubtitleStyle.copy(color = if (isError) ErrorRed else GreyText)
-                            )
-                            innerTextField()
-                        }
+                        Text(value, style = Headline2MobStyle)
                     }
                 }
-            )
+            } else {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    readOnly = readOnly,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (onFocusChanged != null) {
+                                Modifier.onFocusChanged { onFocusChanged(it.isFocused) }
+                            } else Modifier
+                        ),
+                    textStyle = Headline2MobStyle,
+                    cursorBrush = SolidColor(Graphite),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+                    decorationBox = { innerTextField ->
+                        if (value.isEmpty()) {
+                            Text(
+                                placeholder,
+                                style = if (isError) CardSubtitleStyle.copy(color = ErrorRed)
+                                else Headline2MobPlaceholderStyle
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    placeholder.removeSuffix("*"),
+                                    style = CardSubtitleStyle.copy(color = if (isError) ErrorRed else GreyText)
+                                )
+                                innerTextField()
+                            }
+                        }
+                    }
+                )
+            }
         }
         if (isError && errorHint != null) {
             AboutErrorHint(errorHint)

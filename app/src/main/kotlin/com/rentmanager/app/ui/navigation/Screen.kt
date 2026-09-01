@@ -75,6 +75,14 @@ sealed class Screen(val route: String) {
     data object AboutEdit : Screen("landlord/about_edit/{propertyId}") {
         fun createRoute(propertyId: String) = "landlord/about_edit/$propertyId"
     }
+
+    // Выбор адреса с карты для «Об объекте» (шаг 3 без прогресс-бара)
+    data object AboutAddress : Screen("landlord/about_address?address={address}&lat={lat}&lon={lon}") {
+        fun createRoute(address: String, lat: Double?, lon: Double?): String {
+            val encoded = java.net.URLEncoder.encode(address, "UTF-8")
+            return "landlord/about_address?address=$encoded&lat=${lat ?: ""}&lon=${lon ?: ""}"
+        }
+    }
     data object TenantsList : Screen("landlord/tenants")
     data object TenantDetail : Screen("landlord/tenant_detail/{tenantId}") {
         fun createRoute(tenantId: String) = "landlord/tenant_detail/$tenantId"

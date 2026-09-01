@@ -80,11 +80,12 @@ fun RoleScreen(
                 .background(Color.White)
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                Spacer(Modifier.height(13.dp))
+                // Часы статус-бара → заголовок = 42dp (замер по макету 2596-22499)
+                Spacer(Modifier.height(27.dp))
 
-                // Header with back arrow
+                // Header with back arrow (Figma: Toolbar 50dp = 13 сверху + 24 текст + 13 снизу)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 0.dp, bottom = 24.dp, end = 0.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 0.dp, bottom = 13.dp, end = 0.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
@@ -102,27 +103,33 @@ fun RoleScreen(
                     }
                 }
 
-                // Пустое состояние (Figma «Арендодатель_1»): инфо-текст + чёрная CTA «Добавить первый объект»
-                if (uiState.role == UserRole.LANDLORD && !uiState.hasDeals && !uiState.isLoading) {
-                    LandlordInfBlock(onAddFirstObject = onNavigateToCreateProperty)
-                    Spacer(Modifier.height(14.dp))
-                } else {
-                    // Секция статистики: 3 состояния — нет сделок / всё хорошо / задолженность (Figma INF: 104dp)
-                    Box(modifier = Modifier.fillMaxWidth().height(104.dp)) {
-                        when {
-                            uiState.isLoading -> { }
-                            !uiState.hasDeals -> EmptyStateBlock(
-                                role = uiState.role,
-                                onAction = {
-                                    if (uiState.role == UserRole.LANDLORD) onNavigateToMyProperties() else onNavigateToOtherProperties()
-                                }
-                            )
-                            uiState.role == UserRole.LANDLORD -> LandlordStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.monthlyIncome, uiState.hasDebt)
-                            else -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.hasDebt, onPay = { viewModel.pay() })
-                        }
+                // Секция статистики (Figma 2596-22499/2533-17398/2533-17422):
+                // у арендодателя — статистика + плашка-статус по ситуации.
+                // 105dp у арендодателя: без мёртвого запаса, зазор плашка→карточки ≈ 24.5dp
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(if (uiState.role == UserRole.LANDLORD) 105.dp else 119.dp)
+                ) {
+                    when {
+                        uiState.isLoading -> { }
+                        uiState.role == UserRole.LANDLORD -> LandlordStatsSection(
+                            uiState.nextPaymentDate,
+                            uiState.nextPaymentAmount,
+                            uiState.monthlyIncome,
+                            uiState.hasDebt,
+                            uiState.hasDeals,
+                            uiState.debtAmount,
+                            uiState.hasActiveRent
+                        )
+                        !uiState.hasDeals -> EmptyStateBlock(
+                            role = uiState.role,
+                            onAction = { onNavigateToOtherProperties() }
+                        )
+                        else -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.hasDebt, onPay = { viewModel.pay() })
                     }
-                    Spacer(Modifier.height(12.dp))
                 }
+                Spacer(Modifier.height(12.dp))
 
                 // Cards grid
                 LazyVerticalGrid(
@@ -220,60 +227,6 @@ private fun CtaButton(
     }
 }
 
-/**
- * Инфо-блок пустого состояния экрана «Арендодатель» (Figma node 2533:17798, фрейм Inf):
- * центрированный текст + чёрная pill-кнопка «Добавить первый объект».
- */
-@Composable
-private fun LandlordInfBlock(onAddFirstObject: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            "Ведите аренду, платежи, договоры и показания счётчиков в одном месте.",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = InterFontFamily,
-            color = Color(0xFF212121),
-            letterSpacing = (-0.4).sp,
-            lineHeight = 18.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(55.dp)
-                .clip(RoundedCornerShape(100.dp))
-                .background(Color(0xFF212121))
-                .clickable { onAddFirstObject() },
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Image(
-                painter = painterResource(R.drawable.ic_cta_plus),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                "Добавить первый объект",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = InterFontFamily,
-                color = Color.White,
-                letterSpacing = (-0.4).sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-/**
- * Градиентная CTA-кнопка (Figma: linear-gradient 136°, #F6D85E 19% → #E89B5A 60% → #D97D5D 100%).
- * Общая для экранов роли и пустого состояния (тёмный текст/иконка на градиенте).
- */
 @Composable
 fun GradientCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
     Row(
@@ -365,43 +318,81 @@ private fun handleCardClick(
 }
 
 @Composable
-private fun LandlordStatsSection(paymentDate: String, paymentAmount: String, monthlyIncome: String, hasDebt: Boolean) {
-    Box(
+private fun LandlordStatsSection(
+    paymentDate: String,
+    paymentAmount: String,
+    monthlyIncome: String,
+    hasDebt: Boolean,
+    hasDeals: Boolean,
+    debtAmount: String,
+    hasActiveRent: Boolean
+) {
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(bottom = 14.dp)
     ) {
-        Column {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(26.dp)) {
-                Column(modifier = Modifier.width(163.dp)) {
-                    Text(
-                        text = buildAnnotatedString {
-                            withStyle(SpanStyle(color = Color(0xFF727272))) { append("Ближайшее поступление ") }
-                            withStyle(SpanStyle(color = Color(0xCC212121))) { append(paymentDate) }
-                        },
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Normal,
-                        fontFamily = InterFontFamily,
-                        lineHeight = 18.sp,
-                        letterSpacing = (-0.4).sp,
-                        maxLines = 2
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(paymentAmount, fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = InterFontFamily, color = Color(0xFF212121), letterSpacing = (-0.4).sp)
-                }
-                Column(modifier = Modifier.width(122.dp)) {
-                    Text("Доход \nпо всем объектам", fontSize = 13.sp, fontWeight = FontWeight.Normal, fontFamily = InterFontFamily, color = Color(0xFF727272), lineHeight = 18.sp, letterSpacing = (-0.4).sp)
-                    Spacer(Modifier.height(4.dp))
-                    Text(monthlyIncome, fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = InterFontFamily, color = Color(0xFF212121), letterSpacing = (-0.4).sp)
-                }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(26.dp)) {
+            Column(modifier = Modifier.width(163.dp)) {
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = Color(0xFF727272))) { append("Ближайшее поступление ") }
+                        withStyle(SpanStyle(color = Color(0xFF151515))) { append(paymentDate) }
+                    },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = InterFontFamily,
+                    lineHeight = 18.sp,
+                    letterSpacing = (-0.4).sp,
+                    maxLines = 2
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    paymentAmount.ifBlank { "—" },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = InterFontFamily,
+                    color = Color(0xFF212121),
+                    letterSpacing = (-0.4).sp
+                )
             }
-            Spacer(Modifier.height(12.dp))
+            Column(modifier = Modifier.width(183.dp)) {
+                Text("Доход по всем объектам", fontSize = 13.sp, fontWeight = FontWeight.Normal, fontFamily = InterFontFamily, color = Color(0xFF727272), lineHeight = 18.sp, letterSpacing = (-0.4).sp, maxLines = 1)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    // При жёлтой плашке «Нет активной аренды» в макете 2596-22510
+                    // под обеими колонками прочерки — никаких «0 ₽/мес»
+                    if (!hasActiveRent) "—" else monthlyIncome.ifBlank { "—" },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = InterFontFamily,
+                    color = Color(0xFF212121),
+                    letterSpacing = (-0.4).sp
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        // Плашка-статус (Figma 2596-22499 / 2533-17398 / 2533-17422):
+        // нет аренды — жёлтая, задолженность — красная с суммой, всё хорошо — зелёная
+        val (bg, fg, text) = when {
+            !hasActiveRent -> Triple(Color(0xFFFFF1CF), Color(0xFF212121), "Нет активной аренды")
+            hasDebt -> Triple(Color(0xFFFBEAEC), Color(0xFFFF4249), "Задолженность $debtAmount")
+            else -> Triple(Color(0xFFE5F2E7), Color(0xFF2F7D4D), "Задолженностей нет")
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(bg),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
-                if (hasDebt) "Есть задолженность" else "Просрочек нет",
+                text,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = InterFontFamily,
-                color = if (hasDebt) Color(0xFFFF4249) else Color(0xFF66A256),
+                color = fg,
                 letterSpacing = (-0.4).sp
             )
         }

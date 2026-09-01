@@ -22,7 +22,9 @@ class RoleStatsCache @Inject constructor(
         val hasDebt: Boolean,
         val nextPaymentDate: String,
         val nextPaymentAmount: String,
-        val monthlyIncome: String
+        val monthlyIncome: String,
+        val debtAmount: String = "",
+        val hasActiveRent: Boolean = false
     )
 
     fun load(key: String): Stats? {

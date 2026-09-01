@@ -4,6 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.R
+import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreatePaymentRequest
 import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.api.PropertyApi
@@ -31,11 +32,14 @@ data class RoleUiState(
     val role: UserRole,
     val title: String,
     val hasDeals: Boolean,
+    /** Есть активная аренда (график платежей) — определяет плашку «Нет активной аренды». */
+    val hasActiveRent: Boolean = false,
     val isLoading: Boolean = false,
     val hasDebt: Boolean = false,
     val nextPaymentDate: String = "",
     val nextPaymentAmount: String = "",
     val monthlyIncome: String = "",
+    val debtAmount: String = "",
     val hasUnreadMessages: Boolean = true,
     val cards: List<RoleCard> = emptyList()
 )
@@ -44,6 +48,7 @@ data class RoleUiState(
 class RoleViewModel @Inject constructor(
     private val propertyApi: PropertyApi,
     private val financeApi: FinanceApi,
+    private val bookingApi: BookingApi,
     private val statsCache: RoleStatsCache
 ) : ViewModel() {
 
@@ -88,8 +93,10 @@ class RoleViewModel @Inject constructor(
                 role = role,
                 title = title,
                 hasDeals = cached.hasDeals,
+                hasActiveRent = cached.hasActiveRent,
                 isLoading = false,
                 hasDebt = cached.hasDebt,
+                debtAmount = cached.debtAmount,
                 nextPaymentDate = cached.nextPaymentDate,
                 nextPaymentAmount = cached.nextPaymentAmount,
                 monthlyIncome = cached.monthlyIncome,
@@ -123,21 +130,23 @@ class RoleViewModel @Inject constructor(
                 val props = resp.body() ?: emptyList()
                 val schedules = financeApi.getSchedules().body() ?: emptyList()
                 if (props.isEmpty()) {
-                    statsCache.save("landlord", RoleStatsCache.Stats(hasDeals = false, hasDebt = false, nextPaymentDate = "", nextPaymentAmount = "", monthlyIncome = ""))
-                    _uiState.update { it.copy(hasDeals = false, hasDebt = false, isLoading = false, nextPaymentDate = "", nextPaymentAmount = "", monthlyIncome = "") }
+                    statsCache.save("landlord", RoleStatsCache.Stats(hasDeals = false, hasActiveRent = false, hasDebt = false, nextPaymentDate = "", nextPaymentAmount = "", monthlyIncome = "", debtAmount = ""))
+                    _uiState.update { it.copy(hasDeals = false, hasActiveRent = false, hasDebt = false, isLoading = false, nextPaymentDate = "", nextPaymentAmount = "", monthlyIncome = "", debtAmount = "") }
                     return@launch
                 }
                 var hasDebt = false
+                var debtSum = 0.0
                 for (p in props) {
                     val schedule = schedules.firstOrNull { it.propertyId == p.id }
                     if (schedule != null) {
                         val payments = financeApi.listPayments(p.id).body() ?: emptyList()
                         if (PaymentOverdue.isOverdue(schedule, payments)) {
                             hasDebt = true
-                            break
+                            debtSum += PaymentOverdue.overdueAmount(schedule, payments)
                         }
                     }
                 }
+                val debtAmount = if (hasDebt) formatAmount(debtSum) + " ₽" else ""
                 val nearest = schedules
                     .mapNotNull { PaymentOverdue.nextPayment(it) }
                     .filter { it.date != null }
@@ -145,9 +154,18 @@ class RoleViewModel @Inject constructor(
                 val nextDate = nearest?.date?.let(::formatDate) ?: ""
                 val nextAmount = nearest?.amount?.let(::formatAmount) ?: ""
                 val income = formatAmount(schedules.sumOf { PaymentOverdue.monthlyAmount(it) }) + "/мес"
-                statsCache.save("landlord", RoleStatsCache.Stats(hasDeals = true, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = income))
+                // Активная аренда = есть зелёные ячейки в шахматке (хоть одна бронь)
+                var hasActiveRent = false
+                for (p in props) {
+                    val bookings = bookingApi.getBookings(p.id).body().orEmpty()
+                    if (bookings.isNotEmpty()) {
+                        hasActiveRent = true
+                        break
+                    }
+                }
+                statsCache.save("landlord", RoleStatsCache.Stats(hasDeals = true, hasActiveRent = hasActiveRent, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = income, debtAmount = debtAmount))
                 _uiState.update {
-                    it.copy(hasDeals = true, isLoading = false, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = income)
+                    it.copy(hasDeals = true, hasActiveRent = hasActiveRent, isLoading = false, hasDebt = hasDebt, nextPaymentDate = nextDate, nextPaymentAmount = nextAmount, monthlyIncome = income, debtAmount = debtAmount)
                 }
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false) }
