@@ -187,7 +187,7 @@ private fun String.toApiType(): String = when (this) {
 
 /** Единица измерения по типу счётчика (API). */
 private fun String.toUnit(): String = when (this) {
-    "electricity" -> "кВт·ч"
+    "electricity" -> "кВт"
     "heat" -> "Гкал"
     else -> "м³"
 }

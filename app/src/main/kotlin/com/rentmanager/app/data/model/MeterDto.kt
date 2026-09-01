@@ -9,7 +9,7 @@ data class MeterDto(
     @SerializedName("factory_number") val factoryNumber: String,
     @SerializedName("next_verification_date") val nextVerificationDate: String,
     @SerializedName("current_value") val currentValue: Double,
-    @SerializedName("unit") val unit: String, // "м³", "кВт·ч", "Гкал"
+    @SerializedName("unit") val unit: String, // "м³", "кВт", "Гкал"
     @SerializedName("submit_readings_by") val submitReadingsBy: String,
     @SerializedName("last_updated") val lastUpdated: String? = null,
     @SerializedName("remind_verification") val remindVerification: Boolean = false,

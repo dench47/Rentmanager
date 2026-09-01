@@ -753,7 +753,8 @@ private fun ValueCard(label: String, value: String, modifier: Modifier = Modifie
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
             .padding(start = 20.dp, end = 10.dp),
-        verticalArrangement = Arrangement.Center
+        // Зазор подпись→значение 4dp — как в макете (16 + 4 + 18 = 38 внутри поля 64)
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
     ) {
         Text(label, style = CardSubtitleStyle)
         Text(value.ifBlank { "—" }, style = Headline2MobStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -769,7 +770,7 @@ private fun ValueCard2Lines(label: String, sub: String, value: String) {
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
             .padding(start = 20.dp, end = 10.dp),
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
     ) {
         Text(if (value.isBlank()) label else value, style = Headline2MobStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(sub, style = CardSubtitleStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1091,9 +1092,10 @@ private fun MeterCard(meter: MeterDto, onEnterReading: (MeterDto) -> Unit) {
 // Строка «лейбл: значение» внутри карточки счётчика (13sp; значение — Medium)
 @Composable
 private fun MeterInfoRow(label: String, value: String) {
+    // Оба текста чёрные #212121 (макет 2755-37385): подпись 13/400, значение 13/500
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = CardSubtitleStyle.copy(color = Graphite))
-        Text(value, style = CardSubtitleStyle.copy(fontWeight = FontWeight.Medium))
+        Text(value, style = CardSubtitleStyle.copy(color = Graphite, fontWeight = FontWeight.Medium))
     }
 }
 
