@@ -354,13 +354,14 @@ fun RentManagerNavGraph(
             )
         }
 
-        // ========== Выбор адреса для «Об объекте» (шаг 3 без прогресс-бара) ==========
+        // ========== Выбор адреса для «Об объекте»/«Редактировать объект» (шаг 3 без прогресс-бара) ==========
         composable(
             route = Screen.AboutAddress.route,
             arguments = listOf(
                 navArgument("address") { type = NavType.StringType; defaultValue = "" },
                 navArgument("lat") { type = NavType.StringType; defaultValue = "" },
-                navArgument("lon") { type = NavType.StringType; defaultValue = "" }
+                navArgument("lon") { type = NavType.StringType; defaultValue = "" },
+                navArgument("title") { type = NavType.StringType; defaultValue = "Об объекте" }
             )
         ) { backStackEntry ->
             val args = backStackEntry.arguments
@@ -369,6 +370,9 @@ fun RentManagerNavGraph(
             } ?: ""
             val lat = args?.getString("lat")?.toDoubleOrNull()
             val lon = args?.getString("lon")?.toDoubleOrNull()
+            val title = args?.getString("title")?.let {
+                java.net.URLDecoder.decode(it, "UTF-8")
+            } ?: "Об объекте"
             com.rentmanager.app.ui.landlord.createproperty.CreatePropertyAddressScreen(
                 propertyType = "Квартира",
                 rentType = "длительно",
@@ -379,7 +383,7 @@ fun RentManagerNavGraph(
                 },
                 onClose = { navController.popBackStack() },
                 showProgress = false,
-                screenTitle = "Об объекте",
+                screenTitle = title,
                 initialAddress = address,
                 initialLatitude = lat,
                 initialLongitude = lon,
@@ -419,7 +423,11 @@ fun RentManagerNavGraph(
                 editPropertyId = propertyId,
                 onBack = { navController.popBackStack() },
                 onCreated = { navController.popBackStack() },
-                onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) }
+                onPaymentSchedule = { pid -> navController.navigate(Screen.PaymentSchedule.createRoute(pid)) },
+                // Адрес — полноэкранный выбор, как в «Об объекте» (шаг 3 без прогресс-бара)
+                onOpenAddressPicker = { address, lat, lon ->
+                    navController.navigate(Screen.AboutAddress.createRoute(address, lat, lon, "Редактировать объект"))
+                }
             )
         }
 

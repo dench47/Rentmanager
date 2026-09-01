@@ -34,7 +34,9 @@ class RoleStatsCache @Inject constructor(
             hasDebt = prefs.getBoolean("${key}_has_debt", false),
             nextPaymentDate = prefs.getString("${key}_next_date", "") ?: "",
             nextPaymentAmount = prefs.getString("${key}_next_amount", "") ?: "",
-            monthlyIncome = prefs.getString("${key}_income", "") ?: ""
+            monthlyIncome = prefs.getString("${key}_income", "") ?: "",
+            debtAmount = prefs.getString("${key}_debt_amount", "") ?: "",
+            hasActiveRent = prefs.getBoolean("${key}_has_active_rent", false)
         )
     }
 
@@ -46,6 +48,8 @@ class RoleStatsCache @Inject constructor(
             .putString("${key}_next_date", stats.nextPaymentDate)
             .putString("${key}_next_amount", stats.nextPaymentAmount)
             .putString("${key}_income", stats.monthlyIncome)
+            .putString("${key}_debt_amount", stats.debtAmount)
+            .putBoolean("${key}_has_active_rent", stats.hasActiveRent)
             .apply()
     }
 }

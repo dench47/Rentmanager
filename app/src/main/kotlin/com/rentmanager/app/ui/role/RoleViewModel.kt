@@ -54,7 +54,6 @@ class RoleViewModel @Inject constructor(
 
     private var overduePropertyId: String? = null
     private var overdueAmount: Double = 0.0
-    private var loadedRole: UserRole? = null
 
     private val landlordCards = listOf(
         RoleCard("1", "Моя\nнедвижимость", R.drawable.ic_menu_my_properties),
@@ -108,8 +107,8 @@ class RoleViewModel @Inject constructor(
     }
 
     fun refresh(role: UserRole) {
-        if (loadedRole == role) return
-        loadedRole = role
+        // Обновляем при каждом входе на экран: состояние могло измениться
+        // (закрасили сегмент в шахматке и вернулись — плашка должна быть свежей)
         if (role == UserRole.TENANT) loadTenantFinance() else loadLandlordStats()
     }
 
@@ -153,7 +152,19 @@ class RoleViewModel @Inject constructor(
                     .minByOrNull { it.date!! }
                 val nextDate = nearest?.date?.let(::formatDate) ?: ""
                 val nextAmount = nearest?.amount?.let(::formatAmount) ?: ""
-                val income = formatAmount(schedules.sumOf { PaymentOverdue.monthlyAmount(it) }) + "/мес"
+                // Доход по всем объектам: график платежей есть — его месячная сумма;
+                // иначе ставка объекта: длительно — как есть, посуточно — приведение к месяцу (×30)
+                val income = formatAmount(
+                    props.sumOf { p ->
+                        val schedule = schedules.firstOrNull { it.propertyId == p.id }
+                        if (schedule != null) {
+                            PaymentOverdue.monthlyAmount(schedule)
+                        } else {
+                            val rate = p.rentAmount ?: 0.0
+                            if (p.rentType == "длительно") rate else rate * 30
+                        }
+                    }
+                ) + "/мес"
                 // Активная аренда = есть зелёные ячейки в шахматке (хоть одна бронь)
                 var hasActiveRent = false
                 for (p in props) {

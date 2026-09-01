@@ -76,11 +76,12 @@ sealed class Screen(val route: String) {
         fun createRoute(propertyId: String) = "landlord/about_edit/$propertyId"
     }
 
-    // Выбор адреса с карты для «Об объекте» (шаг 3 без прогресс-бара)
-    data object AboutAddress : Screen("landlord/about_address?address={address}&lat={lat}&lon={lon}") {
-        fun createRoute(address: String, lat: Double?, lon: Double?): String {
+    // Выбор адреса с карты для «Об объекте»/«Редактировать объект» (шаг 3 без прогресс-бара)
+    data object AboutAddress : Screen("landlord/about_address?address={address}&lat={lat}&lon={lon}&title={title}") {
+        fun createRoute(address: String, lat: Double?, lon: Double?, title: String = "Об объекте"): String {
             val encoded = java.net.URLEncoder.encode(address, "UTF-8")
-            return "landlord/about_address?address=$encoded&lat=${lat ?: ""}&lon=${lon ?: ""}"
+            val encTitle = java.net.URLEncoder.encode(title, "UTF-8")
+            return "landlord/about_address?address=$encoded&lat=${lat ?: ""}&lon=${lon ?: ""}&title=$encTitle"
         }
     }
     data object TenantsList : Screen("landlord/tenants")

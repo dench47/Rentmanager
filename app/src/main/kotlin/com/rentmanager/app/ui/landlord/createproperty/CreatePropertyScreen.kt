@@ -54,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,6 +113,8 @@ fun CreatePropertyScreen(
     onCreated: (String) -> Unit = {},
     onPaymentSchedule: (String) -> Unit = {},
     onAddCounter: () -> Unit = {},
+    // Режим правки: тап по адресу открывает полноэкранный выбор (как в «Об объекте»)
+    onOpenAddressPicker: ((address: String, lat: Double?, lon: Double?) -> Unit)? = null,
     viewModel: CreatePropertyViewModel = hiltViewModel()
 ) {
     val isEditMode = editPropertyId != null
@@ -152,46 +155,51 @@ fun CreatePropertyScreen(
         return
     }
 
-    // В режиме редактирования поля предзаполняются данными объекта
+    // В режиме редактирования поля предзаполняются данными объекта.
+    // rememberSaveable: правки переживают уход на полноэкранный выбор адреса и назад
     val editKey = editProperty?.id
-    var name by remember(editKey) {
+    var name by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.name.orEmpty() else CreateDraftHolder.name)
     }
-    var area by remember(editKey) {
+    var area by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.area?.toFieldText().orEmpty() else CreateDraftHolder.area)
     }
-    var price by remember(editKey) {
+    var price by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.rentAmount?.toFieldText().orEmpty() else CreateDraftHolder.price)
     }
-    var description by remember(editKey) {
+    var description by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.description.orEmpty() else CreateDraftHolder.description)
     }
 
-    var rooms by remember(editKey) {
+    var rooms by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.rooms else CreateDraftHolder.rooms)
     }
-    var sleepingPlaces by remember(editKey) {
+    var sleepingPlaces by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.sleepingPlaces else CreateDraftHolder.sleepingPlaces)
     }
-    var floor by remember(editKey) {
+    var floor by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.floor else CreateDraftHolder.floor)
     }
-    var floorsInHouse by remember(editKey) {
+    var floorsInHouse by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.floorsInHouse else CreateDraftHolder.floorsInHouse)
     }
 
-    var phoneNumber by remember(editKey) {
+    var phoneNumber by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.phone.orEmpty().removePrefix("+") else CreateDraftHolder.phoneNumber)
     }
-    var wifiPassword by remember(editKey) {
+    var wifiPassword by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.wifiPassword.orEmpty() else CreateDraftHolder.wifiPassword)
     }
-    var rulesText by remember(editKey) {
+    var rulesText by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.houseRules.orEmpty() else CreateDraftHolder.rulesText)
     }
-    var serviceInfo by remember(editKey) {
+    var serviceInfo by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.serviceInfo.orEmpty() else CreateDraftHolder.serviceInfo)
     }
+    // Адрес/координаты, выбранные заново на карте (режим правки)
+    var editAddress by rememberSaveable { mutableStateOf<String?>(null) }
+    var editLatitude by rememberSaveable { mutableStateOf<Double?>(null) }
+    var editLongitude by rememberSaveable { mutableStateOf<Double?>(null) }
     // Оба аккордеона изначально свёрнуты
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
@@ -217,7 +225,13 @@ fun CreatePropertyScreen(
         onDispose { metersLifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    var photoUris by remember(editKey) {
+    var photoUris by rememberSaveable(
+        editKey,
+        stateSaver = androidx.compose.runtime.saveable.listSaver(
+            save = { it.toList() },
+            restore = { it }
+        )
+    ) {
         mutableStateOf(
             if (isEditMode) editProperty?.photos.orEmpty().map { it.url } else CreateDraftHolder.photoUris
         )
@@ -245,9 +259,27 @@ fun CreatePropertyScreen(
     // В режиме редактирования тип/аренда/адрес/координаты берём из объекта
     val effPropertyType = editProperty?.type ?: propertyType
     val effRentType = editProperty?.rentType ?: rentType
-    val effAddress = editProperty?.address ?: initialAddress
-    val effLatitude = editProperty?.latitude ?: initialLatitude
-    val effLongitude = editProperty?.longitude ?: initialLongitude
+    val effAddress = editAddress ?: editProperty?.address ?: initialAddress
+    val effLatitude = editLatitude ?: editProperty?.latitude ?: initialLatitude
+    val effLongitude = editLongitude ?: editProperty?.longitude ?: initialLongitude
+
+    // Адрес, выбранный на полноэкранной карте (режим правки): применяем при возврате
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && isEditMode) {
+                com.rentmanager.app.ui.landlord.propertycard.about.AboutAddressResult.consume()
+                    ?.let { (newAddress, newLat, newLon) ->
+                        editAddress = newAddress
+                        editLatitude = newLat
+                        editLongitude = newLon
+                        addressError = false
+                    }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     // id объекта для «Графика платежей» (в режиме правки — редактируемый объект)
     val schedulePropertyId = propertyId ?: editPropertyId
 
@@ -272,7 +304,8 @@ fun CreatePropertyScreen(
             wifiPassword != p.wifiPassword.orEmpty() ||
             rulesText != p.houseRules.orEmpty() ||
             serviceInfo != p.serviceInfo.orEmpty() ||
-            photoUris != p.photos.orEmpty().map { it.url }
+            photoUris != p.photos.orEmpty().map { it.url } ||
+            editAddress != null
     } == true
 
     fun attemptSave() {
@@ -324,6 +357,9 @@ fun CreatePropertyScreen(
         rulesText = p.houseRules.orEmpty()
         serviceInfo = p.serviceInfo.orEmpty()
         photoUris = p.photos.orEmpty().map { it.url }
+        editAddress = null
+        editLatitude = null
+        editLongitude = null
         nameError = false
         roomsError = false
         addressError = false
@@ -460,8 +496,15 @@ fun CreatePropertyScreen(
                         isError = nameError,
                         errorHint = "Это поле обязательно для заполнения"
                     )
-                    // Адрес перенесён на шаг 3 — здесь только отображение
-                    CardAddressDisplay(address = effAddress, isError = addressError)
+                    // В создании адрес выбран на шаге 3 (только отображение);
+                    // в правке — тап открывает полноэкранный выбор, как в «Об объекте»
+                    CardAddressDisplay(
+                        address = effAddress,
+                        isError = addressError,
+                        onClick = if (isEditMode && onOpenAddressPicker != null) {
+                            { onOpenAddressPicker(effAddress, effLatitude, effLongitude) }
+                        } else null
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth().height(65.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1119,12 +1162,14 @@ private fun FieldErrorHint(text: String) {
     )
 }
 
-// Адрес — только отображение (карта на шаге 3); ошибка — рамка + подпись + подсказка (Figma 5)
+// Адрес — отображение (карта на шаге 3); ошибка — рамка + подпись + подсказка (Figma 5).
+// В режиме правки onClick открывает полноэкранный выбор адреса.
 @Composable
 private fun CardAddressDisplay(
     address: String,
     modifier: Modifier = Modifier,
-    isError: Boolean = false
+    isError: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(
@@ -1134,6 +1179,7 @@ private fun CardAddressDisplay(
                 .clip(RoundedCornerShape(20.dp))
                 .background(CardBackground)
                 .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
                 .padding(start = 20.dp, end = 10.dp),
             contentAlignment = Alignment.CenterStart
         ) {
