@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -30,8 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -60,7 +57,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
-import com.rentmanager.app.ui.components.DesignWidthDialog
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.theme.CardBackground
 import com.rentmanager.app.ui.theme.InterFontFamily
@@ -774,55 +770,6 @@ private fun RemindSwitchRow(
 
 // Диалог «Выйти без сохранения?» (Figma 2711:39066): карточка r20, заголовок
 // 20/600, подпись 15/600 #727272, чёрная CTA «Продолжить редактирование» и
-// контурная «Выйти без сохранения». Закрывается ТОЛЬКО кнопками — ни тап
-// мимо, ни системный «назад» его не скрывают. Ширина — макетная (DesignWidthDialog)
-@Composable
-private fun ExitConfirmDialog(
-    onContinueEditing: () -> Unit,
-    onExit: () -> Unit
-) {
-    DesignWidthDialog(
-        onDismissRequest = { },
-        dismissOnBackPress = false,
-        dismissOnClickOutside = false
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text("Выйти без сохранения?", style = ToolbarTitleStyle)
-            Text(
-                "Внесенные изменения не сохранятся",
-                style = Headline2MobStyle.copy(color = GreyText)
-            )
-            Spacer(Modifier.height(14.dp))
-            BlackCtaButton(
-                text = "Продолжить редактирование",
-                onClick = onContinueEditing
-            )
-            // Контурная кнопка выхода (1dp #212121, r100)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(55.dp)
-                    .clip(RoundedCornerShape(100.dp))
-                    .border(1.dp, Graphite, RoundedCornerShape(100.dp))
-                    .clickable(onClick = onExit),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Выйти без сохранения", style = Headline2MobStyle)
-            }
-        }
-    }
-}
-
-
-
-
 // Таб-кнопка нижнего таббара (копия TabButton из карточки объекта)
 @Composable
 private fun CounterTabButton(label: String, iconRes: Int, onClick: () -> Unit) {

@@ -11,8 +11,11 @@ class RentManagerApp : Application() {
         super.onCreate()
         // User-Agent для тайлов OpenStreetMap (требование политики OSM)
         Configuration.getInstance().userAgentValue = packageName
-        // Принудительно запрашиваем FCM-токен при старте приложения
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        // Принудительно запрашиваем FCM-токен при старте приложения.
+        // Оба варианта API (token/getToken) помечены устаревшими в текущем
+        // Firebase BOM — рабочий вариант один, предупреждение подавлено
+        @Suppress("DEPRECATION")
+        FirebaseMessaging.getInstance().getToken().addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val token = task.result
                 getSharedPreferences("auth", MODE_PRIVATE)

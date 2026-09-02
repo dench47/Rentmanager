@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
-import com.rentmanager.app.data.model.PropertyDto
 
 private val GradientBackground = Brush.verticalGradient(
     colors = listOf(Color.White, Color(0xFFF5F7FA))

@@ -5,7 +5,6 @@ import android.app.ActivityManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -101,7 +100,7 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
     }
 
     private fun isAppInForeground(): Boolean {
-        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val am = getSystemService(ACTIVITY_SERVICE) as ActivityManager
         val procs = am.runningAppProcesses ?: return false
         return procs.any {
             it.processName == packageName &&
@@ -117,7 +116,7 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
                 DateTimeFormatter.ofPattern("HH:mm")
                     .withZone(ZoneId.systemDefault())
                     .format(Instant.ofEpochSecond(ts))
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 null
             }
         }
@@ -126,6 +125,7 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
     }
 
     @Suppress("DEPRECATION") // устаревший API FCM: миграция на onRegistered(FID) — отдельная задача
+    @Deprecated("Deprecated in FirebaseMessagingService")
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("FCM", "New token: $token")

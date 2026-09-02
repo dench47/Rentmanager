@@ -56,8 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
-import com.rentmanager.app.data.model.PropertyDto
-import com.rentmanager.app.ui.components.AddressMapPicker
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.OutlineCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.ScreenToolbar

@@ -13,7 +13,8 @@ import android.view.View
  */
 class ScheduleGridView(context: Context) : View(context) {
     private val density = resources.displayMetrics.density
-    private val scaledDensity = resources.displayMetrics.scaledDensity
+    // scaledDensity устарел (API 34): sp->px через density и масштаб шрифта
+    private val spToPx = resources.displayMetrics.density * resources.configuration.fontScale
 
     private val cellW = 44f * density
     private val cellH = 39f * density
@@ -43,7 +44,7 @@ class ScheduleGridView(context: Context) : View(context) {
     private var selectionEnd: Int? = null
 
     private fun textPaint(sp: Float): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = sp * scaledDensity
+        textSize = sp * spToPx
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         textAlign = Paint.Align.CENTER
     }

@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -45,7 +43,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.LaunchedEffect
@@ -66,7 +63,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -77,8 +73,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
@@ -214,7 +208,7 @@ fun CreatePropertyScreen(
 
     // Черновые счётчики (шаг 4): обновляются при возврате с экрана «Добавить счетчик»
     var draftMeters by remember(editKey) { mutableStateOf(CreateDraftHolder.meters) }
-    val metersLifecycleOwner = LocalLifecycleOwner.current
+    val metersLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(metersLifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -1457,42 +1451,3 @@ private fun TransparentNoteField(
         }
     )
 }
-
-// Многострочное поле внутри аккордеона — белая карточка
-@Composable
-private fun MultilineTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-    ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 80.dp),
-            textStyle = CardSubtitleStyle.copy(color = Graphite),
-            cursorBrush = SolidColor(Graphite),
-            decorationBox = { innerTextField ->
-                Box {
-                    if (value.isEmpty() && placeholder.isNotEmpty()) {
-                        Text(placeholder, style = CardSubtitleStyle)
-                    }
-                    innerTextField()
-                }
-            }
-        )
-    }
-}
-
-
-
-

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
@@ -159,7 +161,7 @@ fun SecurityScreen(
                         )
                         HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.06f))
                         StatusRow(
-                            VerificationMethod.TELEGRAM.label, Icons.Default.Send,
+                            VerificationMethod.TELEGRAM.label, Icons.AutoMirrored.Filled.Send,
                             if (uiState.telegramLinked) "Привязан" else "Не привязан",
                             if (uiState.telegramLinked) "Отвязать" else "Активировать",
                             onAction = {
@@ -169,7 +171,7 @@ fun SecurityScreen(
                         )
                         HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.06f))
                         StatusRow(
-                            VerificationMethod.MAX.label, Icons.Default.Chat,
+                            VerificationMethod.MAX.label, Icons.AutoMirrored.Filled.Chat,
                             "Скоро", null, onAction = {}
                         )
                     }

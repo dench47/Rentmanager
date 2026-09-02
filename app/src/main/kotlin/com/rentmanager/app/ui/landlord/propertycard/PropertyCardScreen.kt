@@ -1,10 +1,6 @@
 package com.rentmanager.app.ui.landlord.propertycard
 
 import android.widget.Toast
-import androidx.compose.ui.window.DialogWindowProvider
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.runtime.SideEffect
-import android.view.ViewGroup
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
@@ -52,7 +47,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -61,8 +55,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
@@ -99,10 +91,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 
 private val GreenIcon = Color(0xFFE5F2E7)
 private val GreenText = Color(0xFF2F7D4D)
-private val BrandTint = Color(0xFFFFF1CF)
-private val White50 = Color(0x80FFFFFF)
 // rgba(33,33,33,0.85) — рамка кнопок в нижнем шите действий
 private val Graphite85 = Color(0xD9212121)
+
+private val White50 = Color(0x80FFFFFF)
 // rgba(33,33,33,0.4) — разделитель в шите действий (Figma 2574:21650)
 private val DividerGrey = Color(0x66212121)
 // rgba(33,33,33,0.4) — drag handle шита действий (Figma 2574:21650)

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -89,11 +88,6 @@ private val TextGray = Color(0xFF727272)
 private val ToggleBg = Color(0xFFEFEFEF)
 
 // Шахматка (ячейки 44×39, r=4, gap=4)
-private val CellFullBg = Color(0xFFCFDECB)
-private val CellFullStroke = Color(0xFF66A256)
-private val CellExpiredStroke = Color(0xFFFF4249)
-private val CellFreeBg = Color(0xFFEFEFEF)
-private val CellFreeStroke = Color(0xFF727272)
 
 private val NameTextStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
 private val AddressTextStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, letterSpacing = (-0.4).sp)
@@ -621,11 +615,7 @@ private fun ScheduleRow(
     }
 }
 
-private fun cellColors(state: String): Triple<Color, Color, Color> = when (state) {
-    "expired" -> Triple(CellFullBg, CellExpiredStroke, CellExpiredStroke)
-    "free" -> Triple(CellFreeBg, CellFreeStroke, CellFreeStroke)
-    else -> Triple(CellFullBg, CellFullStroke, TextPrimary)
-}
+
 
 // TEMP: диагностика времени measure (удалить после профилирования)
 private fun Modifier.logMeasure(tag: String): Modifier = layout { measurable, constraints ->

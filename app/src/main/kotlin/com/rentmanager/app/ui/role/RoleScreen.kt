@@ -40,12 +40,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.ui.components.DashboardCard
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.landlord.createproperty.rememberCtaGradient
-import com.rentmanager.app.ui.theme.RentManagerTheme
 
 @Composable
 fun RoleScreen(

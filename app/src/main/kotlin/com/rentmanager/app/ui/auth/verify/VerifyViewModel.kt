@@ -3,7 +3,6 @@ package com.rentmanager.app.ui.auth.verify
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
-import com.rentmanager.app.data.api.CallCheckAddResponse
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.RequestApprovalRequest
 import com.rentmanager.app.data.api.SendCodeRequest
@@ -150,7 +149,7 @@ class VerifyViewModel @Inject constructor(
                 } else {
                     _uiState.update { it.copy(isLoading = false, errorMessage = "Сервер недоступен") }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Нет связи с сервером") }
             }
         }
