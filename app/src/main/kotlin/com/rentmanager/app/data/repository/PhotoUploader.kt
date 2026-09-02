@@ -49,10 +49,14 @@ class PhotoUploader @Inject constructor(
     private fun readUploadBytes(uri: Uri): Pair<ByteArray, String> {
         val resolver = context.contentResolver
 
-        // Габариты без декодирования пикселей
+        // Габариты без декодирования пикселей.
+        // ВАЖНО: null-проверка потока — отдельно от результата decodeStream:
+        // в inJustDecodeBounds decodeStream ВСЕГДА возвращает null-Bitmap
+        fun openStream() = resolver.openInputStream(uri)
+            ?: throw Exception("Не удалось открыть фото")
+
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            ?: throw Exception("Cannot open file")
+        openStream().use { BitmapFactory.decodeStream(it, null, bounds) }
         val srcW = bounds.outWidth
         val srcH = bounds.outHeight
 
@@ -77,8 +81,9 @@ class PhotoUploader @Inject constructor(
             sample *= 2
         }
         val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-        val decoded = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
-            ?: throw Exception("Cannot open file")
+        val decoded = openStream().use { BitmapFactory.decodeStream(it, null, opts) }
+        // Декодировать не удалось — отдаём оригинал как есть
+            ?: return readOriginal(uri) to (resolver.getType(uri) ?: "image/jpeg")
 
         // Поворот по EXIF + точный даунскейл до MAX_SIDE — одной матрицей
         val scale = if (maxOf(decoded.width, decoded.height) > MAX_SIDE) {
@@ -99,7 +104,7 @@ class PhotoUploader @Inject constructor(
 
     private fun readOriginal(uri: Uri): ByteArray =
         context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: throw Exception("Cannot open file")
+            ?: throw Exception("Не удалось открыть фото")
 
     /** Угол поворота из EXIF (портретные кадры камеры хранятся лежащими + флаг). */
     private fun exifRotationDegrees(uri: Uri): Float {
