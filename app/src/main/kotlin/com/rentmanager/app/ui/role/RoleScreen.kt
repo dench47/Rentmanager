@@ -102,15 +102,25 @@ fun RoleScreen(
                 }
 
                 // Секция статистики (Figma 2596-22499/2533-17398/2533-17422):
-                // у арендодателя — статистика + плашка-статус по ситуации.
+                // у арендодателя — статистика + плашка-статус по ситуации;
+                // без единого объекта — вместо них инфо-карточка (Figma 2523-28358).
                 // 105dp у арендодателя: без мёртвого запаса, зазор плашка→карточки ≈ 24.5dp
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(if (uiState.role == UserRole.LANDLORD) 105.dp else 119.dp)
+                        .height(
+                            when {
+                                uiState.role != UserRole.LANDLORD -> 119.dp
+                                uiState.hasDeals -> 105.dp
+                                else -> 116.dp // текст 2×18 + зазор 10 + пилюля 55 + низ 14
+                            }
+                        )
                 ) {
                     when {
                         uiState.isLoading -> { }
+                        uiState.role == UserRole.LANDLORD && !uiState.hasDeals -> LandlordNoObjectsCard(
+                            onAddFirstObject = onNavigateToCreateProperty
+                        )
                         uiState.role == UserRole.LANDLORD -> LandlordStatsSection(
                             uiState.nextPaymentDate,
                             uiState.nextPaymentAmount,
@@ -443,6 +453,36 @@ private fun TenantStatsSection(paymentDate: String, paymentAmount: String, hasDe
                 Text("Оплатить", fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = InterFontFamily, color = Color.White, letterSpacing = (-0.4).sp)
             }
         }
+    }
+}
+
+// Инфо-карточка «нет ни одного объекта» (Figma 2523-28358): белый фон r20,
+// слева текст в две строки, ниже чёрная пилюля «Добавить первый объект» (55dp,
+// как все CTA проекта) — тап открывает стандартный поток создания объекта
+@Composable
+private fun LandlordNoObjectsCard(onAddFirstObject: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            "Ведите аренду, платежи, договоры и показания счётчиков в одном месте.",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = InterFontFamily,
+            color = Color(0xFF212121),
+            letterSpacing = (-0.4).sp,
+            lineHeight = 18.sp
+        )
+        CtaButton(
+            iconRes = R.drawable.ic_cta_plus,
+            text = "Добавить первый объект",
+            onClick = onAddFirstObject
+        )
     }
 }
 
