@@ -41,7 +41,7 @@ import com.rentmanager.app.ui.components.UpdateDialog
 import com.rentmanager.app.ui.navigation.RentManagerNavGraph
 import com.rentmanager.app.ui.theme.RentManagerTheme
 import com.rentmanager.app.ui.theme.createDesignWidthContext
-import com.rentmanager.app.ui.theme.shouldRecreateForDesignWidth
+import com.rentmanager.app.ui.theme.isDesignWidthApplied
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -104,6 +104,13 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Дубль страховки масштаба: если attachBaseContext/onCreate прошли по
+        // мусорным метрикам — окно уже существует, его метрики настоящие
+        if (!designWidthRecreateAttempted && !isDesignWidthApplied()) {
+            designWidthRecreateAttempted = true
+            recreate()
+            return
+        }
         // Фоновая блокировка PIN'ом — только если локально включён запрос PIN
         if (tokenManager.hasPassword && tokenManager.localPinEnabled && tokenManager.accessToken != null) {
             val now = System.currentTimeMillis()
@@ -166,8 +173,9 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
         // Холодный старт с полуинициализированной конфигурацией мог обойти
-        // масштабирование 412dp — пересоздаёмся один раз, конфигурация уже настоящая
-        if (!designWidthRecreateAttempted && shouldRecreateForDesignWidth()) {
+        // масштабирование 412dp — сверяемся с реальными метриками ОКНА
+        // (не ресурсов!) и пересоздаёмся один раз
+        if (!designWidthRecreateAttempted && !isDesignWidthApplied()) {
             designWidthRecreateAttempted = true
             recreate()
             return

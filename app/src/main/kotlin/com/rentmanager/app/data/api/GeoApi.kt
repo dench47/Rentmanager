@@ -1,5 +1,6 @@
 package com.rentmanager.app.data.api
 
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
@@ -28,7 +29,9 @@ data class PhotonProperties(
     val state: String? = null,
     val country: String? = null,
     val type: String? = null,
-    val extent: List<Double>? = null // [minLon, minLat, maxLon, maxLat]
+    val extent: List<Double>? = null, // [minLon, minLat, maxLon, maxLat]
+    @SerializedName("osm_key") val osmKey: String? = null,
+    @SerializedName("osm_value") val osmValue: String? = null
 )
 
 interface GeoApi {
@@ -44,6 +47,8 @@ interface GeoApi {
     @GET("reverse")
     suspend fun reverseGeocode(
         @Query("lon") lon: Double,
-        @Query("lat") lat: Double
+        @Query("lat") lat: Double,
+        // Несколько кандидатов: среди них выбираем дом, а не ближайшую организацию
+        @Query("limit") limit: Int = 10
     ): Response<PhotonResponse>
 }

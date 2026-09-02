@@ -87,7 +87,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalFocusManager
 
 private val GreenIcon = Color(0xFFE5F2E7)
 private val GreenText = Color(0xFF2F7D4D)
@@ -101,6 +100,7 @@ private val DividerGrey = Color(0x66212121)
 private val SheetHandleGrey = Color(0x66212121)
 
 // Карточка объекта (Figma 2Y1uc9owPaF7N9jzQhhuIr, node 2574:20588)
+@Suppress("ASSIGNED_VALUE_NEVER_READ") // K2 не понимает порядок колбэков шитов (KT-78881): сбросы showXxxSheet = false в onDismiss читаются рендером выше по файлу
 @Composable
 fun PropertyCardScreen(
     propertyId: String,
@@ -139,7 +139,7 @@ fun PropertyCardScreen(
     // Шиты быстрого редактирования секций (карандаши у заголовков) и сетки фото
     var showRentSheet by remember { mutableStateOf(false) }
     var showTenantSheet by remember { mutableStateOf(false) }
-    var readingMeter by remember { mutableStateOf<com.rentmanager.app.data.model.MeterDto?>(null) }
+    var readingMeter by remember { mutableStateOf<MeterDto?>(null) }
     var showPhotosSheet by remember { mutableStateOf(false) }
 
     // Инлайн-редактирование «Информация об объекте» (Figma 2677-26576):
@@ -351,11 +351,7 @@ fun PropertyCardScreen(
                         ValueCard("Этаж", property?.floor ?: "", Modifier.weight(1f))
                         ValueCard("Этажей в доме", property?.floorsInHouse ?: "", Modifier.weight(1f))
                     }
-                    ValueCard2Lines(
-                        "Описание объявления",
-                        "Эта информация будет видна в объявлении",
-                        property?.description.orEmpty()
-                    )
+                    ValueCard2Lines(property?.description.orEmpty())
                     ValueCard(
                         if ((uiState.schedule?.type
                                 ?: if (property?.rentType == "длительно") "auto" else "manual") == "auto"
@@ -370,7 +366,7 @@ fun PropertyCardScreen(
 
                 // Публикация
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    GradientFullButton("Опубликовать объявление") {}
+                    GradientFullButton({})
                     Text(
                         "После публикации объявление станет доступно для просмотра арендаторам",
                         style = TextIconeStyle.copy(color = GreyText)
@@ -574,7 +570,7 @@ fun PropertyCardScreen(
 
 @Composable
 private fun PhotoSlider(property: PropertyDto?, onEdit: () -> Unit = {}) {
-    val photos = property?.photos?.mapNotNull { it.url } ?: emptyList()
+    val photos = property?.photos.orEmpty().map { it.url }
     val pagerState = rememberPagerState { photos.size }
     val scope = rememberCoroutineScope()
     Box(
@@ -755,8 +751,12 @@ private fun ValueCard(label: String, value: String, modifier: Modifier = Modifie
     }
 }
 
+// Карточка описания объявления (единственное место использования — секция «Об описе»):
+// пустое описание показывает подпись, заполненное — сам текст; снизу — подсказка
 @Composable
-private fun ValueCard2Lines(label: String, sub: String, value: String) {
+private fun ValueCard2Lines(value: String) {
+    val label = "Описание объявления"
+    val sub = "Эта информация будет видна в объявлении"
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1135,23 +1135,22 @@ private fun ServiceNoteContent(
         Modifier.fillMaxWidth()
             .padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 10.dp)
     ) {
-        NoteField(text = text, focused = focused, onTextChange = onTextChange, placeholder = null)
+        NoteField(text = text, focused = focused, onTextChange = onTextChange)
     }
 }
 
 // Заметка: многострочный ввод без ограничений длины (Figma 2677-26172: 13 Regular).
 // focused=true — автофокус с курсором в начале первой строки при раскрытии аккордеона;
 // сохранение — по потере фокуса
+@Suppress("ASSIGNED_VALUE_NEVER_READ") // K2 не понимает порядок колбэков (KT-78881): hasFocus читается в ветке else if
 @Composable
 private fun NoteField(
     text: String,
     focused: Boolean,
-    onTextChange: (String) -> Unit,
-    placeholder: String?
+    onTextChange: (String) -> Unit
 ) {
     var value by remember(text) { mutableStateOf(text) }
     val focusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
     var hasFocus by remember { mutableStateOf(false) }
 
     // При появлении поля (раскрытие аккордеона) — сразу фокус, мигающий курсор в начале
@@ -1182,9 +1181,6 @@ private fun NoteField(
         cursorBrush = SolidColor(Graphite),
         decorationBox = { innerTextField ->
             Box {
-                if (value.isEmpty() && placeholder != null) {
-                    Text(placeholder, style = CardSubtitleStyle)
-                }
                 innerTextField()
             }
         }
@@ -1195,8 +1191,10 @@ private fun NoteField(
     }
 }
 
+// Градиентная кнопка «Опубликовать объявление» секции «Публикация» (единственное место использования)
 @Composable
-private fun GradientFullButton(text: String, onClick: () -> Unit) {
+private fun GradientFullButton(onClick: () -> Unit) {
+    val text = "Опубликовать объявление"
     val density = LocalDensity.current
     val brush = remember(density) {
         with(density) {

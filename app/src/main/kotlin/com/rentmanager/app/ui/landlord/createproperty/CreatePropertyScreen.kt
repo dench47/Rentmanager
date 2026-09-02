@@ -749,8 +749,11 @@ fun CreatePropertyScreen(
                             enabled = !uiState.isCreating
                         ) { showResetDialog = true }
                     } else {
-                        // Валидация + создание (общая для обеих кнопок)
+                        // Валидация + создание (общая для обеих кнопок).
+                        // Guard от повторного нажатия: пока создание идёт (или уже
+                        // succeeded и ждём навигации) — новый объект не создаём
                         fun validateAndCreate() {
+                            if (uiState.isCreating) return
                             nameError = name.isBlank()
                             roomsError = rooms == null
                             addressError = effAddress.isBlank()
@@ -772,8 +775,8 @@ fun CreatePropertyScreen(
                             }
                         }
                         // Figma 5: градиентная «Создать и опубликовать» первой, затем контурная
-                        GradientCtaButton(text = "Создать и опубликовать") { validateAndCreate() }
-                        OutlineCtaButton(text = "Создать объект") { validateAndCreate() }
+                        GradientCtaButton(text = "Создать и опубликовать", enabled = !uiState.isCreating) { validateAndCreate() }
+                        OutlineCtaButton(text = "Создать объект", enabled = !uiState.isCreating) { validateAndCreate() }
                     }
                 }
 

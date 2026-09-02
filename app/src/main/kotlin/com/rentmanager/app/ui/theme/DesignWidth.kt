@@ -1,8 +1,10 @@
 package com.rentmanager.app.ui.theme
 
+import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import android.hardware.display.DisplayManager
+import android.os.Build
 import android.util.DisplayMetrics
 import android.view.Display
 import android.view.WindowManager
@@ -22,7 +24,7 @@ import android.view.WindowManager
  * масштаб не нужен. Целевая плотность = 160 × px / 412 — детерминированно.
  * Источники пикселей (по убыванию надёжности): DisplayManager, дефолтный
  * дисплей WindowManager, метрики ресурсов. Страховка на случай полного провала
- * — shouldRecreateForDesignWidth(): пересоздание Activity один раз.
+ * — isDesignWidthApplied(): пересоздание Activity один раз.
  */
 private const val DESIGN_WIDTH_DP = 412f
 
@@ -97,13 +99,30 @@ private fun Context.appContext(): Context = try {
 }
 
 /**
- * Страховка после отрисовки: фактическая ширина экрана в dp меньше 412dp —
- * масштаб не применился, Activity пересоздаётся один раз (к этому моменту
- * ресурсы гарантированно настоящие). См. MainActivity.onCreate.
+ * Страховка после создания окна: плотность контекста должна совпадать с
+ * целевой для ФИЗИЧЕСКОЙ ширины экрана. К этому моменту окно Activity уже
+ * существует и его метрики настоящие — в отличие от attachBaseContext, где
+ * на части холодных стартов дисплей ещё «не проснулся» и все источники
+ * отдавали мусор (поэтому прежняя проверка шириной в dp могла ложно пройти).
+ * Вызывается из onCreate и onResume — см. MainActivity.
  */
-fun Context.shouldRecreateForDesignWidth(): Boolean {
-    val metrics = resources.displayMetrics
-    if (metrics.density <= 0f || metrics.widthPixels <= 0) return false
-    val effectiveWidthDp = metrics.widthPixels / metrics.density
-    return effectiveWidthDp < DESIGN_WIDTH_DP - 2f
+fun Activity.isDesignWidthApplied(): Boolean {
+    val widthPx = windowRealWidthPx()
+    if (widthPx <= 0) return true // измерить не смогли — не пересоздаём
+    val targetDpi = (160f * widthPx / DESIGN_WIDTH_DP).toInt()
+    return resources.displayMetrics.densityDpi == targetDpi
+}
+
+/** Физическая ширина окна Activity (надёжно начиная с onCreate). */
+private fun Activity.windowRealWidthPx(): Int = try {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        windowManager.currentWindowMetrics.bounds.width()
+    } else {
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        metrics.widthPixels
+    }
+} catch (_: Exception) {
+    0
 }

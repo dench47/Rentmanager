@@ -46,8 +46,6 @@ data class MyPropertyItem(
     val overdue: Boolean = false,
     val rentType: String = "посуточно",
     val rentAmount: Double? = null,
-    /** Тип графика платежей: auto = постоянный (месяцы), manual = переменный (сутки). */
-    val scheduleType: String? = null,
     val year: Int = LocalDate.now().year,
     val month: Int = LocalDate.now().monthValue // 1..12
 )
@@ -87,19 +85,11 @@ class MyPropertiesViewModel @Inject constructor(
     val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
 
     /**
-     * Режим шахматки привязан к типу графика платежей: постоянный (auto) → «Месяцы»,
-     * переменный (manual) → «Сутки». Переключили график в «Графике и реквизитах» —
-     * объект переезжает в другой режим шахматки. Без графика — по типу аренды объекта.
+     * «Моя недвижимость» и шахматка показывают ВСЕ объекты в любом режиме
+     * (месяцы/сутки): раскраска ячеек идёт по броням и графикам платежей,
+     * поэтому фильтр по типу графика не нужен.
      */
-    val visibleProperties: StateFlow<List<MyPropertyItem>> =
-        kotlinx.coroutines.flow.combine(_properties, _viewMode) { list, mode ->
-            val wanted = if (mode == ViewMode.MONTHS) "auto" else "manual"
-            list.filter { item ->
-                val type = item.scheduleType
-                    ?: if (item.rentType == "длительно") "auto" else "manual"
-                type == wanted
-            }
-        }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Lazily, emptyList())
+    val visibleProperties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
 
     init {
         refresh()
@@ -268,7 +258,7 @@ class MyPropertiesViewModel @Inject constructor(
         try {
             val schedule = schedules.forProperty(item.id)
             val payments = financeApi.listPayments(item.id).body() ?: emptyList()
-            item.copy(overdue = PaymentOverdue.isOverdue(schedule, payments), scheduleType = schedule?.type)
+            item.copy(overdue = PaymentOverdue.isOverdue(schedule, payments))
         } catch (_: Exception) {
             item
         }

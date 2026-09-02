@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -162,60 +164,63 @@ fun CreatePropertyAddressScreen(
                 }
             }
 
-            // Подсказки адреса над шитом
-            if (uiState.addressSuggestions.isNotEmpty()) {
-                Card(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(
-                            bottom = paddingValues.calculateBottomPadding() + 165.dp + 8.dp,
-                            start = 20.dp,
-                            end = 20.dp
-                        ),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 240.dp)
-                    ) {
-                        uiState.addressSuggestions.forEachIndexed { index, suggestion ->
-                            Text(
-                                suggestion.displayName,
-                                fontSize = 14.sp,
-                                color = Graphite,
-                                letterSpacing = (-0.4).sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        address = TextFieldValue(" " + suggestion.displayName, TextRange(0))
-                                        viewModel.selectAddress(suggestion)
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                            )
-                            if (index < uiState.addressSuggestions.lastIndex) {
-                                HorizontalDivider(color = DividerLight, thickness = 1.dp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Нижний шит (Figma 2507-8642: высота 165 = 20 + поле 64 + зазор 6 + CTA 55 + 20)
+            // Низ экрана: подсказки + шит одним блоком; imePadding поднимает
+            // блок над клавиатурой — поле «Укажите адрес» всегда видно при вводе
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(bottom = paddingValues.calculateBottomPadding())
-                    .background(Color.White, RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                    .padding(20.dp)
-                    .height(165.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .navigationBarsPadding()
+                    .imePadding()
             ) {
+                // Подсказки адреса над шитом
+                if (uiState.addressSuggestions.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 240.dp)
+                        ) {
+                            uiState.addressSuggestions.forEachIndexed { index, suggestion ->
+                                Text(
+                                    suggestion.displayName,
+                                    fontSize = 14.sp,
+                                    color = Graphite,
+                                    letterSpacing = (-0.4).sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            address = TextFieldValue(" " + suggestion.displayName, TextRange(0))
+                                            viewModel.selectAddress(suggestion)
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                                )
+                                if (index < uiState.addressSuggestions.lastIndex) {
+                                    HorizontalDivider(color = DividerLight, thickness = 1.dp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Нижний шит (Figma 2507-8642: высота 165 = 20 + поле 64 + зазор 6 + CTA 55 + 20)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White, RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                        .padding(20.dp)
+                        .height(165.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                 // Поле «Укажите адрес» (64dp, #EFEFEF, r20, padding 20/10)
                 Box(
                     modifier = Modifier
@@ -270,6 +275,7 @@ fun CreatePropertyAddressScreen(
                         uiState.selectedLatitude,
                         uiState.selectedLongitude
                     )
+                }
                 }
             }
         }

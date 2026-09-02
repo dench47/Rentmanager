@@ -33,14 +33,20 @@ class GeoRepository @Inject constructor(
         }
     }
 
+    /**
+     * Обратный геокодинг по тапу карты. Photon по умолчанию отдаёт ближайший
+     * POI (магазин, фирма, ЖК) — выбираем из кандидатов именно дом: сначала
+     * фичу с улицей и номером дома, затем любое здание, и лишь потом остальное.
+     */
     suspend fun reverse(lat: Double, lon: Double): AddressSuggestion? {
         return try {
-            val resp = geoApi.reverseGeocode(lon = lon, lat = lat)
-            if (resp.isSuccessful) {
-                resp.body()?.features?.firstOrNull()?.toAddressSuggestion()
-            } else {
-                null
-            }
+            val features = geoApi.reverseGeocode(lon = lon, lat = lat).body()?.features.orEmpty()
+            val house = features.firstOrNull { f ->
+                val p = f.properties
+                !p?.housenumber.isNullOrBlank() && !p?.street.isNullOrBlank()
+            } ?: features.firstOrNull { it.properties?.osmKey == "building" }
+                ?: features.firstOrNull()
+            house?.toAddressSuggestion()
         } catch (_: Exception) {
             null
         }
