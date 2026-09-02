@@ -431,9 +431,11 @@ fun PropertyCardScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SectionHeader("Счетчики", pencilRes = R.drawable.ic_edit_pencil_white, onPencilClick = { onOpenMeters(propertyId) })
-                BlackCtaButton(
+                // Белая пилюля с рамкой #212121 (макет 6: 2789-18696) — как в создании объекта
+                OutlineCtaButton(
                     text = "Добавить счетчики",
-                    iconRes = R.drawable.ic_plus_circle_white,
+                    iconRes = R.drawable.ic_plus_circle_graphite,
+                    borderColor = Graphite,
                     onClick = { onAddCounter(propertyId) }
                 )
                 // Список счётчиков объекта (Figma 2574:20899): белые карточки
