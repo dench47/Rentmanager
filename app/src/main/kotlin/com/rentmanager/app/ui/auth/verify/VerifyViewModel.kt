@@ -3,6 +3,8 @@ package com.rentmanager.app.ui.auth.verify
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.EmailLoginCodeRequest
+import com.rentmanager.app.data.api.EmailLoginVerifyRequest
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.RequestApprovalRequest
 import com.rentmanager.app.data.api.SendCodeRequest
@@ -36,6 +38,11 @@ data class VerifyUiState(
     val telegramCodeSent: Boolean = false,
     val telegramAttemptsLeft: Int = 5,
     val telegramCodeError: String? = null,
+    // ===== Email-вход =====
+    val canEmail: Boolean = false,
+    val emailCodeSent: Boolean = false,
+    val emailAttemptsLeft: Int = 5,
+    val emailCodeError: String? = null,
     val errorMessage: String? = null
 )
 
@@ -90,8 +97,11 @@ class VerifyViewModel @Inject constructor(
                         body.name?.let { tokenManager.userName = it }
                         body.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
 
-                        // Telegram — вариант входа для НЕдоверенного устройства
-                        _uiState.update { it.copy(canTelegram = body.canTelegram == true && body.isTrustedDevice == false) }
+                        // Telegram / Email — варианты входа для НЕдоверенного устройства
+                        _uiState.update { it.copy(
+                            canTelegram = body.canTelegram == true && body.isTrustedDevice == false,
+                            canEmail = body.canEmail == true && body.isTrustedDevice == false
+                        ) }
 
                         // Доверенное устройство без PIN — сервер сразу выдал токены
                         if (body.accessToken != null) {
@@ -367,6 +377,75 @@ class VerifyViewModel @Inject constructor(
     /** Закрывает окно ввода Telegram-кода. */
     fun cancelTelegramCode() {
         _uiState.update { it.copy(telegramCodeSent = false, telegramCodeError = null) }
+    }
+
+    // ===== Email-вход =====
+
+    /** Отправляет код входа на подтверждённую почту (для недоверенного устройства). */
+    fun onEmailLogin() {
+        val phone = _uiState.value.phone
+        _uiState.update { it.copy(emailCodeError = null, emailCodeSent = false) }
+        viewModelScope.launch {
+            try {
+                val resp = authApi.emailLoginCode(EmailLoginCodeRequest(phone))
+                val body = resp.body()
+                if (resp.isSuccessful && body != null) {
+                    _uiState.update { it.copy(emailCodeSent = true, emailAttemptsLeft = body.attemptsLeft) }
+                } else {
+                    val err = resp.errorBody()?.string()
+                    _uiState.update { it.copy(emailCodeError = err ?: "Не удалось отправить код") }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(emailCodeError = "Нет связи с сервером") }
+            }
+        }
+    }
+
+    /** Проверяет введённый код из письма. */
+    fun onVerifyEmailCode(code: String, onSuccess: (String) -> Unit) {
+        val phone = _uiState.value.phone
+        if (code.length != 6) {
+            _uiState.update { it.copy(emailCodeError = "Введите 6 цифр кода") }
+            return
+        }
+        _uiState.update { it.copy(emailCodeError = null) }
+        viewModelScope.launch {
+            try {
+                val resp = authApi.emailLoginVerify(
+                    EmailLoginVerifyRequest(
+                        phone = phone,
+                        code = code,
+                        fcmToken = tokenManager.fcmToken,
+                        deviceId = deviceIdManager.deviceId,
+                        deviceName = deviceIdManager.deviceName
+                    )
+                )
+                val body = resp.body()
+                if (resp.isSuccessful && body?.verified == true) {
+                    body.accessToken?.let { tokenManager.accessToken = it }
+                    body.refreshToken?.let { tokenManager.refreshToken = it }
+                    body.token?.let { tokenManager.accessToken = it }
+                    body.user?.name?.let { tokenManager.userName = it }
+                    body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
+                    tokenManager.phone = phone
+                    tokenManager.hasPassword = body.hasPassword ?: false
+                    registerFcm()
+                    _uiState.update {
+                        it.copy(isVerified = true, isNewUser = false, emailCodeSent = false, canEmail = false)
+                    }
+                    onSuccess(phone)
+                } else {
+                    _uiState.update { it.copy(emailCodeError = "Неверный или истёкший код") }
+                }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(emailCodeError = "Нет связи с сервером") }
+            }
+        }
+    }
+
+    /** Закрывает окно ввода Email-кода. */
+    fun cancelEmailCode() {
+        _uiState.update { it.copy(emailCodeSent = false, emailCodeError = null) }
     }
 
     fun reset() {

@@ -32,6 +32,7 @@ data class LoginResponse(
     @SerializedName("is_trusted_device") val isTrustedDevice: Boolean? = null,
     @SerializedName("can_push") val canPush: Boolean? = null,
     @SerializedName("can_telegram") val canTelegram: Boolean? = null,
+    @SerializedName("can_email") val canEmail: Boolean? = null,
     val name: String?,
     val phone: String?,
     @SerializedName("default_start_screen") val defaultStartScreen: String?
@@ -312,6 +313,14 @@ interface AuthApi {
 
     @GET("auth/email/status")
     suspend fun emailStatus(): Response<EmailStatusResponse>
+
+    // ===== Email: вход (код на подтверждённую почту) =====
+
+    @POST("auth/login/email_code")
+    suspend fun emailLoginCode(@Body request: EmailLoginCodeRequest): Response<EmailCodeResponse>
+
+    @POST("auth/login/email_verify")
+    suspend fun emailLoginVerify(@Body request: EmailLoginVerifyRequest): Response<EmailLoginVerifyResponse>
 }
 
 data class EmailCodeResponse(@SerializedName("attempts_left") val attemptsLeft: Int)
@@ -319,4 +328,20 @@ data class EmailVerifyRequest(val code: String)
 data class EmailStatusResponse(
     val email: String?,
     val verified: Boolean?
+)
+data class EmailLoginCodeRequest(val phone: String)
+data class EmailLoginVerifyRequest(
+    val phone: String,
+    val code: String,
+    @SerializedName("fcm_token") val fcmToken: String? = null,
+    @SerializedName("device_id") val deviceId: String? = null,
+    @SerializedName("device_name") val deviceName: String? = null
+)
+data class EmailLoginVerifyResponse(
+    val verified: Boolean?,
+    @SerializedName("has_password") val hasPassword: Boolean? = null,
+    @SerializedName("access_token") val accessToken: String? = null,
+    @SerializedName("refresh_token") val refreshToken: String? = null,
+    val token: String? = null,
+    val user: UserDto? = null
 )

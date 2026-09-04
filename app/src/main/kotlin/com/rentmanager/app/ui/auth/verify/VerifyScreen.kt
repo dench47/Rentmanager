@@ -246,6 +246,18 @@ fun VerifyScreen(
         return
     }
 
+    // ===== Email: ввод кода входа =====
+    if (uiState.emailCodeSent) {
+        EmailCodeScreen(
+            phone = uiState.phone,
+            errorMessage = uiState.emailCodeError,
+            attemptsLeft = uiState.emailAttemptsLeft,
+            onBack = { viewModel.cancelEmailCode() },
+            onConfirm = { code -> viewModel.onVerifyEmailCode(code, onSuccess = { }) }
+        )
+        return
+    }
+
     // ===== Device Trust: ожидание подтверждения входа на доверенном устройстве =====
     if (uiState.awaitingApproval) {
         ApprovalWaitingScreen(
@@ -455,6 +467,19 @@ fun VerifyScreen(
                             )
                         }
                     }
+
+                    // ===== Email: альтернативный вход =====
+                    if (uiState.canEmail && !uiState.isVerified) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(onClick = { viewModel.onEmailLogin() }) {
+                            Text(
+                                text = "Войти через Email",
+                                color = Color(0xFF007AFF),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 } else {
                     // ============================================================
                     // Calling screen
@@ -643,6 +668,19 @@ fun VerifyScreen(
                         TextButton(onClick = { viewModel.onTelegramLogin() }) {
                             Text(
                                 text = "Войти через Telegram",
+                                color = Color(0xFF007AFF),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    // ===== Email: альтернативный вход =====
+                    if (uiState.canEmail && !uiState.isVerified) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(onClick = { viewModel.onEmailLogin() }) {
+                            Text(
+                                text = "Войти через Email",
                                 color = Color(0xFF007AFF),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium
@@ -902,6 +940,132 @@ private fun TelegramCodeScreen(
                     text = "Подтвердить",
                     onClick = { onConfirm(code) },
                     enabled = code.length == 8
+                )
+            }
+        }
+    }
+}
+
+// ===== Email: ввод кода входа =====
+
+@Composable
+private fun EmailCodeScreen(
+    phone: String,
+    errorMessage: String?,
+    attemptsLeft: Int,
+    onBack: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var code by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5))
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(60.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_arrow_left),
+                contentDescription = "Назад",
+                tint = Color(0xFF000000),
+                modifier = Modifier.size(24.dp).clickable { onBack() }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        Card(
+            modifier = Modifier.width(343.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("📧", fontSize = 44.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Введите код из письма",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF151515),
+                    letterSpacing = (-0.4).sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Мы отправили 6-значный код на вашу почту.\nОсталось попыток сегодня: $attemptsLeft",
+                    fontSize = 14.sp,
+                    color = Color(0x993C3C43),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFDF5E6)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    BasicTextField(
+                        value = code,
+                        onValueChange = { raw ->
+                            code = raw.filter { it.isDigit() }.take(6)
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF151515),
+                            letterSpacing = 8.sp,
+                            textAlign = TextAlign.Center
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 18.dp),
+                        decorationBox = { innerTextField ->
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (code.isEmpty()) {
+                                    Text(
+                                        "• • • • • •",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xCCA6A6A6),
+                                        letterSpacing = 4.sp
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
+                }
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(errorMessage, color = Color(0xFFE53935), fontSize = 13.sp, textAlign = TextAlign.Center)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                PrimaryButton(
+                    text = "Подтвердить",
+                    onClick = { onConfirm(code) },
+                    enabled = code.length == 6
                 )
             }
         }

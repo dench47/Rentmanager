@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -22,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -43,6 +45,14 @@ fun SecurityScreen(
     val context = LocalContext.current
     var showDevicesSheet by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
+
+    // ===== Email: диалог активации (шаг 0 — ввод почты, шаг 1 — ввод кода) =====
+    var showEmailDialog by remember { mutableStateOf(false) }
+    var emailStep by remember { mutableStateOf(0) }
+    var emailInput by remember { mutableStateOf("") }
+    var emailCode by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var emailLoading by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(Color(0xFFF5F5F5))) {
         Row(
@@ -157,7 +167,17 @@ fun SecurityScreen(
                             VerificationMethod.EMAIL.label, Icons.Default.Email,
                             when { uiState.emailVerified -> "Подтверждён"; !uiState.email.isNullOrBlank() -> "Не подтверждён"; else -> "Не задан" },
                             if (uiState.emailVerified) "Отвязать" else "Активировать",
-                            onAction = {}
+                            onAction = {
+                                if (uiState.emailVerified) {
+                                    viewModel.onUnlinkEmail()
+                                } else {
+                                    emailStep = 0
+                                    emailInput = uiState.email ?: ""
+                                    emailCode = ""
+                                    emailError = null
+                                    showEmailDialog = true
+                                }
+                            }
                         )
                         HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.06f))
                         StatusRow(
@@ -198,6 +218,97 @@ fun SecurityScreen(
             title = { Text("Двухфакторная аутентификация", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)) },
             text = { Text("Дополнительный способ подтверждения, что аккаунт принадлежит вам. При входе с нового устройства мы отправим код на выбранный канал: электронную почту, Telegram или Макс. Это защищает аккаунт от входа посторонних.", fontSize = 15.sp, color = Color(0x993C3C43)) },
             confirmButton = { TextButton(onClick = { showInfoDialog = false }) { Text("Понятно", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) } },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // ===== Email: диалог активации (шаг 0 — почта, шаг 1 — код) =====
+    if (showEmailDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!emailLoading) showEmailDialog = false },
+            title = {
+                Text(
+                    if (emailStep == 0) "Привязка Email" else "Код подтверждения",
+                    fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)
+                )
+            },
+            text = {
+                Column {
+                    if (emailStep == 0) {
+                        OutlinedTextField(
+                            value = emailInput,
+                            onValueChange = { emailInput = it.trim() },
+                            label = { Text("Email") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = emailCode,
+                            onValueChange = { raw -> emailCode = raw.filter { it.isDigit() }.take(6) },
+                            label = { Text("Код из письма") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (emailError != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(emailError!!, color = Color(0xFFE53935), fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !emailLoading,
+                    onClick = {
+                        if (emailStep == 0) {
+                            val e = emailInput
+                            if (!e.contains("@") || !e.contains(".")) {
+                                emailError = "Введите корректный email"
+                            } else {
+                                emailLoading = true
+                                emailError = null
+                                viewModel.setEmail(e) {
+                                    viewModel.onEmailSendCode { ok, err ->
+                                        emailLoading = false
+                                        if (ok) { emailStep = 1; emailCode = "" }
+                                        else emailError = err
+                                    }
+                                }
+                            }
+                        } else {
+                            if (emailCode.length != 6) {
+                                emailError = "Введите 6 цифр кода"
+                            } else {
+                                emailLoading = true
+                                emailError = null
+                                viewModel.onEmailVerify(emailCode) { ok, err ->
+                                    emailLoading = false
+                                    if (ok) showEmailDialog = false
+                                    else emailError = err
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        if (emailStep == 0) "Отправить код" else "Подтвердить",
+                        color = Color(0xFF007AFF), fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !emailLoading,
+                    onClick = {
+                        if (emailStep == 1) { emailStep = 0; emailError = null }
+                        else showEmailDialog = false
+                    }
+                ) { Text(if (emailStep == 0) "Отмена" else "Назад", color = Color(0x993C3C43)) }
+            },
             containerColor = Color.White,
             shape = RoundedCornerShape(20.dp)
         )

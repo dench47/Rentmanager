@@ -198,11 +198,11 @@ fun CreatePropertyScreen(
     var tenantInfoExpanded by remember { mutableStateOf(false) }
     var serviceInfoExpanded by remember { mutableStateOf(false) }
 
-    // Ошибки валидации обязательных полей (подсвечиваются при нажатии «Создать объект»)
+    // Ошибки валидации обязательных полей (подсвечиваются при нажатии «Создать объект»).
+    // Обязательны: название, адрес, цена (всегда) и спальные места (только для посуточно) —
+    // комнаты и площадь опциональны, остальное дозаполняется через «Редактировать объект»
     var nameError by remember { mutableStateOf(false) }
-    var roomsError by remember { mutableStateOf(false) }
     var addressError by remember { mutableStateOf(false) }
-    var areaError by remember { mutableStateOf(false) }
     var priceError by remember { mutableStateOf(false) }
     var sleepingError by remember { mutableStateOf(false) }
 
@@ -304,12 +304,10 @@ fun CreatePropertyScreen(
 
     fun attemptSave() {
         nameError = name.isBlank()
-        roomsError = rooms == null
         addressError = effAddress.isBlank()
-        areaError = area.isBlank()
         priceError = price.isBlank()
-        sleepingError = sleepingPlaces == null
-        val hasErrors = nameError || roomsError || addressError || areaError || priceError || sleepingError
+        sleepingError = effRentType == "посуточно" && sleepingPlaces == null
+        val hasErrors = nameError || addressError || priceError || sleepingError
         if (!hasErrors) {
             viewModel.updateProperty(
                 propertyId = editPropertyId ?: "",
@@ -355,10 +353,9 @@ fun CreatePropertyScreen(
         editLatitude = null
         editLongitude = null
         nameError = false
-        roomsError = false
         addressError = false
-        areaError = false
         priceError = false
+        sleepingError = false
     }
 
     // Системная кнопка «назад» при несохранённых правках — через диалог (Figma 2677-26836)
@@ -467,10 +464,8 @@ fun CreatePropertyScreen(
                         selected = rooms,
                         onSelect = {
                             rooms = it
-                            roomsError = false
                             CreateDraftHolder.rooms = it
-                        },
-                        isError = roomsError
+                        }
                     )
                 }
 
@@ -507,21 +502,18 @@ fun CreatePropertyScreen(
                             value = area,
                             onValueChange = {
                                 area = it
-                                areaError = false
                                 CreateDraftHolder.area = it
                             },
-                            placeholder = "Площадь, м2*",
+                            placeholder = "Площадь, м2",
                             keyboardType = KeyboardType.Decimal,
                             // После ввода рядом со значением показываем единицы
                             suffix = "м²",
-                            modifier = Modifier.weight(1f),
-                            isError = areaError,
-                            errorHint = "Это поле обязательно для заполнения"
+                            modifier = Modifier.weight(1f)
                         )
                         CardDropdown(
                             selected = sleepingPlaces,
                             options = SleepingOptions,
-                            placeholder = "Спальные места*",
+                            placeholder = if (effRentType == "посуточно") "Спальные места*" else "Спальные места",
                             onSelect = {
                                 sleepingPlaces = it
                                 sleepingError = false
@@ -755,12 +747,10 @@ fun CreatePropertyScreen(
                         fun validateAndCreate() {
                             if (uiState.isCreating) return
                             nameError = name.isBlank()
-                            roomsError = rooms == null
                             addressError = effAddress.isBlank()
-                            areaError = area.isBlank()
                             priceError = price.isBlank()
-                            sleepingError = sleepingPlaces == null
-                            val hasErrors = nameError || roomsError || addressError || areaError || priceError || sleepingError
+                            sleepingError = effRentType == "посуточно" && sleepingPlaces == null
+                            val hasErrors = nameError || addressError || priceError || sleepingError
                             if (!hasErrors) {
                                 submitCreate(
                                     viewModel, name, effAddress, area, price, description,
@@ -1017,15 +1007,14 @@ private fun AddPhotoTile(onClick: () -> Unit) {
 
 // Чипы количества комнат (Figma: сетка 5 равных колонок, gap 6; «6+ комнат» — по ширине текста, ряд 2 пустые колонки справа)
 @Composable
-private fun RoomsChips(selected: String?, onSelect: (String) -> Unit, isError: Boolean = false) {
+private fun RoomsChips(selected: String?, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf("Студия", "1", "2", "3", "4").forEach { option ->
                 RoomChip(
                     label = option,
                     selected = selected == option,
-                    modifier = Modifier.weight(1f),
-                    showError = false
+                    modifier = Modifier.weight(1f)
                 ) { onSelect(option) }
             }
         }
@@ -1033,13 +1022,11 @@ private fun RoomsChips(selected: String?, onSelect: (String) -> Unit, isError: B
             RoomChip(
                 label = "5",
                 selected = selected == "5",
-                modifier = Modifier.width(69.6.dp),
-                showError = false
+                modifier = Modifier.width(69.6.dp)
             ) { onSelect("5") }
             RoomChip(
                 label = "6+ комнат",
-                selected = selected == "6+",
-                showError = false
+                selected = selected == "6+"
             ) { onSelect("6+") }
         }
     }
@@ -1050,7 +1037,6 @@ private fun RoomChip(
     label: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
-    showError: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(
@@ -1058,24 +1044,13 @@ private fun RoomChip(
             .clip(RoundedCornerShape(30.dp))
             // Выбранный чип — инверсия цвета (Figma 2533-20939): #212121 фон, белый текст
             .background(if (selected) Graphite else CardBackground)
-            .then(
-                if (!selected && showError) {
-                    Modifier.border(1.dp, ErrorRed, RoundedCornerShape(30.dp))
-                } else Modifier
-            )
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
-            style = Headline2MobStyle.copy(
-                color = when {
-                    selected -> Color.White
-                    showError -> ErrorRed
-                    else -> Graphite
-                }
-            ),
+            style = Headline2MobStyle.copy(color = if (selected) Color.White else Graphite),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

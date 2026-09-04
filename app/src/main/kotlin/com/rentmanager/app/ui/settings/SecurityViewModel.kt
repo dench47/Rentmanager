@@ -3,7 +3,9 @@ package com.rentmanager.app.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.EmailVerifyRequest
 import com.rentmanager.app.data.api.TrustedDeviceDto
+import com.rentmanager.app.data.api.UpdateProfileRequest
 import com.rentmanager.app.data.local.CryptoManager
 import com.rentmanager.app.data.local.DeviceIdManager
 import com.rentmanager.app.data.local.LoginApprovalEvents
@@ -172,6 +174,57 @@ class SecurityViewModel @Inject constructor(
         viewModelScope.launch {
             try { authApi.telegramUnlink() } catch (_: Exception) {}
             _uiState.update { it.copy(telegramLinked = false, telegramUsername = null) }
+        }
+    }
+
+    // ===== Email =====
+
+    /** Сохраняет почту (сброс подтверждения происходит на сервере). */
+    fun setEmail(email: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                authApi.updateProfile(UpdateProfileRequest(email = email))
+                _uiState.update { it.copy(email = email, emailVerified = false) }
+            } catch (_: Exception) {}
+            onDone()
+        }
+    }
+
+    /** Отправляет код подтверждения на текущую почту. */
+    fun onEmailSendCode(onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val resp = authApi.emailSendCode()
+                if (resp.isSuccessful) onResult(true, null)
+                else onResult(false, resp.errorBody()?.string() ?: "Не удалось отправить код")
+            } catch (_: Exception) {
+                onResult(false, "Нет связи с сервером")
+            }
+        }
+    }
+
+    /** Проверяет код подтверждения почты. */
+    fun onEmailVerify(code: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val resp = authApi.emailVerify(EmailVerifyRequest(code))
+                if (resp.isSuccessful) {
+                    _uiState.update { it.copy(emailVerified = true) }
+                    onResult(true, null)
+                } else {
+                    onResult(false, "Неверный или истёкший код")
+                }
+            } catch (_: Exception) {
+                onResult(false, "Нет связи с сервером")
+            }
+        }
+    }
+
+    /** Отвязывает (удаляет) почту. */
+    fun onUnlinkEmail() {
+        viewModelScope.launch {
+            try { authApi.updateProfile(UpdateProfileRequest(email = "")) } catch (_: Exception) {}
+            _uiState.update { it.copy(email = null, emailVerified = false) }
         }
     }
 }

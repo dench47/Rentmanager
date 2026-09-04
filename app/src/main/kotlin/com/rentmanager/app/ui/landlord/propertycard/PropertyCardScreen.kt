@@ -135,6 +135,7 @@ fun PropertyCardScreen(
 
     var showActionsSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showPublishBlocker by remember { mutableStateOf(false) }
 
     // Шиты быстрого редактирования секций (карандаши у заголовков) и сетки фото
     var showRentSheet by remember { mutableStateOf(false) }
@@ -489,7 +490,15 @@ fun PropertyCardScreen(
             },
             onPublish = {
                 showActionsSheet = false
-                viewModel.publish()
+                // Шлюз публикации: адрес и цена обязательны для объявления —
+                // без них не публикуем, предлагаем дозаполнить в редакторе
+                val missingAddress = property?.address.isNullOrBlank()
+                val missingPrice = property?.rentAmount == null || property.rentAmount <= 0.0
+                if (missingAddress || missingPrice) {
+                    showPublishBlocker = true
+                } else {
+                    viewModel.publish()
+                }
             },
             onUnpublish = {
                 showActionsSheet = false
@@ -511,6 +520,19 @@ fun PropertyCardScreen(
                 viewModel.deleteProperty()
             },
             onDismiss = { showDeleteDialog = false }
+        )
+    }
+
+    // Блокер публикации: адрес и цена обязательны для объявления
+    if (showPublishBlocker) {
+        PublishBlockerDialog(
+            missingAddress = property?.address.isNullOrBlank(),
+            missingPrice = property?.rentAmount == null || property.rentAmount <= 0.0,
+            onEdit = {
+                showPublishBlocker = false
+                onEditProperty(propertyId)
+            },
+            onDismiss = { showPublishBlocker = false }
         )
     }
 
@@ -1296,6 +1318,50 @@ private fun PropertyActionsSheet(
                 textColor = ErrorRed,
                 onClick = onRequestDelete
             )
+        }
+    }
+}
+
+// Блокер публикации: у объявления обязательны адрес и цена (решение по
+// обсуждению с дизайнером 02.09) — без них не публикуем, предлагаем
+// дозаполнить в «Редактировать объект». Оформление — как у DeletePropertyDialog.
+@Composable
+private fun PublishBlockerDialog(
+    missingAddress: Boolean,
+    missingPrice: Boolean,
+    onEdit: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    DesignWidthDialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Заполните обязательные поля", style = ToolbarTitleStyle)
+                Text(
+                    buildString {
+                        append("Чтобы опубликовать объявление, укажите")
+                        if (missingAddress) append("\u00A0адрес объекта")
+                        if (missingAddress && missingPrice) append(" и")
+                        if (missingPrice) append("\u00A0цену аренды")
+                        append(" — без них объявление не будет видно арендаторам")
+                    },
+                    style = Headline2MobStyle.copy(color = GreyText)
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                BlackCtaButton(text = "Перейти к редактированию", onClick = onEdit)
+                OutlineCtaButton(
+                    text = "Позже",
+                    borderColor = Graphite85,
+                    onClick = onDismiss
+                )
+            }
         }
     }
 }
