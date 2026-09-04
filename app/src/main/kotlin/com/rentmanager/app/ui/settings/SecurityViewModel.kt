@@ -3,6 +3,7 @@ package com.rentmanager.app.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.EmailToggle2FARequest
 import com.rentmanager.app.data.api.EmailVerifyRequest
 import com.rentmanager.app.data.api.TrustedDeviceDto
 import com.rentmanager.app.data.api.UpdateProfileRequest
@@ -33,6 +34,7 @@ data class SecurityUiState(
     val telegramUsername: String? = null,
     val email: String? = null,
     val emailVerified: Boolean = false,
+    val email2faEnabled: Boolean = false,
     val maxAvailable: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -74,7 +76,7 @@ class SecurityViewModel @Inject constructor(
                 val resp = authApi.getMe()
                 if (resp.isSuccessful) {
                     val user = resp.body()!!
-                    _uiState.update { it.copy(email = user.email, emailVerified = user.emailVerified == true) }
+                    _uiState.update { it.copy(email = user.email, emailVerified = user.emailVerified == true, email2faEnabled = user.email2faEnabled == true) }
                 }
             } catch (_: Exception) {}
         }
@@ -184,7 +186,7 @@ class SecurityViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 authApi.updateProfile(UpdateProfileRequest(email = email))
-                _uiState.update { it.copy(email = email, emailVerified = false) }
+                _uiState.update { it.copy(email = email, emailVerified = false, email2faEnabled = false) }
             } catch (_: Exception) {}
             onDone()
         }
@@ -203,13 +205,14 @@ class SecurityViewModel @Inject constructor(
         }
     }
 
-    /** Проверяет код подтверждения почты. */
+    /** Проверяет код подтверждения почты и включает 2FA. */
     fun onEmailVerify(code: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             try {
                 val resp = authApi.emailVerify(EmailVerifyRequest(code))
                 if (resp.isSuccessful) {
-                    _uiState.update { it.copy(emailVerified = true) }
+                    _uiState.update { it.copy(emailVerified = true, email2faEnabled = true) }
+                    try { authApi.emailToggle2FA(EmailToggle2FARequest(true)) } catch (_: Exception) {}
                     onResult(true, null)
                 } else {
                     onResult(false, "Неверный или истёкший код")
@@ -220,11 +223,11 @@ class SecurityViewModel @Inject constructor(
         }
     }
 
-    /** Отвязывает (удаляет) почту. */
-    fun onUnlinkEmail() {
+    /** Включает/выключает способ входа через Email (почта уже подтверждена). */
+    fun onToggleEmail2FA(enabled: Boolean) {
         viewModelScope.launch {
-            try { authApi.updateProfile(UpdateProfileRequest(email = "")) } catch (_: Exception) {}
-            _uiState.update { it.copy(email = null, emailVerified = false) }
+            try { authApi.emailToggle2FA(EmailToggle2FARequest(enabled)) } catch (_: Exception) {}
+            _uiState.update { it.copy(email2faEnabled = enabled) }
         }
     }
 }

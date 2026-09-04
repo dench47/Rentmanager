@@ -165,17 +165,37 @@ fun SecurityScreen(
                     Column {
                         StatusRow(
                             VerificationMethod.EMAIL.label, Icons.Default.Email,
-                            when { uiState.emailVerified -> "Подтверждён"; !uiState.email.isNullOrBlank() -> "Не подтверждён"; else -> "Не задан" },
-                            if (uiState.emailVerified) "Отвязать" else "Активировать",
+                            when {
+                                uiState.email2faEnabled -> "Включён"
+                                uiState.emailVerified -> "Подтверждён"
+                                !uiState.email.isNullOrBlank() -> "Не подтверждён"
+                                else -> "Не задан"
+                            },
+                            if (uiState.email2faEnabled) "Отключить" else "Активировать",
                             onAction = {
-                                if (uiState.emailVerified) {
-                                    viewModel.onUnlinkEmail()
-                                } else {
-                                    emailStep = 0
-                                    emailInput = uiState.email ?: ""
-                                    emailCode = ""
-                                    emailError = null
-                                    showEmailDialog = true
+                                when {
+                                    uiState.email2faEnabled -> viewModel.onToggleEmail2FA(false)
+                                    uiState.emailVerified -> viewModel.onToggleEmail2FA(true)
+                                    !uiState.email.isNullOrBlank() -> {
+                                        // Почта задана, но не подтверждена — сразу шлём код
+                                        emailStep = 1
+                                        emailCode = ""
+                                        emailError = null
+                                        emailLoading = true
+                                        showEmailDialog = true
+                                        viewModel.onEmailSendCode { ok, err ->
+                                            emailLoading = false
+                                            if (!ok) emailError = err
+                                        }
+                                    }
+                                    else -> {
+                                        // Почта не задана — ввод почты
+                                        emailStep = 0
+                                        emailInput = ""
+                                        emailCode = ""
+                                        emailError = null
+                                        showEmailDialog = true
+                                    }
                                 }
                             }
                         )

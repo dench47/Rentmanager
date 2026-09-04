@@ -6,6 +6,7 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.AuthApi
+import com.rentmanager.app.data.api.EmailVerifyRequest
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.SendCodeRequest
 import com.rentmanager.app.data.api.UpdateProfileRequest
@@ -29,6 +30,7 @@ data class SettingsUiState(
     val fullName: String = "",
     val phone: String = "",
     val email: String? = null,
+    val emailVerified: Boolean = false,
     val legalName: String? = null,
     val avatarUrl: String? = null,
     val defaultStartScreen: String = "main",
@@ -85,6 +87,7 @@ class SettingsViewModel @Inject constructor(
                             fullName = user.fullName ?: "",
                             phone = user.phone,
                             email = user.email,
+                            emailVerified = user.emailVerified == true,
                             legalName = user.legalName,
                             avatarUrl = url
                         )
@@ -167,6 +170,7 @@ class SettingsViewModel @Inject constructor(
                             userName = user.name,
                             fullName = user.fullName ?: "",
                             email = user.email,
+                            emailVerified = user.emailVerified == true,
                             legalName = user.legalName,
                             avatarUrl = newUrl
                         )
@@ -179,6 +183,36 @@ class SettingsViewModel @Inject constructor(
                 }
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Нет связи с сервером") }
+            }
+        }
+    }
+
+    // ===== Email: верификация =====
+
+    fun onEmailSendCode(onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val resp = authApi.emailSendCode()
+                if (resp.isSuccessful) onResult(true, null)
+                else onResult(false, resp.errorBody()?.string() ?: "Не удалось отправить код")
+            } catch (_: Exception) {
+                onResult(false, "Нет связи с сервером")
+            }
+        }
+    }
+
+    fun onEmailVerify(code: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val resp = authApi.emailVerify(EmailVerifyRequest(code))
+                if (resp.isSuccessful) {
+                    _uiState.update { it.copy(emailVerified = true) }
+                    onResult(true, null)
+                } else {
+                    onResult(false, "Неверный или истёкший код")
+                }
+            } catch (_: Exception) {
+                onResult(false, "Нет связи с сервером")
             }
         }
     }

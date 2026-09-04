@@ -51,9 +51,9 @@ class HomeViewModel @Inject constructor(
                     }
                     tokenManager.userName = user.name
                     tokenManager.avatarUrl = url
-                    // Проверяем привязку Telegram
+                    // Проверяем, подключён ли хотя бы один способ 2FA
                     if (!_uiState.value.telegramCheckDone && !tokenManager.telegramPromptDismissed) {
-                        checkTelegramBinding()
+                        check2FAStatus(user.email2faEnabled == true)
                     }
                 }
             } catch (_: Exception) {}
@@ -62,15 +62,14 @@ class HomeViewModel @Inject constructor(
 
     // ===== Безопасный вход: проверка наличия 2FA =====
 
-    private fun checkTelegramBinding() {
+    private fun check2FAStatus(email2faEnabled: Boolean) {
         viewModelScope.launch {
             try {
                 val resp = authApi.telegramStatus()
-                val body = resp.body()
-                if (resp.isSuccessful) {
-                    if (body?.linked != true) {
-                        _uiState.update { it.copy(showTelegramPrompt = true) }
-                    }
+                val telegramLinked = resp.isSuccessful && resp.body()?.linked == true
+                val maxEnabled = false // Макс — заглушка, пока не реализован
+                if (!email2faEnabled && !telegramLinked && !maxEnabled) {
+                    _uiState.update { it.copy(showTelegramPrompt = true) }
                 }
             } catch (_: Exception) { }
             _uiState.update { it.copy(telegramCheckDone = true) }

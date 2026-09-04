@@ -314,6 +314,9 @@ interface AuthApi {
     @GET("auth/email/status")
     suspend fun emailStatus(): Response<EmailStatusResponse>
 
+    @POST("auth/email/toggle")
+    suspend fun emailToggle2FA(@Body request: EmailToggle2FARequest): Response<MessageResponse>
+
     // ===== Email: вход (код на подтверждённую почту) =====
 
     @POST("auth/login/email_code")
@@ -329,6 +332,7 @@ data class EmailStatusResponse(
     val email: String?,
     val verified: Boolean?
 )
+data class EmailToggle2FARequest(val enabled: Boolean)
 data class EmailLoginCodeRequest(val phone: String)
 data class EmailLoginVerifyRequest(
     val phone: String,

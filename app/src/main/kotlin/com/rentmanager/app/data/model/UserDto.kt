@@ -12,6 +12,7 @@ data class UserDto(
     @SerializedName("avatar_url") val avatarUrl: String? = null,
     @SerializedName("email") val email: String? = null,
     @SerializedName("email_verified") val emailVerified: Boolean? = null,
+    @SerializedName("email_2fa_enabled") val email2faEnabled: Boolean? = null,
     @SerializedName("full_name") val fullName: String? = null,
     @SerializedName("has_password") val hasPassword: Boolean? = null,
     @SerializedName("token_version") val tokenVersion: Int = 0,

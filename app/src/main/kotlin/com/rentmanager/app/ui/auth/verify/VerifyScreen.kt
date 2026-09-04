@@ -266,7 +266,9 @@ fun VerifyScreen(
             onUseCall = { viewModel.fallbackToCall() },
             onCancel = { viewModel.reset() },
             canTelegram = uiState.canTelegram,
-            onTelegram = { viewModel.onTelegramLogin() }
+            onTelegram = { viewModel.onTelegramLogin() },
+            canEmail = uiState.canEmail,
+            onEmail = { viewModel.onEmailLogin() }
         )
         return
     }
@@ -704,7 +706,9 @@ fun ApprovalWaitingScreen(
     onUseCall: () -> Unit,
     onCancel: () -> Unit,
     canTelegram: Boolean = false,
-    onTelegram: () -> Unit = {}
+    onTelegram: () -> Unit = {},
+    canEmail: Boolean = false,
+    onEmail: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -798,19 +802,45 @@ fun ApprovalWaitingScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        TextButton(onClick = onUseCall) {
+        var showAlternatives by remember { mutableStateOf(false) }
+
+        TextButton(onClick = { showAlternatives = !showAlternatives }) {
             Text(
-                text = "Нет доступа к телефону? Войти по звонку",
+                text = "Нет доступа к телефону? Войти другим способом",
                 color = Color(0xFF007AFF),
                 fontSize = 14.sp
             )
         }
 
-        if (canTelegram) {
+        if (showAlternatives) {
+            if (canTelegram) {
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(onClick = onTelegram) {
+                    Text(
+                        text = "Войти через Telegram",
+                        color = Color(0xFF007AFF),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            if (canEmail) {
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(onClick = onEmail) {
+                    Text(
+                        text = "Войти через Email",
+                        color = Color(0xFF007AFF),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
-            TextButton(onClick = onTelegram) {
+            TextButton(onClick = onUseCall) {
                 Text(
-                    text = "Войти через Telegram",
+                    text = "Позвонить для подтверждения",
                     color = Color(0xFF007AFF),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium

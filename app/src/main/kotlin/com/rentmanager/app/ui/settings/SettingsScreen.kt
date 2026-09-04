@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Business
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,6 +51,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -169,6 +172,64 @@ fun SettingsScreen(
             text = { OutlinedTextField(value = editEmail, onValueChange = { editEmail = it }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)), singleLine = true, placeholder = { Text("Введите email", color = Color(0x998E8E93), fontSize = 16.sp) }, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent)) },
             confirmButton = { TextButton(onClick = { viewModel.updateProfile(email = editEmail); showEditEmailDialog = false }) { Text("Сохранить", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) } },
             dismissButton = { TextButton(onClick = { editEmail = ""; viewModel.updateProfile(email = ""); showEditEmailDialog = false }) { Text("Очистить", color = Color(0x993C3C43)) } },
+            containerColor = Color.White, shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // Email verification dialog
+    var showEmailVerifyDialog by remember { mutableStateOf(false) }
+    var emailVerifyStep by remember { mutableStateOf(0) } // 0 = инфо, 1 = код
+    var emailVerifyCode by remember { mutableStateOf("") }
+    var emailVerifyError by remember { mutableStateOf<String?>(null) }
+    var emailVerifyLoading by remember { mutableStateOf(false) }
+    if (showEmailVerifyDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!emailVerifyLoading) showEmailVerifyDialog = false },
+            title = { Text(if (emailVerifyStep == 0) "Email не подтверждён" else "Код подтверждения", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)) },
+            text = {
+                Column {
+                    if (emailVerifyStep == 0) {
+                        Text("Подтвердите почту, чтобы активировать вход через Email. Мы отправим код на ${uiState.email}.", fontSize = 15.sp, color = Color(0x993C3C43))
+                    } else {
+                        OutlinedTextField(value = emailVerifyCode, onValueChange = { raw -> emailVerifyCode = raw.filter { it.isDigit() }.take(6) }, label = { Text("Код из письма") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    }
+                    if (emailVerifyError != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(emailVerifyError!!, color = Color(0xFFE53935), fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !emailVerifyLoading,
+                    onClick = {
+                        if (emailVerifyStep == 0) {
+                            emailVerifyLoading = true
+                            emailVerifyError = null
+                            viewModel.onEmailSendCode { ok, err ->
+                                emailVerifyLoading = false
+                                if (ok) { emailVerifyStep = 1; emailVerifyCode = "" } else emailVerifyError = err
+                            }
+                        } else {
+                            if (emailVerifyCode.length != 6) emailVerifyError = "Введите 6 цифр кода"
+                            else {
+                                emailVerifyLoading = true
+                                emailVerifyError = null
+                                viewModel.onEmailVerify(emailVerifyCode) { ok, err ->
+                                    emailVerifyLoading = false
+                                    if (ok) showEmailVerifyDialog = false else emailVerifyError = err
+                                }
+                            }
+                        }
+                    }
+                ) { Text(if (emailVerifyStep == 0) "Отправить код" else "Подтвердить", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !emailVerifyLoading,
+                    onClick = { if (emailVerifyStep == 1) { emailVerifyStep = 0; emailVerifyError = null } else showEmailVerifyDialog = false }
+                ) { Text(if (emailVerifyStep == 0) "Отмена" else "Назад", color = Color(0x993C3C43)) }
+            },
             containerColor = Color.White, shape = RoundedCornerShape(20.dp)
         )
     }
@@ -308,7 +369,7 @@ fun SettingsScreen(
                         HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
                     }
                 }
-                item { SettingsField("Почтовый ящик", uiState.email ?: "", Icons.Default.Email, isOptional = true, onClick = { showEditEmailDialog = true; editEmail = uiState.email ?: "" }) }
+                item { SettingsField("Почтовый ящик", uiState.email ?: "", Icons.Default.Email, warning = !uiState.email.isNullOrBlank() && !uiState.emailVerified, onWarningClick = { emailVerifyStep = 0; emailVerifyCode = ""; emailVerifyError = null; showEmailVerifyDialog = true }, onClick = { showEditEmailDialog = true; editEmail = uiState.email ?: "" }) }
                 item { SettingsField("Название юридического лица", uiState.legalName ?: "", Icons.Default.Business, isOptional = true, onClick = { showEditLegalDialog = true; editLegalName = uiState.legalName ?: "" }) }
                 item {
                     SettingsAction(
@@ -340,11 +401,12 @@ fun SettingsScreen(
 private fun capitalizeEach(s: String): String = s.split(" ").joinToString(" ") { w -> if (w.isEmpty()) w else w[0].uppercaseChar() + w.substring(1) }
 
 @Composable
-private fun SettingsField(label: String, value: String, icon: ImageVector, isOptional: Boolean = false, onClick: () -> Unit = {}) {
+private fun SettingsField(label: String, value: String, icon: ImageVector, isOptional: Boolean = false, warning: Boolean = false, onWarningClick: () -> Unit = {}, onClick: () -> Unit = {}) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Icon(icon, label, Modifier.size(24.dp), tint = Color(0xFF212121))
             Column(Modifier.weight(1f)) { Text(label, fontSize = 16.sp, color = Color(0xFF212121)); if (isOptional) Text("(необязательно)", fontSize = 13.sp, color = Color(0x993C3C43)); if (value.isNotEmpty()) Text(value, fontSize = 14.sp, color = Color(0x993C3C43)) }
+            if (warning) Icon(Icons.Outlined.ErrorOutline, "Требует подтверждения", Modifier.size(20.dp).clickable { onWarningClick() }, tint = Color(0x993C3C43))
             if (label != "Номер телефона") Icon(Icons.Default.Edit, "Редактировать", Modifier.size(20.dp), tint = Color(0x993C3C43))
         }
         HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))

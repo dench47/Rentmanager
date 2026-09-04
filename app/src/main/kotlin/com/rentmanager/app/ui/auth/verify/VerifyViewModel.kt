@@ -235,6 +235,12 @@ class VerifyViewModel @Inject constructor(
         _uiState.update { it.copy(awaitingApproval = false) }
     }
 
+    /** Останавливает фоновый поллинг push-одобрения, не трогая состояние экрана. */
+    private fun stopApprovalPolling() {
+        approvalJob?.cancel()
+        approvalJob = null
+    }
+
     /**
      * Fallback: push недоступен/отклонён запрос невозможен — верификация звонком,
      * если SIM при пользователе.
@@ -315,19 +321,22 @@ class VerifyViewModel @Inject constructor(
     /** Отправляет код входа в Telegram (для недоверенного устройства). */
     fun onTelegramLogin() {
         val phone = _uiState.value.phone
+        // Уходим с экрана ожидания push-одобрения: останавливаем поллинг,
+        // но держим экран, пока идёт запрос кода (без мигания).
+        stopApprovalPolling()
         _uiState.update { it.copy(telegramCodeError = null, telegramCodeSent = false) }
         viewModelScope.launch {
             try {
                 val resp = authApi.telegramCode(TelegramCodeRequest(phone))
                 val body = resp.body()
                 if (resp.isSuccessful && body != null) {
-                    _uiState.update { it.copy(telegramCodeSent = true, telegramAttemptsLeft = body.attemptsLeft) }
+                    _uiState.update { it.copy(telegramCodeSent = true, telegramAttemptsLeft = body.attemptsLeft, awaitingApproval = false) }
                 } else {
                     val err = resp.errorBody()?.string()
-                    _uiState.update { it.copy(telegramCodeError = err ?: "Не удалось отправить код") }
+                    _uiState.update { it.copy(telegramCodeError = err ?: "Не удалось отправить код", awaitingApproval = false) }
                 }
             } catch (_: Exception) {
-                _uiState.update { it.copy(telegramCodeError = "Нет связи с сервером") }
+                _uiState.update { it.copy(telegramCodeError = "Нет связи с сервером", awaitingApproval = false) }
             }
         }
     }
@@ -384,19 +393,22 @@ class VerifyViewModel @Inject constructor(
     /** Отправляет код входа на подтверждённую почту (для недоверенного устройства). */
     fun onEmailLogin() {
         val phone = _uiState.value.phone
+        // Уходим с экрана ожидания push-одобрения: останавливаем поллинг,
+        // но держим экран, пока идёт запрос кода (без мигания).
+        stopApprovalPolling()
         _uiState.update { it.copy(emailCodeError = null, emailCodeSent = false) }
         viewModelScope.launch {
             try {
                 val resp = authApi.emailLoginCode(EmailLoginCodeRequest(phone))
                 val body = resp.body()
                 if (resp.isSuccessful && body != null) {
-                    _uiState.update { it.copy(emailCodeSent = true, emailAttemptsLeft = body.attemptsLeft) }
+                    _uiState.update { it.copy(emailCodeSent = true, emailAttemptsLeft = body.attemptsLeft, awaitingApproval = false) }
                 } else {
                     val err = resp.errorBody()?.string()
-                    _uiState.update { it.copy(emailCodeError = err ?: "Не удалось отправить код") }
+                    _uiState.update { it.copy(emailCodeError = err ?: "Не удалось отправить код", awaitingApproval = false) }
                 }
             } catch (_: Exception) {
-                _uiState.update { it.copy(emailCodeError = "Нет связи с сервером") }
+                _uiState.update { it.copy(emailCodeError = "Нет связи с сервером", awaitingApproval = false) }
             }
         }
     }
