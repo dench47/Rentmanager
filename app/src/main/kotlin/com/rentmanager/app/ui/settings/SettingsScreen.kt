@@ -192,6 +192,8 @@ fun SettingsScreen(
                         Text("Подтвердите почту, чтобы активировать вход через Email. Мы отправим код на ${uiState.email}.", fontSize = 15.sp, color = Color(0x993C3C43))
                     } else {
                         OutlinedTextField(value = emailVerifyCode, onValueChange = { raw -> emailVerifyCode = raw.filter { it.isDigit() }.take(6) }, label = { Text("Код из письма") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        Text("Если письмо не пришло — проверьте папку «Спам»", fontSize = 12.sp, color = Color(0x993C3C43))
                     }
                     if (emailVerifyError != null) {
                         Spacer(Modifier.height(8.dp))

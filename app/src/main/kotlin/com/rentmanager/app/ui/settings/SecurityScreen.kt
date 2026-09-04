@@ -273,6 +273,8 @@ fun SecurityScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth()
                         )
+                        Spacer(Modifier.height(8.dp))
+                        Text("Если письмо не пришло — проверьте папку «Спам»", fontSize = 12.sp, color = Color(0x993C3C43))
                     }
                     if (emailError != null) {
                         Spacer(Modifier.height(8.dp))

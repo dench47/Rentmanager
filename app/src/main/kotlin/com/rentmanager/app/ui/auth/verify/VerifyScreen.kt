@@ -1040,6 +1040,13 @@ private fun EmailCodeScreen(
                     textAlign = TextAlign.Center,
                     lineHeight = 20.sp
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Если письмо не пришло — проверьте папку «Спам»",
+                    fontSize = 12.sp,
+                    color = Color(0x663C3C43),
+                    textAlign = TextAlign.Center
+                )
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Card(
