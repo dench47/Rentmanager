@@ -166,12 +166,12 @@ fun SecurityScreen(
                         StatusRow(
                             VerificationMethod.EMAIL.label, Icons.Default.Email,
                             when {
-                                uiState.email2faEnabled -> "Включён"
+                                uiState.email2faEnabled -> "Подключён"
                                 uiState.emailVerified -> "Подтверждён"
                                 !uiState.email.isNullOrBlank() -> "Не подтверждён"
                                 else -> "Не задан"
                             },
-                            if (uiState.email2faEnabled) "Отключить" else "Активировать",
+                            if (uiState.email2faEnabled) "Отключить" else "Подключить",
                             onAction = {
                                 when {
                                     uiState.email2faEnabled -> viewModel.onToggleEmail2FA(false)
@@ -202,8 +202,8 @@ fun SecurityScreen(
                         HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.06f))
                         StatusRow(
                             VerificationMethod.TELEGRAM.label, Icons.AutoMirrored.Filled.Send,
-                            if (uiState.telegramLinked) "Привязан" else "Не привязан",
-                            if (uiState.telegramLinked) "Отвязать" else "Активировать",
+                            if (uiState.telegramLinked) "Подключён" else "Не подключён",
+                            if (uiState.telegramLinked) "Отключить" else "Подключить",
                             onAction = {
                                 if (uiState.telegramLinked) viewModel.onUnlinkTelegram()
                                 else viewModel.onLinkTelegram { url -> context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }

@@ -802,49 +802,53 @@ fun ApprovalWaitingScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        var showAlternatives by remember { mutableStateOf(false) }
-
-        TextButton(onClick = { showAlternatives = !showAlternatives }) {
+        // Позвонить — всегда доступный фолбэк (подтверждение владения SIM)
+        TextButton(onClick = onUseCall) {
             Text(
-                text = "Нет доступа к телефону? Войти другим способом",
+                text = "Позвонить для подтверждения",
                 color = Color(0xFF007AFF),
-                fontSize = 14.sp
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
             )
         }
 
-        if (showAlternatives) {
-            if (canTelegram) {
-                Spacer(modifier = Modifier.height(4.dp))
-                TextButton(onClick = onTelegram) {
-                    Text(
-                        text = "Войти через Telegram",
-                        color = Color(0xFF007AFF),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-
-            if (canEmail) {
-                Spacer(modifier = Modifier.height(4.dp))
-                TextButton(onClick = onEmail) {
-                    Text(
-                        text = "Войти через Email",
-                        color = Color(0xFF007AFF),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
+        // «Войти другим способом» — только если есть Telegram или Email
+        if (canTelegram || canEmail) {
+            var showAlternatives by remember { mutableStateOf(false) }
 
             Spacer(modifier = Modifier.height(4.dp))
-            TextButton(onClick = onUseCall) {
+            TextButton(onClick = { showAlternatives = !showAlternatives }) {
                 Text(
-                    text = "Позвонить для подтверждения",
+                    text = "Нет доступа к телефону? Войти другим способом",
                     color = Color(0xFF007AFF),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
+                    fontSize = 14.sp
                 )
+            }
+
+            if (showAlternatives) {
+                if (canTelegram) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(onClick = onTelegram) {
+                        Text(
+                            text = "Войти через Telegram",
+                            color = Color(0xFF007AFF),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                if (canEmail) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(onClick = onEmail) {
+                        Text(
+                            text = "Войти через Email",
+                            color = Color(0xFF007AFF),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         }
     }
