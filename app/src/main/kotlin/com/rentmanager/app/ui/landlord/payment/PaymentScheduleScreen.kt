@@ -66,7 +66,6 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.InterFontFamily
-import com.rentmanager.app.ui.theme.ScreenBackground
 import com.rentmanager.app.util.mergeRanges
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -338,14 +337,20 @@ fun PaymentScheduleScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ScreenBackground)
+            // Белая страница — как карточка объекта: серые блоки r20 (#EFEFEF)
+            // на белом читаются чётко, в отличие от фона #F5F5F5
+            .background(Color.White)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // ---- Toolbar: стрелка + название слева, кликабельно вместе (как во всех экранах) ----
+            // ---- Toolbar: стрелка + название слева, кликабельно вместе ----
+            // В макете (2872-34102) статус-бар высокий (53dp): зазор от часов до
+            // названия заметно больше, чем даёт системный статус-бар MIUI —
+            // добираем воздух сверху
+            Spacer(Modifier.height(10.dp))
             ScreenToolbar(title = "График платежей", onBack = onBack)
 
             Column(
@@ -354,10 +359,9 @@ fun PaymentScheduleScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
             ) {
-                Spacer(Modifier.height(16.dp))
-
-                // ---- Тип платежей: лейбл чёрным, выбранная пилюля чёрная (Figma 2872-34106) ----
-                Text("Тип платежей", style = CardSubtitleStyle.copy(color = Graphite))
+                // ---- Тип платежей: лейбл через 12dp после тулбара (Figma: label y115, toolbar до y103)
+                Spacer(Modifier.height(12.dp))
+                Text("Тип платежей", style = Headline2MobStyle)
                 Spacer(Modifier.height(6.dp))
                 PaymentTypeSegment(
                     fixedSelected = typeIsFixed,
@@ -391,10 +395,12 @@ fun PaymentScheduleScreen(
                             )
                         }
 
+                        // Заголовочный блок (Figma 34114: от фона 10, заголовок 18,
+                        // зазор 6, подпись 16, до полей 12)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                .padding(horizontal = 10.dp),
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -402,6 +408,7 @@ fun PaymentScheduleScreen(
                                     if (typeIsFixed) "Постоянный платеж" else "Переменный платеж",
                                     style = Headline2MobStyle
                                 )
+                                Spacer(Modifier.height(6.dp))
                                 Text(
                                     if (typeIsFixed) "Укажите день и сумму оплаты"
                                     else "Укажите даты и суммы платежей",
@@ -414,7 +421,7 @@ fun PaymentScheduleScreen(
                             )
                         }
 
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(12.dp))
 
                         // ---- Поля ----
                         Row(
@@ -447,20 +454,16 @@ fun PaymentScheduleScreen(
                                     readOnly = readOnly,
                                     onClick = { showCalendar = true }
                                 )
-                                if (isDailyRent) {
-                                    RateField(rate = uiState.property?.rentAmount)
-                                } else {
-                                    AmountField(
-                                        amount = variableAmount,
-                                        error = variableAmountError,
-                                        readOnly = false,
-                                        onValueChange = {
-                                            variableAmount = it
-                                            variableAmountError = null
-                                            persist()
-                                        }
-                                    )
-                                }
+                                AmountField(
+                                    amount = variableAmount,
+                                    error = variableAmountError,
+                                    readOnly = false,
+                                    onValueChange = {
+                                        variableAmount = it
+                                        variableAmountError = null
+                                        persist()
+                                    }
+                                )
                             }
                         }
 
@@ -776,7 +779,7 @@ private fun SegmentLabel(
     }
 }
 
-/** Поле «Дата» (переменный график): 64dp, #EFEFEF r20, календарь справа. */
+/** Поле «Дата» (переменный график): белое 64dp r20, календарь из макета в зоне 40dp. */
 @Composable
 private fun RowScope.DateField(
     date: LocalDate?,
@@ -790,24 +793,33 @@ private fun RowScope.DateField(
                 .fillMaxWidth()
                 .height(64.dp)
                 .clickable(enabled = !readOnly) { onClick() }
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 20.dp, end = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 date?.format(DdMmYyyy) ?: "Дата",
                 style = if (date != null) Headline2MobStyle else Headline2MobPlaceholderStyle,
                 modifier = Modifier.weight(1f)
             )
-            Image(
-                painter = painterResource(R.drawable.ic_calendar),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp)
-            )
+            // Иконка 24×24 в зоне 40 с padding 8 — как в макете (Figma 2460:8862)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_calendar_payment),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
 
-/** Поле «День месяца» (постоянный график): 64dp, шеврон вниз справа. */
+/** Поле «День месяца» (постоянный график): белое 64dp r20, наш шеврон 40dp. */
 @Composable
 private fun RowScope.DayField(
     day: Int?,
@@ -821,8 +833,9 @@ private fun RowScope.DayField(
                 .fillMaxWidth()
                 .height(64.dp)
                 .clickable(enabled = !readOnly) { onClick() }
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 20.dp, end = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 day?.toString() ?: "День месяца",
@@ -832,13 +845,13 @@ private fun RowScope.DayField(
             Image(
                 painter = painterResource(R.drawable.ic_card_chevron),
                 contentDescription = null,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(40.dp)
             )
         }
     }
 }
 
-/** Поле «Сумма, ₽»: числовой ввод. */
+/** Поле «Сумма, ₽»: числовой ввод, паддинг 20 (иконки нет — Figma 2872-34122). */
 @Composable
 private fun RowScope.AmountField(
     amount: String,
@@ -854,7 +867,7 @@ private fun RowScope.AmountField(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 20.dp),
             textStyle = TextStyle(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -875,25 +888,6 @@ private fun RowScope.AmountField(
                     inner()
                 }
             }
-        )
-    }
-}
-
-/** Поле ставки посуточной аренды: сумма не вводится (ставка × сутки автоматически). */
-@Composable
-private fun RowScope.RateField(rate: Double?) {
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .height(64.dp)
-            .clip(CardShape)
-            .background(Color.White)
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Text(
-            rate?.let { "${formatAmount(it)} / сутки" } ?: "Сумма, ₽",
-            style = if (rate != null) Headline2MobStyle else Headline2MobPlaceholderStyle
         )
     }
 }
@@ -963,7 +957,7 @@ private fun PaymentRow(
 }
 
 /** Поле «Реквизиты для оплаты» (Figma 2872-34124): серое 372×64, паддинг 20,
- *  справа чёрный шеврон вниз — и в пустом, и в заполненном состоянии. */
+ *  наш шеврон 40dp справа — и в пустом, и в заполненном состоянии. */
 @Composable
 private fun RequisitesField(
     name: String?,
@@ -977,8 +971,9 @@ private fun RequisitesField(
             .clip(CardShape)
             .background(CardBackground)
             .clickable { onClick() }
-            .padding(start = 20.dp, end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(start = 20.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (name != null) {
             Column(Modifier.weight(1f)) {
@@ -992,11 +987,10 @@ private fun RequisitesField(
                 modifier = Modifier.weight(1f)
             )
         }
-        Spacer(Modifier.width(16.dp))
         Image(
             painter = painterResource(R.drawable.ic_card_chevron),
             contentDescription = null,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(40.dp)
         )
     }
 }
