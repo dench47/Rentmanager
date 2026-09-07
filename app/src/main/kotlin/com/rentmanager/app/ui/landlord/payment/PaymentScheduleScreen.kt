@@ -1,48 +1,34 @@
 package com.rentmanager.app.ui.landlord.payment
 
-import android.widget.NumberPicker
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,10 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -62,42 +46,53 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.gson.Gson
 import com.rentmanager.app.R
-import java.util.Calendar
+import com.rentmanager.app.ui.components.DesignToast
+import com.rentmanager.app.ui.components.DesignToastData
 import com.rentmanager.app.ui.components.DesignWidthDialog
+import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
+import com.rentmanager.app.ui.components.DatePickerSheet
+import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
+import com.rentmanager.app.ui.landlord.createproperty.OutlineCtaButton
+import com.rentmanager.app.ui.landlord.createproperty.ScreenToolbar
+import com.rentmanager.app.ui.theme.CardBackground
+import com.rentmanager.app.ui.theme.CardShape
+import com.rentmanager.app.ui.theme.CardSubtitleStyle
+import com.rentmanager.app.ui.theme.ErrorRed
+import com.rentmanager.app.ui.theme.Graphite
+import com.rentmanager.app.ui.theme.GreyText
+import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
+import com.rentmanager.app.ui.theme.Headline2MobStyle
+import com.rentmanager.app.ui.theme.InterFontFamily
+import com.rentmanager.app.ui.theme.ScreenBackground
+import com.rentmanager.app.util.mergeRanges
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-// ---- Cache to persist state across navigation ----
+// ---- Черновик экрана: переживает уход и возврат на экран ----
 object PaymentScheduleCache {
-    var fixedDay: String = ""
+    var typeIsFixed: Boolean = true
+    var fixedDay: Int? = null
     var fixedAmount: String = ""
-    var fixedActive: Boolean = false
-    var fixedExpanded: Boolean = false
-
-    var variableActive: Boolean = false
-    var variableExpanded: Boolean = false
-    var selectedDay: String = ""
+    var variableDate: LocalDate? = null
     var variableAmount: String = ""
-    val variableDates: MutableList<VariablePayment> = mutableListOf()
-
-    var calendarYear: Int = Calendar.getInstance().get(Calendar.YEAR)
-    var calendarMonth: Int = Calendar.getInstance().get(Calendar.MONTH) + 1 // 1-based
-
-    var selectedRequisite: String? = null
+    val payments: MutableList<VariablePayment> = mutableListOf()
+    var requisiteId: String? = null
 }
 
 data class VariablePayment(
-    val date: String,
+    val date: LocalDate,
     val amount: String
 )
 
-private val GradientBackground = Brush.verticalGradient(
-    colors = listOf(Color.White, Color(0xFFF5F7FA))
-)
+/** Строка платежа посуточной аренды (из броней): период + сумма (ставка × сутки) */
+private data class BookingRow(val start: LocalDate, val end: LocalDate, val amount: Double)
 
-private val CreamColor = Color(0xFFFAF8F5)
+private val RuDateFormat = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
+private val DdMmYyyy = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
 @Composable
 fun PaymentScheduleScreen(
@@ -106,849 +101,998 @@ fun PaymentScheduleScreen(
     viewModel: PaymentScheduleViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val cache = PaymentScheduleCache
 
-    var fixedDay by remember { mutableStateOf(cache.fixedDay) }
-    var fixedAmount by remember { mutableStateOf(cache.fixedAmount) }
-    var fixedActive by remember { mutableStateOf(cache.fixedActive) }
-    var fixedExpanded by remember { mutableStateOf(cache.fixedExpanded) }
-    var fixedDirty by remember { mutableStateOf(false) }
+    // ---- Состояние экрана ----
+    var typeIsFixed by remember { mutableStateOf(PaymentScheduleCache.typeIsFixed) }
+    var scheduleActive by remember { mutableStateOf(false) } // на сервере есть непустой график
+    var editing by remember { mutableStateOf(false) }        // режим правки активного графика
 
-    var variableActive by remember { mutableStateOf(cache.variableActive) }
-    var variableExpanded by remember { mutableStateOf(cache.variableExpanded) }
-    var variableDirty by remember { mutableStateOf(false) }
-    var selectedDay by remember { mutableStateOf(cache.selectedDay) }
-    var variableAmount by remember { mutableStateOf(cache.variableAmount) }
-    val variableDates = remember { mutableStateListOf<VariablePayment>().also { it.addAll(cache.variableDates) } }
+    var fixedDay by remember { mutableStateOf(PaymentScheduleCache.fixedDay) }
+    var fixedAmount by remember { mutableStateOf(PaymentScheduleCache.fixedAmount) }
+    var fixedDayError by remember { mutableStateOf<String?>(null) }
+    var fixedAmountError by remember { mutableStateOf<String?>(null) }
 
-    var calendarYear by remember { mutableIntStateOf(cache.calendarYear) }
-    var calendarMonth by remember { mutableIntStateOf(cache.calendarMonth) }
-
-    var requisitesExpanded by remember { mutableStateOf(false) }
-    val requisitesList = remember { listOf("Реквизиты ИП", "Реквизиты ООО", "Карта Сбербанк") }
-    var selectedRequisite by remember { mutableStateOf(cache.selectedRequisite) }
-
-    // Persist to cache on each state change
-    fun save() {
-        cache.fixedDay = fixedDay
-        cache.fixedAmount = fixedAmount
-        cache.fixedActive = fixedActive
-        cache.fixedExpanded = fixedExpanded
-        cache.variableActive = variableActive
-        cache.variableExpanded = variableExpanded
-        cache.selectedDay = selectedDay
-        cache.variableAmount = variableAmount
-        cache.variableDates.clear()
-        cache.variableDates.addAll(variableDates)
-        cache.calendarYear = calendarYear
-        cache.calendarMonth = calendarMonth
-        cache.selectedRequisite = selectedRequisite
+    var variableDate by remember { mutableStateOf(PaymentScheduleCache.variableDate) }
+    var variableAmount by remember { mutableStateOf(PaymentScheduleCache.variableAmount) }
+    var variableDateError by remember { mutableStateOf<String?>(null) }
+    var variableAmountError by remember { mutableStateOf<String?>(null) }
+    val payments = remember {
+        mutableStateListOf<VariablePayment>().also { it.addAll(PaymentScheduleCache.payments) }
     }
 
-    fun resetFixed() {
-        fixedActive = false
-        fixedExpanded = false
-        fixedDirty = false
-        fixedDay = ""
+    var requisiteId by remember { mutableStateOf(PaymentScheduleCache.requisiteId) }
+
+    var showCalendar by remember { mutableStateOf(false) }
+    var showDaySheet by remember { mutableStateOf(false) }
+    var showRequisites by remember { mutableStateOf(false) }
+    var showCreateRequisite by remember { mutableStateOf(false) }
+    var conflictDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showApplyDialog by remember { mutableStateOf(false) }
+    var showCancelDialog by remember { mutableStateOf(false) }
+    var toast by remember { mutableStateOf<DesignToastData?>(null) }
+    var scheduleConsumed by remember { mutableStateOf(false) }
+
+    fun persist() {
+        PaymentScheduleCache.typeIsFixed = typeIsFixed
+        PaymentScheduleCache.fixedDay = fixedDay
+        PaymentScheduleCache.fixedAmount = fixedAmount
+        PaymentScheduleCache.variableDate = variableDate
+        PaymentScheduleCache.variableAmount = variableAmount
+        PaymentScheduleCache.payments.clear()
+        PaymentScheduleCache.payments.addAll(payments)
+        PaymentScheduleCache.requisiteId = requisiteId
+    }
+
+    fun resetDraft() {
+        fixedDay = null
         fixedAmount = ""
-        save()
-    }
-
-    fun resetVariable() {
-        variableActive = false
-        variableExpanded = false
-        variableDirty = false
-        selectedDay = ""
+        fixedDayError = null
+        fixedAmountError = null
+        variableDate = null
         variableAmount = ""
-        variableDates.clear()
-        save()
+        variableDateError = null
+        variableAmountError = null
+        payments.clear()
+        requisiteId = null
+        persist()
     }
 
-    LaunchedEffect(propertyId) {
-        viewModel.load(propertyId)
-    }
+    LaunchedEffect(propertyId) { viewModel.load(propertyId) }
 
-    // Посуточная аренда: переменный график живёт бронями (шахматка ↔ график)
-    val isDailyRent = (uiState.property?.rentType ?: "посуточно") == "посуточно"
-
+    // Первичная загрузка графика → черновик
     LaunchedEffect(uiState.isLoading, uiState.schedule, uiState.property) {
-        if (uiState.isLoading) return@LaunchedEffect
+        if (uiState.isLoading || scheduleConsumed) return@LaunchedEffect
         val s = uiState.schedule
-        when {
-            s?.dayOfMonth != null -> {
-                resetVariable()
-                fixedActive = true
-                fixedExpanded = true
-                fixedDay = s.dayOfMonth.toString()
-                fixedAmount = doubleToString(s.amount)
-                fixedDirty = true
-            }
-            s?.customDates != null -> {
-                resetFixed()
-                variableActive = true
-                variableExpanded = true
-                // Посуточно: список дат = брони (приходят из uiState.bookings);
-                // ручной список — только для длительной аренды с переменным графиком
-                if (!isDailyRent) {
-                    variableDates.clear()
-                    variableDates.addAll(parseCustomDates(s.customDates))
+        val hasFixed = s?.dayOfMonth != null
+        val hasVariable = s?.customDates != null
+        scheduleActive = hasFixed || hasVariable
+        if (scheduleActive) {
+            editing = false
+            typeIsFixed = hasFixed
+            if (hasFixed) {
+                payments.clear()
+                fixedDay = s?.dayOfMonth
+                fixedAmount = s?.amount?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: ""
+            } else {
+                // Посуточно: список дат = брони; ручной список — только для длительной аренды
+                if (!uiState.isDailyRent) {
+                    payments.clear()
+                    payments.addAll(parseCustomDates(s?.customDates))
                 }
-                variableDirty = true
             }
-            else -> {
-                // Ничего не настроено: активна карточка по типу аренды объекта —
-                // посуточно → переменный, длительно → постоянный (режимы переключаемы вручную)
-                resetFixed()
-                resetVariable()
-                if (s?.type == "manual") { variableActive = true; variableExpanded = true }
-                else if (s?.type == "auto") fixedActive = true
-                else if (isDailyRent) { variableActive = true; variableExpanded = true }
-                else fixedActive = true
+            if (requisiteId == null) requisiteId = s?.requisites
+        }
+        scheduleConsumed = true
+        persist()
+    }
+
+    // Одноразовые события (применение графика, ошибки, создание реквизита)
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is ScheduleEvent.Applied -> {
+                    val s = event.schedule
+                    val hasData = s.dayOfMonth != null || s.customDates != null
+                    scheduleActive = hasData
+                    if (hasData) {
+                        editing = false
+                        typeIsFixed = s.dayOfMonth != null
+                        if (typeIsFixed) payments.clear()
+                    } else {
+                        resetDraft()
+                    }
+                    persist()
+                }
+                ScheduleEvent.ApplyFailed -> toast = DesignToastData(
+                    text = "Не удалось применить график. Повторите еще раз",
+                    iconRes = R.drawable.ic_globe_warning
+                )
+                ScheduleEvent.RequisiteCreated -> {
+                    showCreateRequisite = false
+                    requisiteId = viewModel.uiState.value.requisites.lastOrNull()?.id
+                    persist()
+                }
             }
         }
-        if (selectedRequisite == null && s?.requisites != null) {
-            selectedRequisite = s.requisites
+    }
+
+    // Ошибка загрузки — тем же тостом дизайнера
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            toast = DesignToastData(text = it, iconRes = R.drawable.ic_globe_warning)
         }
-        save()
     }
 
-    fun onFixedChange() {
-        if (variableDirty) resetVariable()
-        fixedDirty = true
+    val isDailyRent = uiState.isDailyRent
+    val readOnly = scheduleActive && !editing
+    val requisite = uiState.requisites.firstOrNull { it.id == requisiteId }
+
+    // Строки переменного графика: посуточно — брони, иначе ручной список
+    val bookingRows = remember(uiState.bookings, uiState.property?.rentAmount) {
+        if (!isDailyRent) emptyList()
+        else mergeRanges(uiState.bookings).map { (s, e) ->
+            val nights = java.time.temporal.ChronoUnit.DAYS.between(s, e) + 1
+            BookingRow(s, e, (uiState.property?.rentAmount ?: 0.0) * nights)
+        }
     }
 
-    fun onVariableChange() {
-        if (fixedDirty) resetFixed()
-        variableDirty = true
+    fun validateFixed(): Boolean {
+        fixedDayError = if (fixedDay == null || fixedDay !in 1..31) "Выберите число от 1 до 31" else null
+        val amount = fixedAmount.replace(" ", "").toDoubleOrNull()
+        fixedAmountError = if (amount == null || amount <= 0.0) "Укажите сумму" else null
+        return fixedDayError == null && fixedAmountError == null
     }
 
-    // Check if variable month is current
-    val now = Calendar.getInstance()
-    val isCurrentMonth = calendarYear == now.get(Calendar.YEAR) &&
-            calendarMonth == now.get(Calendar.MONTH) + 1
-    val todayDay = now.get(Calendar.DAY_OF_MONTH)
+    fun applySchedule() {
+        if (typeIsFixed) {
+            if (!validateFixed()) return
+            viewModel.saveFixed(
+                propertyId, fixedDay!!, fixedAmount.replace(" ", "").toDouble(), requisiteId
+            )
+        } else {
+            if (isDailyRent) viewModel.saveVariableFromBookings(propertyId, requisiteId)
+            else viewModel.saveVariableManual(propertyId, payments.toList(), requisiteId)
+        }
+    }
 
-    Scaffold(containerColor = Color.Transparent) { paddingValues ->
-        Box(
+    fun addPayment() {
+        val date = variableDate
+        if (date == null) {
+            variableDateError = "Выберите дату"
+            return
+        }
+        if (isDailyRent) {
+            val busy = uiState.bookings.any { (s, e) -> !date.isBefore(s) && !date.isAfter(e) }
+            if (busy) {
+                conflictDate = date
+                return
+            }
+            viewModel.addBookingDay(propertyId, date) { added ->
+                if (added) {
+                    variableDate = null
+                    variableDateError = null
+                    toast = DesignToastData(
+                        text = "Платёж на ${date.format(RuDateFormat)} добавлен",
+                        iconRes = R.drawable.ic_check_white
+                    )
+                }
+            }
+        } else {
+            if (payments.any { it.date == date }) {
+                conflictDate = date
+                return
+            }
+            val amount = variableAmount.replace(" ", "").toDoubleOrNull()
+            if (amount == null || amount <= 0.0) {
+                variableAmountError = "Укажите сумму"
+                return
+            }
+            payments.add(VariablePayment(date, variableAmount.replace(" ", "")))
+            payments.sortBy { it.date }
+            variableDate = null
+            variableAmount = ""
+            variableDateError = null
+            variableAmountError = null
+            toast = DesignToastData(
+                text = "Платёж на ${date.format(RuDateFormat)} добавлен",
+                iconRes = R.drawable.ic_check_white
+            )
+        }
+        persist()
+    }
+
+    fun deletePayment(index: Int) {
+        if (isDailyRent) {
+            val row = bookingRows.getOrNull(index) ?: return
+            viewModel.deleteBooking(propertyId, row.start, row.end)
+            toast = DesignToastData(
+                text = "Платёж был удален",
+                iconRes = R.drawable.ic_check_white,
+                actionText = "Отменить удаление",
+                onAction = { viewModel.recreateBookings(propertyId, listOf(row.start to row.end)) }
+            )
+        } else {
+            val snapshot = payments.toList()
+            payments.removeAt(index)
+            persist()
+            toast = DesignToastData(
+                text = "Платёж был удален",
+                iconRes = R.drawable.ic_check_white,
+                actionText = "Отменить удаление",
+                onAction = {
+                    payments.clear()
+                    payments.addAll(snapshot)
+                    persist()
+                }
+            )
+        }
+    }
+
+    // ---- Валидность верхней кнопки ----
+    val primaryEnabled = if (typeIsFixed) {
+        fixedDay != null && (fixedAmount.replace(" ", "").toDoubleOrNull() ?: 0.0) > 0.0
+    } else {
+        if (isDailyRent) bookingRows.isNotEmpty() else payments.isNotEmpty()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ScreenBackground)
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(GradientBackground)
-                .padding(paddingValues)
+                .statusBarsPadding()
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            // ---- Toolbar: стрелка + название слева, кликабельно вместе (как во всех экранах) ----
+            ScreenToolbar(title = "График платежей", onBack = onBack)
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+            ) {
+                Spacer(Modifier.height(16.dp))
+
+                // ---- Тип платежей: лейбл чёрным, выбранная пилюля чёрная (Figma 2872-34106) ----
+                Text("Тип платежей", style = CardSubtitleStyle.copy(color = Graphite))
+                Spacer(Modifier.height(6.dp))
+                PaymentTypeSegment(
+                    fixedSelected = typeIsFixed,
+                    onSelect = {
+                        typeIsFixed = it
+                        if (scheduleActive) editing = true
+                        persist()
+                    }
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                // ---- Карточка типа платежа: серый фон, белые поля (Figma 2872-34114) ----
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = CardShape,
+                    color = CardBackground
                 ) {
-                    Row(
-                        modifier = Modifier.clickable { onBack() },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_arrow_left),
-                            contentDescription = "Назад",
-                            modifier = Modifier.size(24.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                        Spacer(Modifier.size(12.dp))
-                        Text(
-                            "График платежей",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1D1D1F),
-                            letterSpacing = (-0.3).sp
-                        )
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        if (scheduleActive) {
+                            Text(
+                                if (editing) "Есть несохранённые изменения" else "График активен",
+                                style = CardSubtitleStyle.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (editing) ErrorRed else GreyText
+                                ),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp, bottom = 4.dp)
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    if (typeIsFixed) "Постоянный платеж" else "Переменный платеж",
+                                    style = Headline2MobStyle
+                                )
+                                Text(
+                                    if (typeIsFixed) "Укажите день и сумму оплаты"
+                                    else "Укажите даты и суммы платежей",
+                                    style = CardSubtitleStyle
+                                )
+                            }
+                            Text(
+                                if (typeIsFixed) "Ежемесячно" else "По датам",
+                                style = CardSubtitleStyle
+                            )
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // ---- Поля ----
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (typeIsFixed) {
+                                DayField(
+                                    day = fixedDay,
+                                    error = fixedDayError,
+                                    readOnly = readOnly,
+                                    onClick = { showDaySheet = true }
+                                )
+                                AmountField(
+                                    amount = fixedAmount,
+                                    error = fixedAmountError,
+                                    readOnly = readOnly,
+                                    onValueChange = {
+                                        fixedAmount = it
+                                        fixedAmountError = null
+                                        persist()
+                                    }
+                                )
+                            } else {
+                                DateField(
+                                    date = variableDate,
+                                    error = variableDateError,
+                                    readOnly = readOnly,
+                                    onClick = { showCalendar = true }
+                                )
+                                if (isDailyRent) {
+                                    RateField(rate = uiState.property?.rentAmount)
+                                } else {
+                                    AmountField(
+                                        amount = variableAmount,
+                                        error = variableAmountError,
+                                        readOnly = false,
+                                        onValueChange = {
+                                            variableAmount = it
+                                            variableAmountError = null
+                                            persist()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // ---- Добавить платеж (переменный) ----
+                        if (!typeIsFixed) {
+                            Spacer(Modifier.height(10.dp))
+                            OutlineCtaButton(
+                                text = "Добавить платеж",
+                                borderColor = Graphite,
+                                iconRes = R.drawable.ic_plus_circle_graphite,
+                                onClick = {
+                                    if (readOnly) editing = true
+                                    addPayment()
+                                }
+                            )
+                        }
+
+                        // ---- Список платежей переменного графика ----
+                        if (!typeIsFixed && (payments.isNotEmpty() || bookingRows.isNotEmpty())) {
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Платежи",
+                                style = CardSubtitleStyle,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            val rows: List<Any> = if (isDailyRent) bookingRows else payments.toList()
+                            rows.forEachIndexed { index, row ->
+                                val (dateText, amountText) = when (row) {
+                                    is BookingRow ->
+                                        (if (row.start == row.end) row.start.format(DdMmYyyy)
+                                        else "${row.start.format(DdMmYyyy)} – ${row.end.format(DdMmYyyy)}") to
+                                            formatAmount(row.amount)
+                                    is VariablePayment ->
+                                        row.date.format(DdMmYyyy) to
+                                            formatAmount(row.amount.toDoubleOrNull() ?: 0.0)
+                                    else -> "" to ""
+                                }
+                                PaymentRow(
+                                    title = dateText,
+                                    amount = amountText,
+                                    onDelete = {
+                                        if (readOnly) editing = true
+                                        deletePayment(index)
+                                    }
+                                )
+                                if (index != rows.lastIndex) {
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp)
+                                            .height(1.dp)
+                                            .background(Color.White)
+                                    )
+                                }
+                            }
+                        }
+
+                        // ---- Следующий платёж постоянного графика ----
+                        if (typeIsFixed && scheduleActive && fixedDay != null) {
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Следующий платёж",
+                                style = CardSubtitleStyle,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    nextPaymentDate(fixedDay!!).format(DdMmYyyy),
+                                    style = CardSubtitleStyle.copy(color = Graphite)
+                                )
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    formatAmount(fixedAmount.replace(" ", "").toDoubleOrNull() ?: 0.0),
+                                    style = CardSubtitleStyle.copy(
+                                        color = Graphite,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
                     }
                 }
 
+                Spacer(Modifier.height(12.dp))
+
+                // ---- Поле «Реквизиты» ----
+                RequisitesField(
+                    name = requisite?.name,
+                    caption = requisite?.accountCaption,
+                    onClick = { showRequisites = true }
+                )
+
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // ---- Tabbar ----
+            // В пустом состоянии создания нижних кнопок нет (Figma 2872-34102):
+            // «Применить график» появляется, когда становится что применять.
+            if (scheduleActive || primaryEnabled) {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .navigationBarsPadding(),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    // ========== Fixed Payment Card ==========
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (fixedActive) Color(0xFFE8F5E9) else Color.White
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) {
-                                        if (!variableActive) {
-                                            fixedExpanded = !fixedExpanded
-                                            save()
-                                        }
-                                    },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    "Постоянный платеж",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1D1D1F)
-                                )
-                                if (fixedActive) {
-                                    Icon(
-                                        Icons.Default.CheckCircle,
-                                        null,
-                                        Modifier.size(20.dp),
-                                        tint = Color(0xFF4CAF50)
-                                    )
-                                }
-                            }
-
-                            Text(
-                                "Укажите число месяца, в которое будет происходить оплата",
-                                fontSize = 13.sp,
-                                color = Color(0xFF8E8E93)
-                            )
-
-                            if (fixedExpanded && !variableActive) {
-                                if (!fixedActive) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        DayPickerWithDialog(
-                                            value = fixedDay,
-                                            onDaySelected = {
-                                                fixedDay = it
-                                                onFixedChange()
-                                                save()
-                                            },
-                                            modifier = Modifier.width(80.dp)
-                                        )
-                                        Spacer(Modifier.weight(1f))
-                                        NumberTextField(
-                                            value = fixedAmount,
-                                            onValueChange = {
-                                                fixedAmount = it
-                                                onFixedChange()
-                                                save()
-                                            },
-                                            placeholder = "Сумма",
-                                            modifier = Modifier.widthIn(max = 150.dp)
-                                        )
-                                    }
-                                } else {
-                                    val chosenDay = (fixedDay.ifEmpty { "1" }).toInt()
-                                    val cal = Calendar.getInstance().apply {
-                                        set(Calendar.DAY_OF_MONTH, 1)
-                                    }
-                                    val (targetMonth, targetYear) = if (chosenDay <= todayDay) {
-                                        cal.add(Calendar.MONTH, 1)
-                                        cal.get(Calendar.MONTH) + 1 to cal.get(Calendar.YEAR)
-                                    } else {
-                                        cal.get(Calendar.MONTH) + 1 to cal.get(Calendar.YEAR)
-                                    }
-                                    val dayStr = chosenDay.toString().padStart(2, '0')
-                                    val monthStr = targetMonth.toString().padStart(2, '0')
-                                    val yearStr = targetYear.toString()
-
-                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text(
-                                            "Следующий платеж",
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color(0xFF007AFF),
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                "$dayStr.$monthStr.$yearStr",
-                                                fontSize = 16.sp,
-                                                color = Color(0xFF1D1D1F)
-                                            )
-                                            Text(
-                                                "$fixedAmount руб.",
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF1D1D1F)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Buttons
-                            if (fixedDirty || fixedActive) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    if (!fixedActive) {
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(36.dp)
-                                                .clip(RoundedCornerShape(100.dp))
-                                                .background(Color(0xFF212121))
-                                                .clickable {
-                                                    if (fixedAmount.isNotBlank()) {
-                                                        if (fixedDay.isBlank()) fixedDay = "1"
-                                                        fixedActive = true
-                                                        fixedDirty = false
-                                                        variableActive = false
-                                                        resetVariable()
-                                                        save()
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text("ОК", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                        }
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(36.dp)
-                                                .clip(RoundedCornerShape(100.dp))
-                                                .background(Color(0xFFE53935).copy(alpha = 0.1f))
-                                                .clickable { resetFixed() },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text("Отменить и очистить", color = Color(0xFFE53935), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    when {
+                        !scheduleActive -> BlackCtaButton(
+                            text = "Применить график",
+                            enabled = primaryEnabled,
+                            onClick = { applySchedule() }
+                        )
+                        !editing -> BlackCtaButton(
+                            text = "Изменить график",
+                            onClick = { editing = true }
+                        )
+                        else -> BlackCtaButton(
+                            text = "Сохранить изменения",
+                            enabled = primaryEnabled,
+                            onClick = { showApplyDialog = true }
+                        )
                     }
-
-                    // ========== Variable Payment Card ==========
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (variableActive) Color(0xFFE8F5E9) else Color.White
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) {
-                                        if (!fixedActive) {
-                                            variableExpanded = !variableExpanded
-                                            save()
-                                        }
-                                    },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    "Переменный платеж",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF1D1D1F)
-                                )
-                                if (variableActive) {
-                                    Icon(
-                                        Icons.Default.CheckCircle,
-                                        null,
-                                        Modifier.size(20.dp),
-                                        tint = Color(0xFF4CAF50)
-                                    )
-                                }
-                            }
-
-                            Text(
-                                "Выберите конкретные дни и сумму платежа для каждого дня отдельно",
-                                fontSize = 13.sp,
-                                color = Color(0xFF8E8E93)
-                            )
-
-                            if (variableExpanded && !fixedActive) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // "<" only visible if NOT current month
-                                    if (isCurrentMonth) {
-                                        Spacer(Modifier.width(24.dp))
-                                    } else {
-                                        Text(
-                                            "<",
-                                            modifier = Modifier.clickable {
-                                                if (calendarMonth > 1) calendarMonth-- else { calendarMonth = 12; calendarYear-- }
-                                                onVariableChange()
-                                                save()
-                                            },
-                                            fontSize = 20.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF007AFF)
-                                        )
-                                    }
-
-                                    Text(
-                                        "${monthName(calendarMonth)} $calendarYear",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF1D1D1F)
-                                    )
-
-                                    Text(
-                                        ">",
-                                        modifier = Modifier.clickable {
-                                            if (calendarMonth < 12) calendarMonth++ else { calendarMonth = 1; calendarYear++ }
-                                            onVariableChange()
-                                            save()
-                                        },
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF007AFF)
-                                    )
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val minDayForPicker = if (isCurrentMonth) todayDay else 1
-                                    DayPickerWithDialog(
-                                        value = selectedDay,
-                                        onDaySelected = {
-                                            selectedDay = it
-                                            onVariableChange()
-                                            save()
-                                        },
-                                        minDay = minDayForPicker,
-                                        modifier = Modifier.width(80.dp)
-                                    )
-                                    if (isDailyRent) {
-                                        // Посуточно: сумма = ставка объекта за сутки (руками не вводится)
-                                        val rate = uiState.property?.rentAmount
-                                        Text(
-                                            if (rate != null) "${trimDouble(rate)} ₽/сутки" else "₽/сутки",
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF8E8E93),
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    } else {
-                                        NumberTextField(
-                                            value = variableAmount,
-                                            onValueChange = {
-                                                variableAmount = it
-                                                onVariableChange()
-                                                save()
-                                            },
-                                            placeholder = "Сумма",
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0xFF212121))
-                                            .clickable {
-                                                val day = selectedDay.ifEmpty { "1" }.trim()
-                                                if (isDailyRent) {
-                                                    // Добавление даты = бронь этих суток →
-                                                    // шахматка красится автоматически.
-                                                    // Занятая дата второй раз не добавляется
-                                                    val d = java.time.LocalDate.of(
-                                                        calendarYear, calendarMonth, day.toIntOrNull() ?: 1
-                                                    )
-                                                    if (!d.isBefore(java.time.LocalDate.now())) {
-                                                        viewModel.addBookingDay(propertyId, d) {
-                                                            selectedDay = ""
-                                                            onVariableChange()
-                                                            save()
-                                                        }
-                                                    }
-                                                } else {
-                                                    val amount = variableAmount.trim()
-                                                    if (amount.isNotBlank()) {
-                                                        variableDates.add(
-                                                            VariablePayment(
-                                                                "${day.padStart(2, '0')}.${calendarMonth.toString().padStart(2, '0')}.$calendarYear",
-                                                                amount
-                                                            )
-                                                        )
-                                                        selectedDay = ""
-                                                        variableAmount = ""
-                                                        onVariableChange()
-                                                        save()
-                                                    }
-                                                }
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("+", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-
-                                if (isDailyRent) {
-                                    // Посуточно: список = брони объекта, пересекающиеся
-                                    // периоды слиты (сутки не задваиваются)
-                                    val dd = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
-                                    val rate = uiState.property?.rentAmount ?: 0.0
-                                    val mergedBookings = remember(uiState.bookings) {
-                                        com.rentmanager.app.util.mergeRanges(uiState.bookings)
-                                    }
-                                    LazyColumn(Modifier.heightIn(max = 150.dp)) {
-                                        items(mergedBookings) { (start, end) ->
-                                            val nights =
-                                                java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1
-                                            Row(
-                                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    if (start == end) start.format(dd)
-                                                    else "${start.format(dd)} – ${end.format(dd)}",
-                                                    fontSize = 14.sp,
-                                                    color = Color(0xFF1D1D1F)
-                                                )
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        "${trimDouble(rate * nights)} руб.",
-                                                        fontSize = 14.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = Color(0xFF1D1D1F)
-                                                    )
-                                                    Text(
-                                                        "✕",
-                                                        fontSize = 14.sp,
-                                                        color = Color(0xFFE53935),
-                                                        modifier = Modifier
-                                                            .clickable {
-                                                                viewModel.deleteBooking(propertyId, start, end) { }
-                                                            }
-                                                            .padding(4.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    LazyColumn(Modifier.heightIn(max = 150.dp)) {
-                                        items(variableDates.toList()) { vp ->
-                                            Row(
-                                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Text(vp.date, fontSize = 14.sp, color = Color(0xFF1D1D1F))
-                                                Text("${vp.amount} руб.", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1D1D1F))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Buttons
-                            if (variableDirty || variableActive) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    if (!variableActive) {
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(36.dp)
-                                                .clip(RoundedCornerShape(100.dp))
-                                                .background(Color(0xFF212121))
-                                                .clickable {
-                                                    if (variableDates.isNotEmpty()) {
-                                                        variableActive = true
-                                                        variableDirty = false
-                                                        fixedActive = false
-                                                        resetFixed()
-                                                        save()
-                                                    }
-                                                },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text("ОК", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                        }
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(36.dp)
-                                                .clip(RoundedCornerShape(100.dp))
-                                                .background(Color(0xFFE53935).copy(alpha = 0.1f))
-                                                .clickable { resetVariable() },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text("Отменить и очистить", color = Color(0xFFE53935), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    if (scheduleActive) {
+                        OutlineCtaButton(
+                            text = "Отменить график",
+                            borderColor = Graphite,
+                            onClick = { showCancelDialog = true }
+                        )
                     }
-
-                    // ========== Attach Requisites ==========
-                    Box {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = CreamColor),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { requisitesExpanded = true }
-                                    .padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    selectedRequisite ?: "Прикрепить реквизиты",
-                                    fontSize = 15.sp,
-                                    color = if (selectedRequisite != null) Color(0xFF1D1D1F) else Color(0xFF8E8E93)
-                                )
-                                Icon(
-                                    Icons.Default.KeyboardArrowDown,
-                                    null,
-                                    Modifier.size(20.dp),
-                                    tint = Color(0xFF8E8E93)
-                                )
-                            }
-                        }
-
-                        DropdownMenu(
-                            expanded = requisitesExpanded,
-                            onDismissRequest = { requisitesExpanded = false }
-                        ) {
-                            requisitesList.forEach { req ->
-                                DropdownMenuItem(
-                                    text = { Text(req) },
-                                    onClick = {
-                                        selectedRequisite = req
-                                        requisitesExpanded = false
-                                        save()
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    // Сохранить график на сервере
-                    Button(
-                        onClick = {
-                            if (variableActive && isDailyRent) {
-                                // Посуточно + переменный: график = брони (ставка × сутки)
-                                save()
-                                viewModel.saveVariableFromBookings(propertyId, selectedRequisite)
-                            } else {
-                                val day = if (fixedActive && fixedDay.isNotBlank()) fixedDay.toIntOrNull() else null
-                                val amount = if (fixedActive) fixedAmount.toDoubleOrNull() else null
-                                val customJson = if (variableActive && variableDates.isNotEmpty()) {
-                                    Gson().toJson(variableDates.map { mapOf("date" to it.date, "amount" to it.amount) })
-                                } else null
-                                save()
-                                viewModel.save(propertyId, day, amount, customJson, selectedRequisite)
-                            }
-                        },
-                        enabled = !uiState.isLoading,
-                        modifier = Modifier.fillMaxWidth().height(55.dp),
-                        shape = RoundedCornerShape(100.dp)
-                    ) {
-                        Text(if (uiState.isLoading) "Сохранение…" else "Сохранить", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    }
-
-                    uiState.errorMessage?.let {
-                        Text(it, color = Color(0xFFE53935), fontSize = 13.sp)
-                    }
-                    if (uiState.saved) {
-                        Text("Сохранено", color = Color(0xFF66A256), fontSize = 13.sp)
-                    }
-
-                    Spacer(Modifier.height(8.dp))
                 }
             }
         }
+
+        // ---- Тост поверх контента, над Tabbar ----
+        toast?.let { data ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 170.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                DesignToast(data = data, onDismiss = { toast = null })
+            }
+        }
+    }
+
+    // ---- Шиты ----
+    if (showCalendar) {
+        DatePickerSheet(
+            title = "Дата платежа",
+            initialDate = variableDate ?: LocalDate.now(),
+            onDone = {
+                variableDate = it
+                variableDateError = null
+                persist()
+            },
+            onDismiss = { showCalendar = false },
+            ctaText = "Выбрать"
+        )
+    }
+    if (showDaySheet) {
+        DayOfMonthPickerSheet(
+            selectedDay = fixedDay,
+            onDone = {
+                fixedDay = it
+                fixedDayError = null
+                persist()
+            },
+            onDismiss = { showDaySheet = false },
+            subtitle = "Выберите день, когда арендатор должен вносить платёж"
+        )
+    }
+    if (showRequisites) {
+        if (uiState.requisites.isEmpty()) {
+            EmptyRequisitesSheet(
+                onAdd = {
+                    showRequisites = false
+                    showCreateRequisite = true
+                },
+                onDismiss = { showRequisites = false }
+            )
+        } else {
+            RequisitesSheet(
+                requisites = uiState.requisites,
+                selectedId = requisiteId,
+                onPick = {
+                    requisiteId = it.id
+                    persist()
+                    showRequisites = false
+                },
+                onDismiss = { showRequisites = false }
+            )
+        }
+    }
+    if (showCreateRequisite) {
+        CreateRequisiteSheet(
+            onSave = { name, account, bank ->
+                viewModel.createRequisite(name, account, bank)
+            },
+            onDismiss = { showCreateRequisite = false }
+        )
+    }
+
+    // ---- Диалоги ----
+    conflictDate?.let { date ->
+        ScheduleDialog(
+            iconRes = R.drawable.ic_calendar_warning,
+            title = "На ${date.format(RuDateFormat)} уже запланирован платёж",
+            body = null,
+            confirmText = "Изменить платёж",
+            onConfirm = {
+                conflictDate = null
+                showCalendar = true
+            },
+            onDismiss = { conflictDate = null }
+        )
+    }
+    if (showApplyDialog) {
+        ScheduleDialog(
+            iconRes = null,
+            title = "Применить изменения?",
+            body = "Новые условия графика заменят текущие и будут отправлены арендатору",
+            confirmText = "Применить изменения",
+            onConfirm = {
+                showApplyDialog = false
+                applySchedule()
+            },
+            onDismiss = { showApplyDialog = false }
+        )
+    }
+    if (showCancelDialog) {
+        ScheduleDialog(
+            iconRes = null,
+            title = "Отменить и очистить график?",
+            body = "Все будущие платежи и уведомления арендатору будут отменены",
+            confirmText = "Очистить график",
+            confirmColor = ErrorRed,
+            onConfirm = {
+                showCancelDialog = false
+                viewModel.cancelSchedule(propertyId)
+            },
+            onDismiss = { showCancelDialog = false }
+        )
+    }
+}
+
+// ===================== Компоненты экрана =====================
+
+/** Сегмент «Тип платежей» (Figma 2872-34106): трек 48dp #EFEFEF r100,
+ *  выбранная половина залита графитом с белым текстом (паттерн ToggleSegment). */
+@Composable
+private fun PaymentTypeSegment(
+    fixedSelected: Boolean,
+    onSelect: (isFixed: Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .background(CardBackground)
+    ) {
+        SegmentLabel(
+            text = "Постоянный",
+            selected = fixedSelected,
+            onClick = { onSelect(true) },
+            modifier = Modifier.weight(1f)
+        )
+        SegmentLabel(
+            text = "Переменный",
+            selected = !fixedSelected,
+            onClick = { onSelect(false) },
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
 @Composable
-private fun NumberTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
+private fun SegmentLabel(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .then(
+                if (selected) Modifier.background(Graphite) else Modifier
+            )
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
     ) {
+        Text(
+            text,
+            style = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = InterFontFamily,
+                letterSpacing = (-0.4).sp,
+                color = if (selected) Color.White else GreyText
+            )
+        )
+    }
+}
+
+/** Поле «Дата» (переменный график): 64dp, #EFEFEF r20, календарь справа. */
+@Composable
+private fun RowScope.DateField(
+    date: LocalDate?,
+    error: String?,
+    readOnly: Boolean,
+    onClick: () -> Unit
+) {
+    FieldContainer(error = error, modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clickable(enabled = !readOnly) { onClick() }
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                date?.format(DdMmYyyy) ?: "Дата",
+                style = if (date != null) Headline2MobStyle else Headline2MobPlaceholderStyle,
+                modifier = Modifier.weight(1f)
+            )
+            Image(
+                painter = painterResource(R.drawable.ic_calendar),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+/** Поле «День месяца» (постоянный график): 64dp, шеврон вниз справа. */
+@Composable
+private fun RowScope.DayField(
+    day: Int?,
+    error: String?,
+    readOnly: Boolean,
+    onClick: () -> Unit
+) {
+    FieldContainer(error = error, modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clickable(enabled = !readOnly) { onClick() }
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                day?.toString() ?: "День месяца",
+                style = if (day != null) Headline2MobStyle else Headline2MobPlaceholderStyle,
+                modifier = Modifier.weight(1f)
+            )
+            Image(
+                painter = painterResource(R.drawable.ic_card_chevron),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+/** Поле «Сумма, ₽»: числовой ввод. */
+@Composable
+private fun RowScope.AmountField(
+    amount: String,
+    error: String?,
+    readOnly: Boolean,
+    onValueChange: (String) -> Unit
+) {
+    FieldContainer(error = error, modifier = Modifier.weight(1f)) {
         BasicTextField(
-            value = value,
+            value = amount,
             onValueChange = onValueChange,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            textStyle = TextStyle(fontSize = 15.sp, color = Color(0xFF1D1D1F)),
-            cursorBrush = SolidColor(Color(0xFF1D1D1F)),
+            enabled = !readOnly,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 16.dp),
+            textStyle = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = InterFontFamily,
+                color = Graphite
+            ),
+            cursorBrush = SolidColor(Graphite),
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
                 imeAction = ImeAction.Done
             ),
-            decorationBox = { innerTextField ->
-                Box {
-                    if (value.isEmpty()) {
-                        Text(placeholder, fontSize = 15.sp, color = Color(0xFF8E8E93))
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (amount.isEmpty()) {
+                        Text("Сумма, ₽", style = Headline2MobPlaceholderStyle)
                     }
-                    innerTextField()
+                    inner()
                 }
             }
         )
     }
 }
 
+/** Поле ставки посуточной аренды: сумма не вводится (ставка × сутки автоматически). */
 @Composable
-private fun DayPickerWithDialog(
-    value: String,
-    onDaySelected: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    minDay: Int = 1
-) {
-    var showDialog by remember { mutableStateOf(false) }
-    val fallback = if (minDay > 1 && value.toIntOrNull()?.let { it < minDay } == true) minDay.toString()
-        else value.ifEmpty { "1" }
-    val initialValue = fallback.toIntOrNull() ?: minDay
-    var selectedValue by remember(initialValue) { mutableIntStateOf(initialValue) }
-
-    Box(modifier = modifier) {
+private fun RowScope.RateField(rate: Double?) {
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .height(64.dp)
+            .clip(CardShape)
+            .background(Color.White)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
         Text(
-            text = value.ifEmpty { minDay.toString() },
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFF1D1D1F),
-            modifier = Modifier.clickable { showDialog = true }
+            rate?.let { "${formatAmount(it)} / сутки" } ?: "Сумма, ₽",
+            style = if (rate != null) Headline2MobStyle else Headline2MobPlaceholderStyle
         )
     }
+}
 
-    if (showDialog) {
-        DesignWidthDialog(onDismissRequest = { showDialog = false }) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = CreamColor
+/** Поле с красной рамкой и подписью ошибки (Figma: 79dp = 64 поле + 15 подпись).
+ *  Поле белое — внутри серой карточки. */
+@Composable
+private fun FieldContainer(
+    error: String?,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(CardShape)
+                .background(Color.White)
+                .then(
+                    if (error != null) Modifier.border(1.dp, ErrorRed, CardShape)
+                    else Modifier
+                )
+        ) {
+            content()
+        }
+        if (error != null) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                error,
+                style = CardSubtitleStyle.copy(color = ErrorRed, fontSize = 11.sp),
+                modifier = Modifier.padding(start = 16.dp)
+            )
+        }
+    }
+}
+
+/** Строка платежа (Figma: 44dp, дата слева, сумма, корзина 18dp). */
+@Composable
+private fun PaymentRow(
+    title: String,
+    amount: String,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, style = CardSubtitleStyle.copy(color = Graphite))
+        Spacer(Modifier.weight(1f))
+        Text(
+            amount,
+            style = CardSubtitleStyle.copy(color = Graphite, fontWeight = FontWeight.SemiBold)
+        )
+        Spacer(Modifier.width(12.dp))
+        Image(
+            painter = painterResource(R.drawable.ic_action_delete),
+            contentDescription = "Удалить платёж",
+            modifier = Modifier
+                .size(18.dp)
+                .clickable { onDelete() }
+        )
+    }
+}
+
+/** Поле «Реквизиты для оплаты» (Figma 2872-34124): серое 372×64, паддинг 20,
+ *  справа чёрный шеврон вниз — и в пустом, и в заполненном состоянии. */
+@Composable
+private fun RequisitesField(
+    name: String?,
+    caption: String?,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(CardShape)
+            .background(CardBackground)
+            .clickable { onClick() }
+            .padding(start = 20.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (name != null) {
+            Column(Modifier.weight(1f)) {
+                Text(name, style = Headline2MobStyle)
+                caption?.let { Text(it, style = CardSubtitleStyle) }
+            }
+        } else {
+            Text(
+                "Реквизиты для оплаты",
+                style = Headline2MobPlaceholderStyle,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.width(16.dp))
+        Image(
+            painter = painterResource(R.drawable.ic_card_chevron),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+/** Диалог дизайнера (Figma Delete/Continue): карточка r20, иконка сверху,
+ *  заголовок, серое тело, чёрная + контурная кнопки. */
+@Composable
+private fun ScheduleDialog(
+    iconRes: Int?,
+    title: String,
+    body: String?,
+    confirmText: String,
+    confirmColor: Color = Graphite,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    DesignWidthDialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = CardShape,
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
-                ) {
+                iconRes?.let {
+                    Image(
+                        painter = painterResource(it),
+                        contentDescription = null,
+                        modifier = Modifier.size(50.dp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                }
+                Text(
+                    title,
+                    style = Headline2MobStyle,
+                    textAlign = TextAlign.Center
+                )
+                body?.let {
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        "Выберите день месяца",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1D1D1F),
+                        it,
+                        style = CardSubtitleStyle,
                         textAlign = TextAlign.Center
                     )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Box(modifier = Modifier.padding(horizontal = 48.dp)) {
-                        @Suppress("COMPOSE_APPLIER_CALL_MISMATCH")
-                        AndroidView(
-                            factory = { context ->
-                                NumberPicker(context).apply {
-                                    this.minValue = minDay
-                                    maxValue = 31
-                                    this.value = initialValue
-                                    setOnValueChangedListener { _, _, newVal ->
-                                        selectedValue = newVal
-                                    }
-                                }
-                            },
-                            modifier = Modifier.height(150.dp)
-                        )
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    TextButton(
-                        onClick = {
-                            onDaySelected(selectedValue.toString())
-                            showDialog = false
-                        }
-                    ) {
-                        Text("Готово", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold)
-                    }
                 }
+                Spacer(Modifier.height(20.dp))
+                BlackCtaButton(
+                    text = confirmText,
+                    containerColor = confirmColor,
+                    onClick = onConfirm
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlineCtaButton(
+                    text = "Назад",
+                    borderColor = Graphite,
+                    onClick = onDismiss
+                )
             }
         }
     }
 }
 
+// ===================== Утилиты =====================
+
 private data class CustomDateEntry(val date: String, val amount: String)
 
-private fun parseCustomDates(json: String): List<VariablePayment> = try {
-    Gson().fromJson(json, Array<CustomDateEntry>::class.java)
-        .map { VariablePayment(date = it.date, amount = it.amount) }
+private fun parseCustomDates(json: String?): List<VariablePayment> = try {
+    Gson().fromJson(json ?: "[]", Array<CustomDateEntry>::class.java)
+        .mapNotNull { entry ->
+            runCatching { VariablePayment(LocalDate.parse(entry.date, DdMmYyyy), entry.amount) }
+                .getOrNull()
+        }
+        .sortedBy { it.date }
 } catch (_: Exception) {
     emptyList()
 }
 
-private fun doubleToString(v: Double?): String = when {
-    v == null -> ""
-    v == v.toLong().toDouble() -> v.toLong().toString()
-    else -> v.toString()
+/** «25 000 ₽» — тысячные с пробелом. */
+private fun formatAmount(v: Double): String {
+    val long = v.toLong()
+    return if (v == long.toDouble()) {
+        String.format(Locale("ru"), "%,d", long).replace('\u00A0', ' ') + " ₽"
+    } else {
+        String.format(Locale("ru"), "%,.2f", v).replace('\u00A0', ' ') + " ₽"
+    }
 }
 
-private fun trimDouble(v: Double): String =
-    if (v == v.toLong().toDouble()) v.toLong().toString() else v.toString()
-
-private fun monthName(month: Int): String = when (month) {
-    1 -> "Январь"
-    2 -> "Февраль"
-    3 -> "Март"
-    4 -> "Апрель"
-    5 -> "Май"
-    6 -> "Июнь"
-    7 -> "Июль"
-    8 -> "Август"
-    9 -> "Сентябрь"
-    10 -> "Октябрь"
-    11 -> "Ноябрь"
-    12 -> "Декабрь"
-    else -> ""
+/** Ближайшая дата платежа: день в этом месяце (если не прошёл) или в следующем. */
+private fun nextPaymentDate(day: Int): LocalDate {
+    val today = LocalDate.now()
+    return if (day >= today.dayOfMonth) {
+        today.withDayOfMonth(day.coerceAtMost(today.lengthOfMonth()))
+    } else {
+        val next = today.plusMonths(1)
+        next.withDayOfMonth(day.coerceAtMost(next.lengthOfMonth()))
+    }
 }

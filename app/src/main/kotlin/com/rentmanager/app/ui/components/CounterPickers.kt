@@ -69,7 +69,8 @@ fun DatePickerSheet(
     title: String,
     initialDate: LocalDate?,
     onDone: (LocalDate) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    ctaText: String = "Готово"
 ) {
     var displayMonth by remember {
         mutableStateOf(YearMonth.from(initialDate ?: LocalDate.now()))
@@ -160,7 +161,7 @@ fun DatePickerSheet(
 
             Spacer(Modifier.height(12.dp))
             BlackCtaButton(
-                text = "Готово",
+                text = ctaText,
                 enabled = picked != null,
                 onClick = { picked?.let(onDone) }
             )
@@ -340,7 +341,8 @@ private fun CalendarGrid(
 fun DayOfMonthPickerSheet(
     selectedDay: Int?,
     onDone: (Int) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    subtitle: String = "Выберите число, до которого нужно передавать показания каждый месяц"
 ) {
     var picked by remember { mutableStateOf(selectedDay) }
     ModalBottomSheet(
@@ -361,7 +363,7 @@ fun DayOfMonthPickerSheet(
             Text("День месяца", style = ToolbarTitleStyle)
             Spacer(Modifier.height(6.dp))
             Text(
-                "Выберите число, до которого нужно передавать показания каждый месяц",
+                subtitle,
                 style = CardSubtitleStyle
             )
             Spacer(Modifier.height(12.dp))

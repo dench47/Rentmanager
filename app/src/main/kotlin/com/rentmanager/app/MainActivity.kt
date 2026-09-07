@@ -41,7 +41,7 @@ import com.rentmanager.app.ui.components.UpdateDialog
 import com.rentmanager.app.ui.navigation.RentManagerNavGraph
 import com.rentmanager.app.ui.theme.RentManagerTheme
 import com.rentmanager.app.ui.theme.createDesignWidthContext
-import com.rentmanager.app.ui.theme.isDesignWidthApplied
+import com.rentmanager.app.ui.theme.ensureDesignWidth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -85,10 +85,6 @@ class MainActivity : FragmentActivity() {
 
     companion object {
         private const val BACKGROUND_TIMEOUT_MS = 60_000L
-
-        // Самовосстановление масштаба — не более одной попытки на процесс,
-        // чтобы исключить цикл пересозданий
-        private var designWidthRecreateAttempted = false
     }
 
     // Масштабирование плотности под дизайн-ширину 412dp на уровне базового контекста:
@@ -104,13 +100,11 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Дубль страховки масштаба: если attachBaseContext/onCreate прошли по
-        // мусорным метрикам — окно уже существует, его метрики настоящие
-        if (!designWidthRecreateAttempted && !isDesignWidthApplied()) {
-            designWidthRecreateAttempted = true
-            recreate()
-            return
-        }
+        // Страховка масштаба 412dp: холодный старт с мусорными метриками
+        // (например, поверх активного звонка) мог дать неверную плотность.
+        // Самолечение — до 2 recreate на одну ширину окна, счётчик
+        // сбрасывается при смене ширины (звонок закончился) — см. DesignWidth.kt
+        ensureDesignWidth()
         // Фоновая блокировка PIN'ом — только если локально включён запрос PIN
         if (tokenManager.hasPassword && tokenManager.localPinEnabled && tokenManager.accessToken != null) {
             val now = System.currentTimeMillis()
@@ -172,14 +166,6 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         super.onCreate(savedInstanceState)
-        // Холодный старт с полуинициализированной конфигурацией мог обойти
-        // масштабирование 412dp — сверяемся с реальными метриками ОКНА
-        // (не ресурсов!) и пересоздаёмся один раз
-        if (!designWidthRecreateAttempted && !isDesignWidthApplied()) {
-            designWidthRecreateAttempted = true
-            recreate()
-            return
-        }
         // Прозрачная системная навигация: убираем дефолтный полупрозрачно-белый скрим edge-to-edge,
         // чтобы зона под кнопками не выглядела белее таббара (цвет задаёт сам экран)
         enableEdgeToEdge(
@@ -191,6 +177,12 @@ class MainActivity : FragmentActivity() {
         // Отключаем системный контрастный скрим навигации (API 29+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
+        }
+        // Возврат фокуса окном (закрылся звонок/системный оверлей) — дисплей
+        // к этому моменту отдаёт настоящие метрики: проверяем масштаб ещё раз,
+        // чтобы чинить «гигантский экран» без перезапуска приложения
+        window.decorView.viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
+            if (hasFocus) ensureDesignWidth()
         }
 
         // Холодный старт — сбрасываем состояние фона, чтобы не требовать PIN повторно после обновления

@@ -100,17 +100,39 @@ private fun Context.appContext(): Context = try {
 
 /**
  * Страховка после создания окна: плотность контекста должна совпадать с
- * целевой для ФИЗИЧЕСКОЙ ширины экрана. К этому моменту окно Activity уже
- * существует и его метрики настоящие — в отличие от attachBaseContext, где
- * на части холодных стартов дисплей ещё «не проснулся» и все источники
- * отдавали мусор (поэтому прежняя проверка шириной в dp могла ложно пройти).
- * Вызывается из onCreate и onResume — см. MainActivity.
+ * целевой для ТЕКУЩЕЙ ширины окна. На части холодных стартов (например,
+ * запуск поверх активного звонка) все источники метрик отдают мусор —
+ * контекст создаётся с неверной плотностью, интерфейс «гигантский».
+ *
+ * Логика самолечения: не «одна попытка на процесс», а до 2 recreate на
+ * каждую конкретную ширину окна. Как только ширина окна МЕНЯЕТСЯ (звонок
+ * закончился, окно растянулось на весь дисплей) — счётчик сбрасывается и
+ * даётся новая попытка. Бесконечный цикл невозможен: при неизменной ширине
+ * максимум 2 пересоздания, при успешной проверке счётчик обнуляется.
+ * Вызывается из onResume и по возврату фокуса окном — см. MainActivity.
  */
-fun Activity.isDesignWidthApplied(): Boolean {
+private var lastCheckedWindowWidthPx = 0
+private var recreateAttemptsForWidth = 0
+
+fun Activity.ensureDesignWidth() {
     val widthPx = windowRealWidthPx()
-    if (widthPx <= 0) return true // измерить не смогли — не пересоздаём
+    if (widthPx <= 0) return // измерить не смогли — не трогаем
     val targetDpi = (160f * widthPx / DESIGN_WIDTH_DP).toInt()
-    return resources.displayMetrics.densityDpi == targetDpi
+    if (resources.displayMetrics.densityDpi == targetDpi) {
+        lastCheckedWindowWidthPx = widthPx
+        recreateAttemptsForWidth = 0
+        return
+    }
+    // Ширина окна изменилась с прошлой неудачной проверки — дисплей
+    // «проснулся» — это новое состояние, даём свежие попытки
+    if (widthPx != lastCheckedWindowWidthPx) {
+        lastCheckedWindowWidthPx = widthPx
+        recreateAttemptsForWidth = 0
+    }
+    if (recreateAttemptsForWidth < 2) {
+        recreateAttemptsForWidth++
+        recreate()
+    }
 }
 
 /** Физическая ширина окна Activity (надёжно начиная с onCreate). */
