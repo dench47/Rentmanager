@@ -130,8 +130,9 @@ private fun RadioButton(selected: Boolean) {
     }
 }
 
-/** Шит «Нет реквизитов» (Figma 2872-34394): иллюстрация 128, заголовок,
- *  подпись, CTA «Добавить реквизиты» с белым плюсом. */
+/** Шит «Нет реквизитов» (Figma 2872-34417): ручка Graphite 40%, иллюстрация
+ *  через 20, заголовок 20 SemiBold, подпись 15 SemiBold Graphite в две
+ *  строки через 12, CTA «Добавить реквизиты» с белым плюсом через 20. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmptyRequisitesSheet(
@@ -150,27 +151,30 @@ fun EmptyRequisitesSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
-                .padding(bottom = 20.dp),
+                // CTA → низ шита = 20 (внутри card) + 36 (под card) = 56 (Figma 2872-34417)
+                .padding(bottom = 56.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            SheetDragHandle()
+            // Drag handle из макета: Graphite/Track 40%
+            SheetDragHandle(color = Graphite.copy(alpha = 0.4f))
+            Spacer(Modifier.height(20.dp))
             Image(
                 painter = painterResource(R.drawable.img_no_requisites),
                 contentDescription = null,
                 modifier = Modifier.size(128.dp)
             )
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(12.dp))
             Text("Нет реквизитов", style = ToolbarTitleStyle)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 "Добавьте реквизиты, чтобы привязать их к графику платежей",
-                style = CardSubtitleStyle,
+                style = Headline2MobStyle,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(20.dp))
             BlackCtaButton(
                 text = "Добавить реквизиты",
-                iconRes = R.drawable.ic_cta_plus,
+                iconRes = R.drawable.ic_plus_circle_white,
                 onClick = onAdd
             )
         }

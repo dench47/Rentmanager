@@ -236,9 +236,9 @@ fun PaymentScheduleScreen(
     }
 
     fun validateFixed(): Boolean {
-        fixedDayError = if (fixedDay == null || fixedDay !in 1..31) "Выберите число от 1 до 31" else null
+        fixedDayError = if (fixedDay == null || fixedDay !in 1..31) "Выберите значение" else null
         val amount = fixedAmount.replace(" ", "").toDoubleOrNull()
-        fixedAmountError = if (amount == null || amount <= 0.0) "Укажите сумму" else null
+        fixedAmountError = if (amount == null || amount <= 0.0) "Заполните поле" else null
         return fixedDayError == null && fixedAmountError == null
     }
 
@@ -255,45 +255,53 @@ fun PaymentScheduleScreen(
     }
 
     fun addPayment() {
+        // Заметка дизайнера (Figma 2872:34854): нажатие «Добавить платеж»
+        // подчёркивает незаполненные поля; платёж создаётся только когда всё заполнено
+        var valid = true
         val date = variableDate
         if (date == null) {
-            variableDateError = "Выберите дату"
-            return
+            variableDateError = "Выберите значение"
+            valid = false
         }
+        val amount = variableAmount.replace(" ", "").toDoubleOrNull()
+        if (amount == null || amount <= 0.0) {
+            variableAmountError = "Заполните поле"
+            valid = false
+        }
+        if (!valid) return
+        val paymentDate = date ?: return
+
         if (isDailyRent) {
-            val busy = uiState.bookings.any { (s, e) -> !date.isBefore(s) && !date.isAfter(e) }
+            val busy = uiState.bookings.any { (s, e) -> !paymentDate.isBefore(s) && !paymentDate.isAfter(e) }
             if (busy) {
-                conflictDate = date
+                conflictDate = paymentDate
                 return
             }
-            viewModel.addBookingDay(propertyId, date) { added ->
+            viewModel.addBookingDay(propertyId, paymentDate) { added ->
                 if (added) {
                     variableDate = null
+                    variableAmount = ""
                     variableDateError = null
+                    variableAmountError = null
                     toast = DesignToastData(
-                        text = "Платёж на ${date.format(RuDateFormat)} добавлен",
+                        text = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен",
                         iconRes = R.drawable.ic_check_white
                     )
                 }
             }
         } else {
-            if (payments.any { it.date == date }) {
-                conflictDate = date
+            if (payments.any { it.date == paymentDate }) {
+                conflictDate = paymentDate
                 return
             }
-            val amount = variableAmount.replace(" ", "").toDoubleOrNull()
-            if (amount == null || amount <= 0.0) {
-                variableAmountError = "Укажите сумму"
-                return
-            }
-            payments.add(VariablePayment(date, variableAmount.replace(" ", "")))
+            payments.add(VariablePayment(paymentDate, variableAmount.replace(" ", "")))
             payments.sortBy { it.date }
             variableDate = null
             variableAmount = ""
             variableDateError = null
             variableAmountError = null
             toast = DesignToastData(
-                text = "Платёж на ${date.format(RuDateFormat)} добавлен",
+                text = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен",
                 iconRes = R.drawable.ic_check_white
             )
         }
@@ -799,7 +807,11 @@ private fun RowScope.DateField(
         ) {
             Text(
                 date?.format(DdMmYyyy) ?: "Дата",
-                style = if (date != null) Headline2MobStyle else Headline2MobPlaceholderStyle,
+                style = when {
+                    date != null -> Headline2MobStyle
+                    error != null -> Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                    else -> Headline2MobPlaceholderStyle
+                },
                 modifier = Modifier.weight(1f)
             )
             // Иконка 24×24 в зоне 40 с padding 8 — как в макете (Figma 2460:8862)
@@ -839,7 +851,11 @@ private fun RowScope.DayField(
         ) {
             Text(
                 day?.toString() ?: "День месяца",
-                style = if (day != null) Headline2MobStyle else Headline2MobPlaceholderStyle,
+                style = when {
+                    day != null -> Headline2MobStyle
+                    error != null -> Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                    else -> Headline2MobPlaceholderStyle
+                },
                 modifier = Modifier.weight(1f)
             )
             Image(
@@ -883,7 +899,11 @@ private fun RowScope.AmountField(
             decorationBox = { inner ->
                 Box(contentAlignment = Alignment.CenterStart) {
                     if (amount.isEmpty()) {
-                        Text("Сумма, ₽", style = Headline2MobPlaceholderStyle)
+                        Text(
+                            "Сумма, ₽",
+                            style = if (error != null) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                            else Headline2MobPlaceholderStyle
+                        )
                     }
                     inner()
                 }
@@ -892,8 +912,8 @@ private fun RowScope.AmountField(
     }
 }
 
-/** Поле с красной рамкой и подписью ошибки (Figma: 79dp = 64 поле + 15 подпись).
- *  Поле белое — внутри серой карточки. */
+/** Поле с ошибкой (Figma 2872:34143): красная рамка 1dp + красная подпись
+ *  под полем («Выберите значение» / «Заполните поле»), фон белый, r20. */
 @Composable
 private fun FieldContainer(
     error: String?,
@@ -918,8 +938,8 @@ private fun FieldContainer(
             Spacer(Modifier.height(4.dp))
             Text(
                 error,
-                style = CardSubtitleStyle.copy(color = ErrorRed, fontSize = 11.sp),
-                modifier = Modifier.padding(start = 16.dp)
+                style = CardSubtitleStyle.copy(color = ErrorRed),
+                modifier = Modifier.padding(start = 20.dp)
             )
         }
     }
