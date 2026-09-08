@@ -74,6 +74,9 @@ import java.util.Locale
 // ---- Черновик экрана: переживает уход и возврат на экран ----
 object PaymentScheduleCache {
     var typeIsFixed: Boolean = true
+    /** Пользователь уже сам выбирал тип на этом черновике — не сбрасываем
+     *  вкладку на дефолт по типу аренды объекта */
+    var typeTouched: Boolean = false
     var fixedDay: Int? = null
     var fixedAmount: String = ""
     var variableDate: LocalDate? = null
@@ -153,6 +156,9 @@ fun PaymentScheduleScreen(
         variableAmountError = null
         payments.clear()
         requisiteId = null
+        // Возврат в «первоначальное» состояние: вкладка — снова по типу аренды
+        PaymentScheduleCache.typeTouched = false
+        typeIsFixed = !viewModel.uiState.value.isDailyRent
         persist()
     }
 
@@ -180,6 +186,11 @@ fun PaymentScheduleScreen(
                 }
             }
             if (requisiteId == null) requisiteId = s?.requisites
+        } else if (!PaymentScheduleCache.typeTouched) {
+            // График ещё не настроен: стартовая вкладка «Тип платежей» — по типу
+            // аренды из карточки объекта («Аренда и платежи»: «₽ / сутки» →
+            // переменный, «₽ / месяц» → постоянный)
+            typeIsFixed = !uiState.isDailyRent
         }
         scheduleConsumed = true
         persist()
@@ -235,6 +246,14 @@ fun PaymentScheduleScreen(
         }
     }
 
+    // Сохранённые даты платежей — точки в календарном шите (Figma 2872-34192:
+    // точки 7dp под датами 12 и 20 из списка «Добавленные платежи»)
+    val savedPaymentDates = remember(payments.toList(), bookingRows) {
+        if (isDailyRent) bookingRows.flatMapTo(mutableSetOf()) { row ->
+            generateSequence(row.start) { it.plusDays(1) }.takeWhile { !it.isAfter(row.end) }.toList()
+        } else payments.map { it.date }.toSet()
+    }
+
     fun validateFixed(): Boolean {
         fixedDayError = if (fixedDay == null || fixedDay !in 1..31) "Выберите значение" else null
         val amount = fixedAmount.replace(" ", "").toDoubleOrNull()
@@ -286,6 +305,13 @@ fun PaymentScheduleScreen(
                     toast = DesignToastData(
                         text = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен",
                         iconRes = R.drawable.ic_check_white
+                    )
+                } else {
+                    // Бронь не создалась (например, нет связи с сервером) —
+                    // молчаливое «ничего не происходит» недопустимо
+                    toast = DesignToastData(
+                        text = "Не удалось добавить платёж. Проверьте соединение",
+                        iconRes = R.drawable.ic_globe_warning
                     )
                 }
             }
@@ -375,6 +401,7 @@ fun PaymentScheduleScreen(
                     fixedSelected = typeIsFixed,
                     onSelect = {
                         typeIsFixed = it
+                        PaymentScheduleCache.typeTouched = true
                         if (scheduleActive) editing = true
                         persist()
                     }
@@ -388,20 +415,47 @@ fun PaymentScheduleScreen(
                     shape = CardShape,
                     color = CardBackground
                 ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        if (scheduleActive) {
-                            Text(
-                                if (editing) "Есть несохранённые изменения" else "График активен",
-                                style = CardSubtitleStyle.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (editing) ErrorRed else GreyText
-                                ),
-                                textAlign = TextAlign.Center,
+                    Column {
+                        if (scheduleActive && !editing) {
+                            // Плашка «График активен» (Figma 2872-34486): полоса 38dp
+                            // во всю ширину карточки, #E5F2E7 r10, текст 15/600 #2F7D4D;
+                            // верхние углы скругляет сама карточка r20
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 8.dp, bottom = 4.dp)
-                            )
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFFE5F2E7)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "График активен",
+                                    style = Headline2MobStyle.copy(color = Color(0xFF2F7D4D))
+                                )
+                            }
                         }
+                        Column(
+                            modifier = Modifier.padding(
+                                start = 10.dp,
+                                end = 10.dp,
+                                bottom = 10.dp,
+                                // После плашки контент на 12-й строке (Figma: полоса 38, карточка с y50)
+                                top = if (scheduleActive && !editing) 12.dp else 10.dp
+                            )
+                        ) {
+                            if (scheduleActive && editing) {
+                                Text(
+                                    "Есть несохранённые изменения",
+                                    style = CardSubtitleStyle.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = ErrorRed
+                                    ),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp, bottom = 4.dp)
+                                )
+                            }
 
                         // Заголовочный блок (Figma 34114: от фона 10, заголовок 18,
                         // зазор 6, подпись 16, до полей 12)
@@ -493,8 +547,11 @@ fun PaymentScheduleScreen(
                         if (!typeIsFixed && (payments.isNotEmpty() || bookingRows.isNotEmpty())) {
                             Spacer(Modifier.height(16.dp))
                             Text(
-                                "Платежи",
-                                style = CardSubtitleStyle,
+                                "Добавленные платежи",
+                                style = CardSubtitleStyle.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = Graphite
+                                ),
                                 modifier = Modifier.padding(horizontal = 10.dp)
                             )
                             Spacer(Modifier.height(6.dp))
@@ -561,6 +618,7 @@ fun PaymentScheduleScreen(
                         }
 
                         Spacer(Modifier.height(10.dp))
+                        }
                     }
                 }
 
@@ -602,13 +660,18 @@ fun PaymentScheduleScreen(
                             onClick = { showApplyDialog = true }
                         )
                     }
-                    if (scheduleActive) {
-                        OutlineCtaButton(
-                            text = "Отменить график",
-                            borderColor = Graphite,
-                            onClick = { showCancelDialog = true }
-                        )
-                    }
+                    // Вторая кнопка таббара (Figma 2872-34429/34486): контурная
+                    // с красной рамкой #FF4249 и красным текстом. Пока график не
+                    // применён — очищает черновик; активный — через диалог отмены
+                    OutlineCtaButton(
+                        text = "Отменить и очистить",
+                        borderColor = ErrorRed,
+                        textColor = ErrorRed,
+                        onClick = {
+                            if (scheduleActive) showCancelDialog = true
+                            else resetDraft()
+                        }
+                    )
                 }
             }
         }
@@ -634,10 +697,11 @@ fun PaymentScheduleScreen(
             onDone = {
                 variableDate = it
                 variableDateError = null
+                showCalendar = false
                 persist()
             },
             onDismiss = { showCalendar = false },
-            ctaText = "Выбрать"
+            markedDates = savedPaymentDates
         )
     }
     if (showDaySheet) {
