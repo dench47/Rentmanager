@@ -17,26 +17,34 @@ import android.view.WindowManager
  * bottom sheet'ы, диалоги, попапы, включая будущие, — потому что их контексты
  * строятся от контекста Activity.
  *
- * НАДЁЖНОСТЬ: единственное число, нужное для расчёта, — пиксельная ширина
- * экрана. Плотность НЕ читается вообще: и configuration.densityDpi, и
- * metrics.density, и xdpi, и screenWidthDp на части холодных стартов приходят
- * мусорными (нулевыми или завышенными), и каждое из них «доказывало», что
- * масштаб не нужен. Целевая плотность = 160 × px / 412 — детерминированно.
- * Источники пикселей (по убыванию надёжности): DisplayManager, дефолтный
- * дисплей WindowManager, метрики ресурсов. Страховка на случай полного провала
- * — isDesignWidthApplied(): пересоздание Activity один раз.
+ * ГАРАНТИЯ СХОДИМОСТИ (почему «гигантский экран» больше не может застрять):
+ * при создании контекста ширина берётся из DisplayManager, но как только окно
+ * существует, авторитетная ширина — его собственные метрики. ensureDesignWidth
+ * при несоответствии запоминает ширину окна (forcedWidthPx), и следующий
+ * recreate применяет плотность РОВНО под неё — проверка сходится с первой
+ * попытки. Мусорные метрики отсекаются клэмпом dpi, а не «доказываются»
+ * вторым источником: на части холодных стартов (например, поверх активного
+ * звонка) ЛЮБОЙ источник может отдать мусор.
  */
 private const val DESIGN_WIDTH_DP = 412f
+private const val MIN_DPI = 120
+private const val MAX_DPI = 600
+private const val MAX_RECREATES_PER_WIDTH = 3
+
+/** Ширина окна, измеренная ensureDesignWidth: приоритетнее любых метрик дисплея. */
+private var forcedWidthPx = 0
 
 fun Context.createDesignWidthContext(): Context {
-    val widthPx = displayWidthPixels()
-    if (widthPx > 0) {
-        val targetDpi = (160f * widthPx / DESIGN_WIDTH_DP).toInt()
-        if (targetDpi > 0) {
-            return scaledContext(resources.configuration, targetDpi)
-        }
-    }
-    return this
+    val widthPx = if (forcedWidthPx > 0) forcedWidthPx else displayWidthPixels()
+    val targetDpi = designDpiFor(widthPx) ?: return this
+    return scaledContext(resources.configuration, targetDpi)
+}
+
+/** Целевой dpi под дизайн-ширину; null — ширина мусорная, не масштабируем. */
+private fun designDpiFor(widthPx: Int): Int? {
+    if (widthPx <= 0) return null
+    val dpi = (160f * widthPx / DESIGN_WIDTH_DP).toInt()
+    return if (dpi in MIN_DPI..MAX_DPI) dpi else null
 }
 
 private fun Context.scaledContext(configuration: Configuration, targetDpi: Int): Context {
@@ -100,15 +108,11 @@ private fun Context.appContext(): Context = try {
 
 /**
  * Страховка после создания окна: плотность контекста должна совпадать с
- * целевой для ТЕКУЩЕЙ ширины окна. На части холодных стартов (например,
- * запуск поверх активного звонка) все источники метрик отдают мусор —
- * контекст создаётся с неверной плотностью, интерфейс «гигантский».
- *
- * Логика самолечения: не «одна попытка на процесс», а до 2 recreate на
- * каждую конкретную ширину окна. Как только ширина окна МЕНЯЕТСЯ (звонок
- * закончился, окно растянулось на весь дисплей) — счётчик сбрасывается и
- * даётся новая попытка. Бесконечный цикл невозможен: при неизменной ширине
- * максимум 2 пересоздания, при успешной проверке счётчик обнуляется.
+ * целевой для ТЕКУЩЕЙ ширины окна. Счётчик recreate — на конкретную ширину:
+ * при её смене (звонок закончился, сплит-скрин) сбрасывается и даются свежие
+ * попытки. Бесконечный цикл невозможен: при неизменной ширине максимум
+ * MAX_RECREATES_PER_WIDTH пересозданий, при успешной проверке счётчик
+ * обнуляется, а forcedWidthPx очищается.
  * Вызывается из onResume и по возврату фокуса окном — см. MainActivity.
  */
 private var lastCheckedWindowWidthPx = 0
@@ -117,20 +121,25 @@ private var recreateAttemptsForWidth = 0
 fun Activity.ensureDesignWidth() {
     val widthPx = windowRealWidthPx()
     if (widthPx <= 0) return // измерить не смогли — не трогаем
-    val targetDpi = (160f * widthPx / DESIGN_WIDTH_DP).toInt()
+    val targetDpi = designDpiFor(widthPx) ?: return
     if (resources.displayMetrics.densityDpi == targetDpi) {
         lastCheckedWindowWidthPx = widthPx
         recreateAttemptsForWidth = 0
+        forcedWidthPx = 0
         return
     }
-    // Ширина окна изменилась с прошлой неудачной проверки — дисплей
-    // «проснулся» — это новое состояние, даём свежие попытки
+    // Ширина окна изменилась с прошлой неудачной проверки — это новое
+    // состояние, даём свежие попытки
     if (widthPx != lastCheckedWindowWidthPx) {
         lastCheckedWindowWidthPx = widthPx
         recreateAttemptsForWidth = 0
     }
-    if (recreateAttemptsForWidth < 2) {
+    if (recreateAttemptsForWidth < MAX_RECREATES_PER_WIDTH) {
         recreateAttemptsForWidth++
+        // Ключ сходимости: следующий attachBaseContext применит плотность
+        // ровно под измеренную ширину окна, а не под метрики дисплея,
+        // которые могут быть мусорными — проверка пройдёт с первого раза
+        forcedWidthPx = widthPx
         recreate()
     }
 }

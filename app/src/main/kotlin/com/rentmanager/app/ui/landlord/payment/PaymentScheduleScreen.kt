@@ -66,13 +66,15 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.InterFontFamily
-import com.rentmanager.app.util.mergeRanges
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-// ---- Черновик экрана: переживает уход и возврат на экран ----
+// ---- Черновик экрана: переживает уход и возврат на экран (в памяти процесса)
+// и перезапуск приложения (SharedPreferences). Хранится отдельно по объекту. ----
 object PaymentScheduleCache {
+    /** Объект, чей черновик сейчас в кэше; при смене — сброс и загрузка другого */
+    var loadedForProperty: String? = null
     var typeIsFixed: Boolean = true
     /** Пользователь уже сам выбирал тип на этом черновике — не сбрасываем
      *  вкладку на дефолт по типу аренды объекта */
@@ -83,15 +85,78 @@ object PaymentScheduleCache {
     var variableAmount: String = ""
     val payments: MutableList<VariablePayment> = mutableListOf()
     var requisiteId: String? = null
+
+    private val gson = Gson()
+    private const val PREFS = "payment_schedule_drafts"
+
+    // Gson не сериализует java.time надёжно — даты в DTO строками ISO
+    private data class DraftPaymentDto(val date: String, val amount: String)
+
+    private data class DraftDto(
+        val typeIsFixed: Boolean = true,
+        val typeTouched: Boolean = false,
+        val fixedDay: Int? = null,
+        val fixedAmount: String = "",
+        val variableDate: String? = null,
+        val variableAmount: String = "",
+        val payments: List<DraftPaymentDto> = emptyList(),
+        val requisiteId: String? = null
+    )
+
+    /** Разовый вход на экран: сбрасывает кэш и поднимает черновик объекта. */
+    fun ensureLoaded(context: android.content.Context, propertyId: String) {
+        if (loadedForProperty == propertyId) return
+        loadedForProperty = propertyId
+        typeIsFixed = true
+        typeTouched = false
+        fixedDay = null
+        fixedAmount = ""
+        variableDate = null
+        variableAmount = ""
+        payments.clear()
+        requisiteId = null
+        runCatching {
+            val json = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+                .getString(propertyId, null) ?: return
+            val dto = gson.fromJson(json, DraftDto::class.java)
+            typeIsFixed = dto.typeIsFixed
+            typeTouched = dto.typeTouched
+            fixedDay = dto.fixedDay
+            fixedAmount = dto.fixedAmount
+            variableDate = dto.variableDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            variableAmount = dto.variableAmount
+            dto.payments.forEach { p ->
+                runCatching { VariablePayment(LocalDate.parse(p.date), p.amount) }.getOrNull()
+                    ?.let { payments.add(it) }
+            }
+            payments.sortBy { it.date }
+            requisiteId = dto.requisiteId
+        }
+    }
+
+    /** Сохранение черновика — вызывается при каждом изменении полей. */
+    fun save(context: android.content.Context, propertyId: String) {
+        runCatching {
+            val dto = DraftDto(
+                typeIsFixed = typeIsFixed,
+                typeTouched = typeTouched,
+                fixedDay = fixedDay,
+                fixedAmount = fixedAmount,
+                variableDate = variableDate?.toString(),
+                variableAmount = variableAmount,
+                payments = payments.map { DraftPaymentDto(it.date.toString(), it.amount) },
+                requisiteId = requisiteId
+            )
+            context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+                .edit().putString(propertyId, gson.toJson(dto)).apply()
+        }
+    }
 }
 
 data class VariablePayment(
     val date: LocalDate,
     val amount: String
 )
-
-/** Строка платежа посуточной аренды (из броней): период + сумма (ставка × сутки) */
-private data class BookingRow(val start: LocalDate, val end: LocalDate, val amount: Double)
 
 private val RuDateFormat = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
 private val DdMmYyyy = DateTimeFormatter.ofPattern("dd.MM.yyyy")
@@ -103,6 +168,11 @@ fun PaymentScheduleScreen(
     viewModel: PaymentScheduleViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Вход на экран: поднимаем черновик этого объекта (в памяти, а после
+    // перезапуска приложения — из локального хранилища)
+    remember(propertyId) { PaymentScheduleCache.ensureLoaded(context, propertyId) }
 
     // ---- Состояние экрана ----
     var typeIsFixed by remember { mutableStateOf(PaymentScheduleCache.typeIsFixed) }
@@ -131,6 +201,11 @@ fun PaymentScheduleScreen(
     var conflictDate by remember { mutableStateOf<LocalDate?>(null) }
     var showApplyDialog by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
+    // Отмена последнего удаления: диалог «Платёж был удален» висит, пока
+    // пользователь не тапнет вне — кнопка возвращает платёж (Figma 2872-34877)
+    var deletedUndo by remember { mutableStateOf<(() -> Unit)?>(null) }
+    // Диалог успеха добавления (Figma 2872-34864): без кнопок, закрытие тапом вне
+    var paymentAddedText by remember { mutableStateOf<String?>(null) }
     var toast by remember { mutableStateOf<DesignToastData?>(null) }
     var scheduleConsumed by remember { mutableStateOf(false) }
 
@@ -143,6 +218,7 @@ fun PaymentScheduleScreen(
         PaymentScheduleCache.payments.clear()
         PaymentScheduleCache.payments.addAll(payments)
         PaymentScheduleCache.requisiteId = requisiteId
+        PaymentScheduleCache.save(context, propertyId)
     }
 
     fun resetDraft() {
@@ -172,25 +248,57 @@ fun PaymentScheduleScreen(
         val hasVariable = s?.customDates != null
         scheduleActive = hasFixed || hasVariable
         if (scheduleActive) {
-            editing = false
             typeIsFixed = hasFixed
             if (hasFixed) {
-                payments.clear()
-                fixedDay = s?.dayOfMonth
-                fixedAmount = s?.amount?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: ""
-            } else {
-                // Посуточно: список дат = брони; ручной список — только для длительной аренды
-                if (!uiState.isDailyRent) {
+                val serverAmount = s?.amount?.let {
+                    if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+                } ?: ""
+                if (fixedDay != null || fixedAmount.isNotBlank() || requisiteId != s?.requisites) {
+                    // Черновик с правками (не совпал с сервером) — главнее
+                    // серверного состояния: держим его, экран в режиме правки
+                    if (fixedDay != s?.dayOfMonth || fixedAmount != serverAmount || requisiteId != s?.requisites) {
+                        editing = true
+                    }
+                } else {
                     payments.clear()
-                    payments.addAll(parseCustomDates(s?.customDates))
+                    fixedDay = s?.dayOfMonth
+                    fixedAmount = serverAmount
+                    if (requisiteId == null) requisiteId = s?.requisites
+                }
+            } else {
+                val serverPayments = parseCustomDates(s?.customDates)
+                if (payments.isNotEmpty() && payments != serverPayments) {
+                    // Несохранённый черновик (другие суммы/даты) — держим его
+                    editing = true
+                } else {
+                    payments.clear()
+                    payments.addAll(serverPayments)
+                    if (requisiteId == null) requisiteId = s?.requisites
                 }
             }
-            if (requisiteId == null) requisiteId = s?.requisites
         } else if (!PaymentScheduleCache.typeTouched) {
             // График ещё не настроен: стартовая вкладка «Тип платежей» — по типу
             // аренды из карточки объекта («Аренда и платежи»: «₽ / сутки» →
             // переменный, «₽ / месяц» → постоянный)
             typeIsFixed = !uiState.isDailyRent
+        }
+        // Посуточно: дни броней без строки в списке (платежи, созданные до
+        // правок, или брони из шахматки) тоже показываются строками —
+        // сумма = ставка объекта за сутки; введённые вручную суммы не трогаем
+        if (uiState.isDailyRent && uiState.bookings.isNotEmpty()) {
+            val known = payments.map { it.date }.toHashSet()
+            val rate = uiState.property?.rentAmount
+            val rateStr = rate?.let {
+                if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+            } ?: "0"
+            uiState.bookings.forEach { (s, e) ->
+                var d = s
+                while (!d.isAfter(e)) {
+                    if (known.add(d)) payments.add(VariablePayment(d, rateStr))
+                    d = d.plusDays(1)
+                }
+            }
+            payments.sortBy { it.date }
         }
         scheduleConsumed = true
         persist()
@@ -237,21 +345,35 @@ fun PaymentScheduleScreen(
     val readOnly = scheduleActive && !editing
     val requisite = uiState.requisites.firstOrNull { it.id == requisiteId }
 
-    // Строки переменного графика: посуточно — брони, иначе ручной список
-    val bookingRows = remember(uiState.bookings, uiState.property?.rentAmount) {
-        if (!isDailyRent) emptyList()
-        else mergeRanges(uiState.bookings).map { (s, e) ->
-            val nights = java.time.temporal.ChronoUnit.DAYS.between(s, e) + 1
-            BookingRow(s, e, (uiState.property?.rentAmount ?: 0.0) * nights)
-        }
-    }
+    // Черновик начат, но «Применить график» ещё не нажат — любая введённая
+    // информация (даты, суммы, реквизиты) держит экран в состоянии черновика
+    val draftDirty = !scheduleActive && (
+        payments.isNotEmpty() ||
+            fixedDay != null || fixedAmount.isNotBlank() ||
+            variableDate != null || variableAmount.isNotBlank() ||
+            requisiteId != null
+        )
+    // Плашка несохранённых изменений (Figma 2872-34545): и при правке
+    // активного графика, и при создании нового
+    val showUnsavedStrip = (scheduleActive && editing) || draftDirty
 
-    // Сохранённые даты платежей — точки в календарном шите (Figma 2872-34192:
-    // точки 7dp под датами 12 и 20 из списка «Добавленные платежи»)
-    val savedPaymentDates = remember(payments.toList(), bookingRows) {
-        if (isDailyRent) bookingRows.flatMapTo(mutableSetOf()) { row ->
-            generateSequence(row.start) { it.plusDays(1) }.takeWhile { !it.isAfter(row.end) }.toList()
-        } else payments.map { it.date }.toSet()
+    // Даты для точек в календарном шите (Figma 2872-34192): строки списка
+    // «Добавленные платежи» плюс (посуточно) дни броней — занятые даты,
+    // созданные ранее или из шахматки, тоже помечаются точкой, иначе
+    // конфликт «уже запланирован платёж» возникает на неотмеченной дате
+    val savedPaymentDates = remember(payments.toList(), uiState.bookings, isDailyRent) {
+        buildSet {
+            payments.forEach { add(it.date) }
+            if (isDailyRent) {
+                uiState.bookings.forEach { (s, e) ->
+                    var d = s
+                    while (!d.isAfter(e)) {
+                        add(d)
+                        d = d.plusDays(1)
+                    }
+                }
+            }
+        }
     }
 
     fun validateFixed(): Boolean {
@@ -268,8 +390,10 @@ fun PaymentScheduleScreen(
                 propertyId, fixedDay!!, fixedAmount.replace(" ", "").toDouble(), requisiteId
             )
         } else {
-            if (isDailyRent) viewModel.saveVariableFromBookings(propertyId, requisiteId)
-            else viewModel.saveVariableManual(propertyId, payments.toList(), requisiteId)
+            // Даты + введённые на этом экране суммы — единый список для обоих
+            // типов аренды (Figma 2872-34429: у каждой даты своя сумма);
+            // посуточно брони создаются при добавлении строки (шахматка)
+            viewModel.saveVariableManual(propertyId, payments.toList(), requisiteId)
         }
     }
 
@@ -298,14 +422,14 @@ fun PaymentScheduleScreen(
             }
             viewModel.addBookingDay(propertyId, paymentDate) { added ->
                 if (added) {
+                    // Строка списка — с введённой суммой (не ставкой из карточки)
+                    payments.add(VariablePayment(paymentDate, variableAmount.replace(" ", "")))
+                    payments.sortBy { it.date }
                     variableDate = null
                     variableAmount = ""
                     variableDateError = null
                     variableAmountError = null
-                    toast = DesignToastData(
-                        text = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен",
-                        iconRes = R.drawable.ic_check_white
-                    )
+                    paymentAddedText = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен"
                 } else {
                     // Бронь не создалась (например, нет связи с сервером) —
                     // молчаливое «ничего не происходит» недопустимо
@@ -326,38 +450,24 @@ fun PaymentScheduleScreen(
             variableAmount = ""
             variableDateError = null
             variableAmountError = null
-            toast = DesignToastData(
-                text = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен",
-                iconRes = R.drawable.ic_check_white
-            )
+            paymentAddedText = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен"
         }
         persist()
     }
 
     fun deletePayment(index: Int) {
-        if (isDailyRent) {
-            val row = bookingRows.getOrNull(index) ?: return
-            viewModel.deleteBooking(propertyId, row.start, row.end)
-            toast = DesignToastData(
-                text = "Платёж был удален",
-                iconRes = R.drawable.ic_check_white,
-                actionText = "Отменить удаление",
-                onAction = { viewModel.recreateBookings(propertyId, listOf(row.start to row.end)) }
-            )
-        } else {
-            val snapshot = payments.toList()
-            payments.removeAt(index)
+        val snapshot = payments.toList()
+        val row = payments.getOrNull(index) ?: return
+        // Посуточно строка связана с бронью этих суток — снимаем и её
+        if (isDailyRent) viewModel.deleteBooking(propertyId, row.date, row.date)
+        payments.removeAt(index)
+        persist()
+        deletedUndo = {
+            if (isDailyRent) viewModel.recreateBookings(propertyId, listOf(row.date to row.date))
+            payments.clear()
+            payments.addAll(snapshot)
+            payments.sortBy { it.date }
             persist()
-            toast = DesignToastData(
-                text = "Платёж был удален",
-                iconRes = R.drawable.ic_check_white,
-                actionText = "Отменить удаление",
-                onAction = {
-                    payments.clear()
-                    payments.addAll(snapshot)
-                    persist()
-                }
-            )
         }
     }
 
@@ -365,7 +475,7 @@ fun PaymentScheduleScreen(
     val primaryEnabled = if (typeIsFixed) {
         fixedDay != null && (fixedAmount.replace(" ", "").toDoubleOrNull() ?: 0.0) > 0.0
     } else {
-        if (isDailyRent) bookingRows.isNotEmpty() else payments.isNotEmpty()
+        payments.isNotEmpty()
     }
 
     Box(
@@ -407,7 +517,19 @@ fun PaymentScheduleScreen(
                     }
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(20.dp))
+
+                // ---- Плашка состояния — ОТДЕЛЬНЫЙ элемент над карточкой
+                // (Figma 2872-34556): 372×38 r10, зазор до карточки 12;
+                // «График активен» #E5F2E7/#2F7D4D (2872-34486),
+                // «Есть несохранённые изменения» #FBEAEC/#FF4249 (2872-34545)
+                if (scheduleActive && !editing) {
+                    StatusPlate("График активен", Color(0xFFE5F2E7), Color(0xFF2F7D4D))
+                    Spacer(Modifier.height(12.dp))
+                } else if (showUnsavedStrip) {
+                    StatusPlate("Есть несохранённые изменения", Color(0xFFFBEAEC), ErrorRed)
+                    Spacer(Modifier.height(12.dp))
+                }
 
                 // ---- Карточка типа платежа: серый фон, белые поля (Figma 2872-34114) ----
                 Surface(
@@ -415,54 +537,14 @@ fun PaymentScheduleScreen(
                     shape = CardShape,
                     color = CardBackground
                 ) {
-                    Column {
-                        if (scheduleActive && !editing) {
-                            // Плашка «График активен» (Figma 2872-34486): полоса 38dp
-                            // во всю ширину карточки, #E5F2E7 r10, текст 15/600 #2F7D4D;
-                            // верхние углы скругляет сама карточка r20
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(38.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFFE5F2E7)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    "График активен",
-                                    style = Headline2MobStyle.copy(color = Color(0xFF2F7D4D))
-                                )
-                            }
-                        }
-                        Column(
-                            modifier = Modifier.padding(
-                                start = 10.dp,
-                                end = 10.dp,
-                                bottom = 10.dp,
-                                // После плашки контент на 12-й строке (Figma: полоса 38, карточка с y50)
-                                top = if (scheduleActive && !editing) 12.dp else 10.dp
-                            )
-                        ) {
-                            if (scheduleActive && editing) {
-                                Text(
-                                    "Есть несохранённые изменения",
-                                    style = CardSubtitleStyle.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = ErrorRed
-                                    ),
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 8.dp, bottom = 4.dp)
-                                )
-                            }
+                    Column(
+                        modifier = Modifier.padding(10.dp)
+                    ) {
 
-                        // Заголовочный блок (Figma 34114: от фона 10, заголовок 18,
-                        // зазор 6, подпись 16, до полей 12)
+                        // Заголовочный блок (Figma 34114: от края карточки 10,
+                        // заголовок 18, зазор 6, подпись 16, до полей 12)
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(Modifier.weight(1f)) {
@@ -487,9 +569,7 @@ fun PaymentScheduleScreen(
 
                         // ---- Поля ----
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             if (typeIsFixed) {
@@ -543,50 +623,6 @@ fun PaymentScheduleScreen(
                             )
                         }
 
-                        // ---- Список платежей переменного графика ----
-                        if (!typeIsFixed && (payments.isNotEmpty() || bookingRows.isNotEmpty())) {
-                            Spacer(Modifier.height(16.dp))
-                            Text(
-                                "Добавленные платежи",
-                                style = CardSubtitleStyle.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    color = Graphite
-                                ),
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            val rows: List<Any> = if (isDailyRent) bookingRows else payments.toList()
-                            rows.forEachIndexed { index, row ->
-                                val (dateText, amountText) = when (row) {
-                                    is BookingRow ->
-                                        (if (row.start == row.end) row.start.format(DdMmYyyy)
-                                        else "${row.start.format(DdMmYyyy)} – ${row.end.format(DdMmYyyy)}") to
-                                            formatAmount(row.amount)
-                                    is VariablePayment ->
-                                        row.date.format(DdMmYyyy) to
-                                            formatAmount(row.amount.toDoubleOrNull() ?: 0.0)
-                                    else -> "" to ""
-                                }
-                                PaymentRow(
-                                    title = dateText,
-                                    amount = amountText,
-                                    onDelete = {
-                                        if (readOnly) editing = true
-                                        deletePayment(index)
-                                    }
-                                )
-                                if (index != rows.lastIndex) {
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 10.dp)
-                                            .height(1.dp)
-                                            .background(Color.White)
-                                    )
-                                }
-                            }
-                        }
-
                         // ---- Следующий платёж постоянного графика ----
                         if (typeIsFixed && scheduleActive && fixedDay != null) {
                             Spacer(Modifier.height(16.dp))
@@ -616,13 +652,44 @@ fun PaymentScheduleScreen(
                                 )
                             }
                         }
-
-                        Spacer(Modifier.height(10.dp))
-                        }
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                // ---- «Добавленные платежи» — ОТДЕЛЬНЫЙ блок под карточкой
+                // (Figma 2872-34440/34451): серая карточка формы (2872-34441,
+                // 203dp) не растягивается — список живёт на белом фоне экрана:
+                // зазор от карточки 22, до строк 6, строки 44, после каждой
+                // разделитель #DBDBDB во всю ширину
+                if (!typeIsFixed && payments.isNotEmpty()) {
+                    Spacer(Modifier.height(22.dp))
+                    Text(
+                        "Добавленные платежи",
+                        style = CardSubtitleStyle.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = Graphite
+                        )
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    payments.forEachIndexed { index, payment ->
+                        PaymentRow(
+                            date = payment.date.format(DdMmYyyy),
+                            amount = formatAmount(payment.amount.toDoubleOrNull() ?: 0.0),
+                            onDelete = {
+                                if (readOnly) editing = true
+                                deletePayment(index)
+                            }
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Color(0xFFDBDBDB))
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                } else {
+                    Spacer(Modifier.height(12.dp))
+                }
 
                 // ---- Поле «Реквизиты» ----
                 RequisitesField(
@@ -645,32 +712,31 @@ fun PaymentScheduleScreen(
                     verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     when {
+                        // Плашка «Есть несохранённые изменения» — верхняя CTA
+                        // всегда «Применить изменения» через диалог (Figma 2872-34890)
+                        showUnsavedStrip -> BlackCtaButton(
+                            text = "Применить изменения",
+                            enabled = primaryEnabled,
+                            onClick = { showApplyDialog = true }
+                        )
                         !scheduleActive -> BlackCtaButton(
                             text = "Применить график",
                             enabled = primaryEnabled,
                             onClick = { applySchedule() }
                         )
-                        !editing -> BlackCtaButton(
+                        else -> BlackCtaButton(
                             text = "Изменить график",
                             onClick = { editing = true }
                         )
-                        else -> BlackCtaButton(
-                            text = "Сохранить изменения",
-                            enabled = primaryEnabled,
-                            onClick = { showApplyDialog = true }
-                        )
                     }
-                    // Вторая кнопка таббара (Figma 2872-34429/34486): контурная
-                    // с красной рамкой #FF4249 и красным текстом. Пока график не
-                    // применён — очищает черновик; активный — через диалог отмены
+                    // Нижняя CTA: при плашке — «Отменить изменения» (Figma 2872-34888),
+                    // для чистого активного графика — «Отменить и очистить»;
+                    // обе открывают диалог, прямых действий без подтверждения нет
                     OutlineCtaButton(
-                        text = "Отменить и очистить",
+                        text = if (showUnsavedStrip) "Отменить изменения" else "Отменить и очистить",
                         borderColor = ErrorRed,
                         textColor = ErrorRed,
-                        onClick = {
-                            if (scheduleActive) showCancelDialog = true
-                            else resetDraft()
-                        }
+                        onClick = { showCancelDialog = true }
                     )
                 }
             }
@@ -756,10 +822,50 @@ fun PaymentScheduleScreen(
             confirmText = "Изменить платёж",
             onConfirm = {
                 conflictDate = null
-                showCalendar = true
+                // Заменяем сумму существующего платежа на введённую; если дата
+                // была только бронью (создана до правок) — добавляем строку
+                val amount = variableAmount.replace(" ", "")
+                val idx = payments.indexOfFirst { it.date == date }
+                if (idx >= 0) payments[idx] = payments[idx].copy(amount = amount)
+                else payments.add(VariablePayment(date, amount))
+                payments.sortBy { it.date }
+                variableDate = null
+                variableAmount = ""
+                variableDateError = null
+                variableAmountError = null
+                persist()
             },
             onDismiss = { conflictDate = null }
         )
+    }
+    // «Платёж на … добавлен» (Figma 2872-34864): карточка 380×120 r20,
+    // зелёная рамка 1dp; галочка 50 по центру (+21 сверху), зазор 10,
+    // текст 15/600 с высотой строки 18, снизу 21 — всё по координатам макета
+    paymentAddedText?.let { text ->
+        DesignWidthDialog(onDismissRequest = { paymentAddedText = null }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = CardShape,
+                color = Color.White,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2F7D4D))
+            ) {
+                Column(
+                    modifier = Modifier.padding(top = 21.dp, bottom = 21.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_check_green),
+                        contentDescription = null,
+                        modifier = Modifier.size(50.dp)
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text,
+                        style = Headline2MobStyle.copy(lineHeight = 18.sp)
+                    )
+                }
+            }
+        }
     }
     if (showApplyDialog) {
         ScheduleDialog(
@@ -783,9 +889,26 @@ fun PaymentScheduleScreen(
             confirmColor = ErrorRed,
             onConfirm = {
                 showCancelDialog = false
-                viewModel.cancelSchedule(propertyId)
+                if (scheduleActive) viewModel.cancelSchedule(propertyId) else resetDraft()
             },
             onDismiss = { showCancelDialog = false }
+        )
+    }
+    // «Платёж был удален» (Figma 2872-34877): зелёная рамка, галочка,
+    // единственная кнопка «Отменить удаление»; скрыть можно только тапом вне
+    deletedUndo?.let { undo ->
+        ScheduleDialog(
+            iconRes = R.drawable.ic_check_green,
+            title = "Платёж был удален",
+            body = null,
+            confirmText = "Отменить удаление",
+            borderColor = Color(0xFF2F7D4D),
+            showBack = false,
+            onConfirm = {
+                undo()
+                deletedUndo = null
+            },
+            onDismiss = { deletedUndo = null }
         )
     }
 }
@@ -1009,27 +1132,49 @@ private fun FieldContainer(
     }
 }
 
-/** Строка платежа (Figma: 44dp, дата слева, сумма, корзина 18dp). */
+/** Плашка состояния над карточкой (Figma 2872-34556): отдельный элемент
+ *  372×38 r10 с центрированным текстом 15/600. */
+@Composable
+private fun StatusPlate(text: String, bg: Color, fg: Color) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(38.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bg),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, style = Headline2MobStyle.copy(color = fg))
+    }
+}
+
+/** Строка платежа (Figma 2872-34451): 44dp во всю ширину карточки; текстовая
+ *  зона 322 из 372 — дата слева, сумма прижата к правому краю зоны; далее
+ *  зазор и корзина 18dp (правый край зоны 44). Дата и сумма 15/600 #212121. */
 @Composable
 private fun PaymentRow(
-    title: String,
+    date: String,
     amount: String,
     onDelete: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .padding(horizontal = 10.dp),
+            .height(44.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, style = CardSubtitleStyle.copy(color = Graphite))
-        Spacer(Modifier.weight(1f))
-        Text(
-            amount,
-            style = CardSubtitleStyle.copy(color = Graphite, fontWeight = FontWeight.SemiBold)
-        )
-        Spacer(Modifier.width(12.dp))
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(date, style = Headline2MobStyle)
+            Text(
+                amount,
+                style = Headline2MobStyle,
+                modifier = Modifier.align(Alignment.CenterEnd)
+            )
+        }
+        Spacer(Modifier.width(19.dp))
         Image(
             painter = painterResource(R.drawable.ic_action_delete),
             contentDescription = "Удалить платёж",
@@ -1079,8 +1224,9 @@ private fun RequisitesField(
     }
 }
 
-/** Диалог дизайнера (Figma Delete/Continue): карточка r20, иконка сверху,
- *  заголовок, серое тело, чёрная + контурная кнопки. */
+/** Диалог дизайнера (Figma 2872-34877/34888/34890): карточка r20, опционально
+ *  иконка 50 сверху, заголовок 20/600, тело 15/600 #717171, чёрная + контурная
+ *  кнопки; вариант «Платёж был удален» — зелёная рамка и без «Назад». */
 @Composable
 private fun ScheduleDialog(
     iconRes: Int?,
@@ -1088,6 +1234,8 @@ private fun ScheduleDialog(
     body: String?,
     confirmText: String,
     confirmColor: Color = Graphite,
+    borderColor: Color? = null,
+    showBack: Boolean = true,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1095,7 +1243,8 @@ private fun ScheduleDialog(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = CardShape,
-            color = Color.White
+            color = Color.White,
+            border = borderColor?.let { androidx.compose.foundation.BorderStroke(1.dp, it) }
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -1118,7 +1267,7 @@ private fun ScheduleDialog(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         it,
-                        style = CardSubtitleStyle,
+                        style = Headline2MobStyle.copy(color = GreyText),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -1128,12 +1277,14 @@ private fun ScheduleDialog(
                     containerColor = confirmColor,
                     onClick = onConfirm
                 )
-                Spacer(Modifier.height(6.dp))
-                OutlineCtaButton(
-                    text = "Назад",
-                    borderColor = Graphite,
-                    onClick = onDismiss
-                )
+                if (showBack) {
+                    Spacer(Modifier.height(6.dp))
+                    OutlineCtaButton(
+                        text = "Назад",
+                        borderColor = Graphite,
+                        onClick = onDismiss
+                    )
+                }
             }
         }
     }

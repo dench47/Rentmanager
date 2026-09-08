@@ -1,5 +1,10 @@
 package com.rentmanager.app.ui.components
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Build
+import android.view.WindowInsets as PlatformWindowInsets
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,9 +45,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rentmanager.app.R
@@ -94,13 +101,10 @@ fun DatePickerSheet(
     val today = LocalDate.now()
 
     // Низ шита (Figma 2872-34233): под CTA 36dp белого, затем кромка с тенью
-    // и прозрачный зазор до низа экрана. Зазор — не меньше высоты системной
-    // навигации, чтобы кромка лежала над ней, а CTA не проваливался под неё;
-    // поэтому поверхность шита прозрачная, белый блок и тень рисуем сами
-    val navGap = maxOf(
-        6.dp,
-        with(LocalDensity.current) { WindowInsets.navigationBars.getBottom(this).toDp() }
-    )
+    // и прозрачный зазор до низа экрана. Зазор — высота системной навигации,
+    // чтобы кромка лежала над ней, а CTA не проваливался под неё; поэтому
+    // поверхность шита прозрачная, белый блок и тень рисуем сами
+    val navGap = navigationBarGap()
     val sheetShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -217,6 +221,40 @@ private fun MonthArrow(iconRes: Int, enabled: Boolean, onClick: () -> Unit) {
             colorFilter = ColorFilter.tint(if (enabled) Graphite else Color(0xFFC6C6C6))
         )
     }
+}
+
+/**
+ * Нижний зазор шита: высота системной навигации. Внутри окна ModalBottomSheet
+ * композиционный WindowInsets.navigationBars на части устройств (MIUI,
+ * трёхкнопочная навигация) отдаёт 0 — окно диалога получает уже обработанные
+ * инсеты. Поэтому сверяемся ещё и с корневыми инсётами окна самой активности,
+ * где они гарантированно живые (по ним же стоит таббар экрана).
+ */
+@Composable
+private fun navigationBarGap(): Dp {
+    val density = LocalDensity.current
+    fun Int.pxToDp(): Dp = with(density) { toDp() }
+    val composeInset = WindowInsets.navigationBars.getBottom(density).pxToDp()
+    val activityInset = LocalContext.current.findActivity()
+        ?.window?.decorView?.rootWindowInsets
+        ?.let { root ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                maxOf(
+                    root.getInsets(PlatformWindowInsets.Type.navigationBars()).bottom,
+                    root.getInsets(PlatformWindowInsets.Type.tappableElement()).bottom
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                root.systemWindowInsetBottom
+            }
+        } ?: 0
+    return maxOf(6.dp, composeInset, activityInset.pxToDp())
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /**
@@ -372,8 +410,12 @@ private fun CalendarGrid(
                                 }
                             )
                             if (inMonth && date in markedDates) {
+                                // align(TopStart) обязателен: без него offset
+                                // применяется от центра (contentAlignment) и
+                                // точка уходит за пределы круга — clip её съедает
                                 Box(
                                     modifier = Modifier
+                                        .align(Alignment.TopStart)
                                         .offset(x = 26.dp, y = 11.dp)
                                         .size(7.dp)
                                         .clip(CircleShape)

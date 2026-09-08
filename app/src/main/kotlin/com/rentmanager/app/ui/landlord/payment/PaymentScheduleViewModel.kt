@@ -11,7 +11,6 @@ import com.rentmanager.app.data.model.PaymentScheduleDto
 import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PropertyRepository
-import com.rentmanager.app.util.mergeRanges
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -164,36 +163,6 @@ class PaymentScheduleViewModel @Inject constructor(
                 requisites = requisiteId
             )
         )
-    }
-
-    /**
-     * Посуточно + переменный график: custom_dates графика = брони
-     * (двусторонняя связь с шахматкой — шахматка красит даты, график их отдаёт).
-     */
-    fun saveVariableFromBookings(propertyId: String, requisiteId: String?) {
-        viewModelScope.launch {
-            val property = _uiState.value.property
-            val rate = property?.rentAmount ?: 0.0
-            val dd = DateTimeFormatter.ofPattern("dd.MM.yyyy")
-            // Слияние пересекающихся броней: сутки не задваиваются в суммах
-            val merged = mergeRanges(_uiState.value.bookings)
-            val customJson = if (merged.isEmpty()) null else com.google.gson.Gson().toJson(
-                merged.map { (s, e) ->
-                    mapOf(
-                        "date" to s.format(dd),
-                        "amount" to (rate * (java.time.temporal.ChronoUnit.DAYS.between(s, e) + 1)).toString()
-                    )
-                }
-            )
-            pushSchedule(
-                PaymentScheduleDto(
-                    propertyId = propertyId,
-                    type = "manual",
-                    customDates = customJson,
-                    requisites = requisiteId
-                )
-            )
-        }
     }
 
     /** Отмена графика: сохраняем пустую запись — все поля пусты,

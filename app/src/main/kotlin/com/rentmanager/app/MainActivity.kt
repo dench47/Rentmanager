@@ -99,11 +99,20 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onResume() {
-        super.onResume()
+        // MIUI: известный баг фреймворка — ClassCastException внутри
+        // Activity.onResume (ActivityImpl.checkAccessControl) на рестарте
+        // активности. ActivityThread его гасит, но без перехвата весь наш
+        // код после super оставался пропущенным — в том числе проверка
+        // масштаба ensureDesignWidth(), из-за чего «гигантский экран»
+        // переживал самолечение
+        try {
+            super.onResume()
+        } catch (_: ClassCastException) {
+            // повторится на следующем цикле — не роняем приложение
+        }
         // Страховка масштаба 412dp: холодный старт с мусорными метриками
         // (например, поверх активного звонка) мог дать неверную плотность.
-        // Самолечение — до 2 recreate на одну ширину окна, счётчик
-        // сбрасывается при смене ширины (звонок закончился) — см. DesignWidth.kt
+        // Сходимость гарантирована — см. DesignWidth.kt
         ensureDesignWidth()
         // Фоновая блокировка PIN'ом — только если локально включён запрос PIN
         if (tokenManager.hasPassword && tokenManager.localPinEnabled && tokenManager.accessToken != null) {
