@@ -139,15 +139,26 @@ class PaymentScheduleViewModel @Inject constructor(
     }
 
     fun saveFixed(propertyId: String, dayOfMonth: Int, amount: Double, requisiteId: String?) {
-        pushSchedule(
-            PaymentScheduleDto(
-                propertyId = propertyId,
-                dayOfMonth = dayOfMonth,
-                amount = amount,
-                type = "auto",
-                requisites = requisiteId
+        viewModelScope.launch {
+            // Помесячная цена одна: ставка объекта = сумме постоянного графика
+            // (раздельные цены — только для посуточных, по требованию заказчика;
+            // обратное направление уже синхронизируется в карточке объекта)
+            _uiState.value.property
+                ?.takeIf { (it.rentType ?: "посуточно") == "длительно" && it.rentAmount != amount }
+                ?.let { p ->
+                    runCatching { propertyRepository.updateProperty(p.id, p.copy(rentAmount = amount)) }
+                    _uiState.update { it.copy(property = p.copy(rentAmount = amount)) }
+                }
+            pushSchedule(
+                PaymentScheduleDto(
+                    propertyId = propertyId,
+                    dayOfMonth = dayOfMonth,
+                    amount = amount,
+                    type = "auto",
+                    requisites = requisiteId
+                )
             )
-        )
+        }
     }
 
     fun saveVariableManual(propertyId: String, payments: List<VariablePayment>, requisiteId: String?) {

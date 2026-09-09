@@ -170,16 +170,24 @@ class RoleViewModel @Inject constructor(
                     val scheduleType = schedule?.type
                         ?: if ((p.rentType ?: "посуточно") == "длительно") "auto" else "manual"
                     if (scheduleType == "auto") {
-                        // Помесячная ставка — только если объект занят в ТЕКУЩЕМ месяце
-                        // (есть зелёная ячейка этого месяца в шахматке);
-                        // закрашен только будущий месяц — дохода в этом месяце нет
-                        val rentedThisMonth = bookings.any { b ->
-                            val s = runCatching { LocalDate.parse(b.startDate) }.getOrNull()
-                            val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
-                            s != null && e != null && !s.isAfter(monthEnd) && !e.isBefore(monthStart)
-                        }
-                        if (rentedThisMonth) {
+                        if (schedule?.dayOfMonth != null) {
+                            // Есть график — платёж текущего месяца ожидается
+                            // независимо от занятости в шахматке; просрочка
+                            // тоже в счёт: «Доход по всем объектам» — ориентир,
+                            // на какую сумму можно рассчитывать в этом месяце
                             incomeSum += schedule?.amount ?: p.rentAmount ?: 0.0
+                        } else {
+                            // Без графика — помесячная ставка, только если объект
+                            // занят в ТЕКУЩЕМ месяце (зелёная ячейка шахматки);
+                            // закрашен только будущий месяц — дохода в этом месяце нет
+                            val rentedThisMonth = bookings.any { b ->
+                                val s = runCatching { LocalDate.parse(b.startDate) }.getOrNull()
+                                val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
+                                s != null && e != null && !s.isAfter(monthEnd) && !e.isBefore(monthStart)
+                            }
+                            if (rentedThisMonth) {
+                                incomeSum += schedule?.amount ?: p.rentAmount ?: 0.0
+                            }
                         }
                     } else if (schedule?.customDates != null) {
                         // Переменный график с датами: доход месяца и ближайшее

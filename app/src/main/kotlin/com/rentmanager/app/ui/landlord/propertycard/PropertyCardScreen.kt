@@ -224,15 +224,22 @@ fun PropertyCardScreen(
                     Text(property.address, style = Headline2MobStyle.copy(color = GreyText))
                 }
 
+                // Плашка задолженности — как на дашборде: красная с суммой
+                // при наступивших неоплаченных датах графика, иначе зелёная
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(GreenIcon)
+                        .background(if (uiState.hasDebt) Color(0xFFFBEAEC) else GreenIcon)
                         .padding(10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Задолженностей нет", style = Headline2MobStyle.copy(color = GreenText))
+                    Text(
+                        if (uiState.hasDebt) {
+                            "Задолженность " + String.format("%,.0f ₽", uiState.debtAmount).replace(',', ' ')
+                        } else "Задолженностей нет",
+                        style = Headline2MobStyle.copy(color = if (uiState.hasDebt) ErrorRed else GreenText)
+                    )
                 }
 
                 // Аренда и платежи

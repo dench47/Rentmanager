@@ -28,7 +28,12 @@ class PropertyDetailCache @Inject constructor(
         val tenantCompany: String = "",
         /** График платежей: без него «Арендная плата» при входе в карточку
          *  мелькает ставкой объявления, пока график не придёт с сервера */
-        val schedule: PaymentScheduleDto? = null
+        val schedule: PaymentScheduleDto? = null,
+        /** Статистика «Аренда и платежи» (плашка задолженности, срок аренды):
+         *  кэшируется, чтобы карточка не мигала дефолтами при входе */
+        val hasDebt: Boolean = false,
+        val debtAmount: Double = 0.0,
+        val lastBookingEnd: String? = null
     )
 
     fun load(propertyId: String): Entry? {
@@ -37,7 +42,7 @@ class PropertyDetailCache @Inject constructor(
     }
 
     /** Сохраняет объект (без арендатора) — используется при создании/загрузке списка.
-     *  График не затирает: он обновляется отдельно через saveSchedule. */
+     *  График и статистику не затирает: они обновляются через savePaymentStats. */
     fun saveProperty(dto: PropertyDto) {
         try {
             val existing = load(dto.id)
@@ -47,17 +52,33 @@ class PropertyDetailCache @Inject constructor(
                     tenantName = existing?.tenantName ?: "",
                     tenantPhone = existing?.tenantPhone ?: "",
                     tenantCompany = existing?.tenantCompany ?: "",
-                    schedule = existing?.schedule
+                    schedule = existing?.schedule,
+                    hasDebt = existing?.hasDebt ?: false,
+                    debtAmount = existing?.debtAmount ?: 0.0,
+                    lastBookingEnd = existing?.lastBookingEnd
                 )
             )
         } catch (_: Exception) { }
     }
 
-    /** Обновляет график в кэше карточки (после каждой загрузки с сервера). */
-    fun saveSchedule(propertyId: String, schedule: PaymentScheduleDto?) {
+    /** Обновляет график и статистику платежей в кэше (после загрузки с сервера). */
+    fun savePaymentStats(
+        propertyId: String,
+        schedule: PaymentScheduleDto?,
+        hasDebt: Boolean,
+        debtAmount: Double,
+        lastBookingEnd: String?
+    ) {
         try {
             val existing = load(propertyId) ?: return
-            save(existing.copy(schedule = schedule))
+            save(
+                existing.copy(
+                    schedule = schedule,
+                    hasDebt = hasDebt,
+                    debtAmount = debtAmount,
+                    lastBookingEnd = lastBookingEnd
+                )
+            )
         } catch (_: Exception) { }
     }
 

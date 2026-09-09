@@ -13,6 +13,7 @@ import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PhotoUploader
 import com.rentmanager.app.data.repository.PropertyRepository
+import com.rentmanager.app.util.PaymentOverdue
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,9 @@ data class PropertyCardUiState(
     val schedule: PaymentScheduleDto? = null,
     /** Посуточно: дата последней брони (дд.ММ.гггг) для «Срока аренды» */
     val lastBookingEnd: String? = null,
+    /** Задолженность по графику — плашка в карточке, как на дашборде */
+    val hasDebt: Boolean = false,
+    val debtAmount: Double = 0.0,
     /** Блокировка действий, пока выполняется публикация/удаление. */
     val isActionInProgress: Boolean = false
 )
@@ -75,6 +79,9 @@ class PropertyCardViewModel @Inject constructor(
                 isLoading = true,
                 property = cachedEntry?.property,
                 schedule = cachedEntry?.schedule,
+                lastBookingEnd = cachedEntry?.lastBookingEnd,
+                hasDebt = cachedEntry?.hasDebt ?: false,
+                debtAmount = cachedEntry?.debtAmount ?: 0.0,
                 meters = previousMeters
             )
             try {
@@ -108,13 +115,24 @@ class PropertyCardViewModel @Inject constructor(
                 } else {
                     null
                 }
+                // Задолженность: тот же расчёт, что на дашборде арендодателя —
+                // наступившие даты графика без отметки об оплате
+                val payments = try {
+                    financeApi.listPayments(propertyId).body().orEmpty()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                val hasDebt = schedule != null && PaymentOverdue.isOverdue(schedule, payments)
+                val debtAmount = if (hasDebt) PaymentOverdue.overdueAmount(schedule, payments) else 0.0
                 _uiState.value = PropertyCardUiState(
                     isLoading = false, property = body, meters = meters, schedule = schedule,
-                    lastBookingEnd = lastBookingEnd
+                    lastBookingEnd = lastBookingEnd, hasDebt = hasDebt, debtAmount = debtAmount
                 )
                 if (body != null) {
                     detailCache.saveProperty(body)
-                    detailCache.saveSchedule(propertyId, schedule)
+                    detailCache.savePaymentStats(
+                        propertyId, schedule, hasDebt, debtAmount, lastBookingEnd
+                    )
                 } else {
                     _errorEvents.emit("Не удалось загрузить объект (${resp.code()})")
                 }
