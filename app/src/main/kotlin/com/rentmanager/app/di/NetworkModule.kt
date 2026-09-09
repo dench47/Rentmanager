@@ -77,12 +77,15 @@ object NetworkModule {
         }
 
         return OkHttpClient.Builder()
-            // Большие таймауты: приложение должно работать и с плохой связью.
-            // 30с — соединение, 60с — между пакетами ответа, 120с — между пакетами тела
-            // запроса (загрузка фото), 300с — общий потолок на один вызов.
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
+            // Таймауты: JSON-API отвечает быстро даже на медленной сети,
+            // а тишина дольше 10–15с означает «связи нет» — не морочим
+            // пользователю голову минутным ожиданием окна сбоя.
+            // 10с — соединение, 15с — ожидание ответа, 30с — между пакетами
+            // тела запроса (загрузка фото). 300с — общий потолок на вызов
+            // (APK-обновление), снижать нельзя.
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .callTimeout(300, TimeUnit.SECONDS)
             .addInterceptor(authInterceptor)
             .addInterceptor(logging)

@@ -148,7 +148,8 @@ class RoleViewModel @Inject constructor(
                         }
                     }
                 }
-                val debtAmount = if (hasDebt) formatAmount(debtSum) + " ₽" else ""
+                // formatAmount уже добавляет « ₽» — второй раз не приписываем
+                val debtAmount = if (hasDebt) formatAmount(debtSum) else ""
                 // Активная аренда = есть зелёные ячейки в шахматке (хоть одна бронь);
                 // «Доход по всем объектам» — сумма за ТЕКУЩИЙ календарный месяц:
                 // длительно — месячная ставка занятых объектов, посуточно — забронированные
@@ -179,6 +180,18 @@ class RoleViewModel @Inject constructor(
                         }
                         if (rentedThisMonth) {
                             incomeSum += schedule?.amount ?: p.rentAmount ?: 0.0
+                        }
+                    } else if (schedule?.customDates != null) {
+                        // Переменный график с датами: доход месяца и ближайшее
+                        // поступление — суммы ДАТ графика (могут отличаться от
+                        // ставки объявления), а не ставка × брони
+                        incomeSum += PaymentOverdue.customDatesAmountInRange(
+                            schedule!!.customDates!!, monthStart, monthEnd
+                        )
+                        val next = PaymentOverdue.nextPayment(schedule, today)
+                        if (next.date != null && (nearestDate == null || next.date!!.isBefore(nearestDate))) {
+                            nearestDate = next.date
+                            nearestAmount = next.amount
                         }
                     } else {
                         val rate = p.rentAmount ?: 0.0

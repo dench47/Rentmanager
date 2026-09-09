@@ -249,10 +249,16 @@ fun PropertyCardScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
                     ) {
                         InfoPair("Арендная плата", property?.let { rentText(it, uiState.schedule) } ?: "", Modifier.weight(1f))
-                        // Нет даты → значение пустое, «до» в карточке не показываем
+                        // Посуточно: срок = дата последней брони в календаре;
+                        // длительно — rentEndDate объекта; нет даты → пусто
                         InfoPair(
                             "Срок аренды",
-                            property?.rentEndDate?.takeIf { it.isNotBlank() }?.let { "до $it" }.orEmpty(),
+                            when {
+                                property?.rentType == "посуточно" ->
+                                    uiState.lastBookingEnd?.let { "до $it" }.orEmpty()
+                                else ->
+                                    property?.rentEndDate?.takeIf { it.isNotBlank() }?.let { "до $it" }.orEmpty()
+                            },
                             Modifier.weight(1f)
                         )
                     }

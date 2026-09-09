@@ -32,6 +32,8 @@ data class PropertyCardUiState(
     val meters: List<MeterDto> = emptyList(),
     /** График платежей объекта — задаёт «X ₽ / месяц(сутки)» в «Арендной плате». */
     val schedule: PaymentScheduleDto? = null,
+    /** Посуточно: дата последней брони (дд.ММ.гггг) для «Срока аренды» */
+    val lastBookingEnd: String? = null,
     /** Блокировка действий, пока выполняется публикация/удаление. */
     val isActionInProgress: Boolean = false
 )
@@ -65,9 +67,16 @@ class PropertyCardViewModel @Inject constructor(
         viewModelScope.launch {
             val previousMeters = _uiState.value.meters
             // Сразу отрисовываем кэш: без этого до ответа сети экран мигал
-            // пустым состоянием («Нет фотографий», «Без названия» и т.п.)
-            val cached = detailCache.load(propertyId)?.property
-            _uiState.value = PropertyCardUiState(isLoading = true, property = cached, meters = previousMeters)
+            // пустым состоянием («Нет фотографий», «Без названия» и т.п.).
+            // График — тоже из кэша: иначе «Арендная плата» на полсекунды
+            // мелькает ставкой объявления (28000), пока едет график (30000)
+            val cachedEntry = detailCache.load(propertyId)
+            _uiState.value = PropertyCardUiState(
+                isLoading = true,
+                property = cachedEntry?.property,
+                schedule = cachedEntry?.schedule,
+                meters = previousMeters
+            )
             try {
                 val resp = repository.getProperty(propertyId)
                 val body = if (resp.isSuccessful) resp.body() else null
@@ -84,11 +93,28 @@ class PropertyCardViewModel @Inject constructor(
                 } catch (_: Exception) {
                     null
                 }
+                // Посуточно: «Срок аренды» — дата последней брони в календаре
+                val lastBookingEnd = if ((body?.rentType ?: "посуточно") == "посуточно") {
+                    try {
+                        bookingApi.getBookings(propertyId).body().orEmpty()
+                            .mapNotNull { b ->
+                                runCatching { java.time.LocalDate.parse(b.endDate) }.getOrNull()
+                            }
+                            .maxOrNull()
+                            ?.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+                    } catch (_: Exception) {
+                        null
+                    }
+                } else {
+                    null
+                }
                 _uiState.value = PropertyCardUiState(
-                    isLoading = false, property = body, meters = meters, schedule = schedule
+                    isLoading = false, property = body, meters = meters, schedule = schedule,
+                    lastBookingEnd = lastBookingEnd
                 )
                 if (body != null) {
                     detailCache.saveProperty(body)
+                    detailCache.saveSchedule(propertyId, schedule)
                 } else {
                     _errorEvents.emit("Не удалось загрузить объект (${resp.code()})")
                 }

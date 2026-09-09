@@ -62,6 +62,18 @@ object PaymentOverdue {
         else -> 0.0
     }
 
+    /** Сумма дат переменного графика в диапазоне [from, to] включительно. */
+    fun customDatesAmountInRange(customDatesJson: String, from: LocalDate, to: LocalDate): Double {
+        val ddMMyyyy = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
+        return parseCustomDates(customDatesJson)
+            .mapNotNull { entry ->
+                runCatching { LocalDate.parse(entry.date, ddMMyyyy) }.getOrNull()
+                    ?.let { it to (entry.amount.toDoubleOrNull() ?: 0.0) }
+            }
+            .filter { (date, _) -> !date.isBefore(from) && !date.isAfter(to) }
+            .sumOf { it.second }
+    }
+
     /** Сумма просроченного к оплате (для плашки «Задолженность X ₽» на дашборде). */
     fun overdueAmount(
         schedule: PaymentScheduleDto?,

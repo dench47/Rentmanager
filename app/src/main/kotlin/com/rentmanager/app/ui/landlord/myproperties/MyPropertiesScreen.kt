@@ -77,6 +77,7 @@ import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.IconNotificationDialog
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -205,7 +206,13 @@ fun MyPropertiesScreen(
             )
 
             errorMessage?.let {
-                Text(it, color = Color(0xFFE53935), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                // Ошибка загрузки — окном-уведомлением (Figma 2872-34883),
+                // а не красной строкой; закрытие тапом вне окна
+                IconNotificationDialog(
+                    iconRes = R.drawable.ic_globe_warning_vec,
+                    text = it,
+                    onDismiss = { viewModel.clearError() }
+                )
             }
 
             // Отображение: карточки (независимая шахматка) или общая таблица

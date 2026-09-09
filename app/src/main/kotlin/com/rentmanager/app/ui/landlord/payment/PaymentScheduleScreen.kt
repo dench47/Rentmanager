@@ -49,9 +49,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.gson.Gson
 import com.rentmanager.app.R
-import com.rentmanager.app.ui.components.DesignToast
-import com.rentmanager.app.ui.components.DesignToastData
 import com.rentmanager.app.ui.components.DesignWidthDialog
+import com.rentmanager.app.ui.components.IconNotificationDialog
 import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
 import com.rentmanager.app.ui.components.DatePickerSheet
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
@@ -75,6 +74,23 @@ import java.util.Locale
 object PaymentScheduleCache {
     /** Объект, чей черновик сейчас в кэше; при смене — сброс и загрузка другого */
     var loadedForProperty: String? = null
+    /** Черновик этого объекта уже сохранялся (пусть даже пустой) — главнее сервера */
+    var hasStoredDraft: Boolean = false
+    /** На сервере применён график — чтобы вход сразу рисовался с плашкой,
+     *  иначе она появляется после ответа сервера и двигает контент */
+    var scheduleActive: Boolean = false
+    /** Тип применённого графика: плашка «График активен» относится к своей
+     *  вкладке — на другом типе платежа её быть не может */
+    var activeTypeIsFixed: Boolean = true
+    /** Снимок ПРИМЕНЁННОГО состояния: с ним сравниваем черновик, чтобы
+     *  понять, есть несохранённые изменения (красная плашка-маяк) */
+    var appliedPayments: MutableList<VariablePayment> = mutableListOf()
+    var appliedFixedDay: Int? = null
+    var appliedFixedAmount: String = ""
+    var appliedRequisiteId: String? = null
+    /** Последняя известная ставка объекта — плейсхолдер «Сумма» без мигания
+     *  (ставка приезжает с объектом асинхронно) */
+    var rateStr: String? = null
     var typeIsFixed: Boolean = true
     /** Пользователь уже сам выбирал тип на этом черновике — не сбрасываем
      *  вкладку на дефолт по типу аренды объекта */
@@ -93,6 +109,13 @@ object PaymentScheduleCache {
     private data class DraftPaymentDto(val date: String, val amount: String)
 
     private data class DraftDto(
+        val scheduleActive: Boolean = false,
+        val activeTypeIsFixed: Boolean = true,
+        val appliedPayments: List<DraftPaymentDto> = emptyList(),
+        val appliedFixedDay: Int? = null,
+        val appliedFixedAmount: String = "",
+        val appliedRequisiteId: String? = null,
+        val rateStr: String? = null,
         val typeIsFixed: Boolean = true,
         val typeTouched: Boolean = false,
         val fixedDay: Int? = null,
@@ -115,10 +138,30 @@ object PaymentScheduleCache {
         variableAmount = ""
         payments.clear()
         requisiteId = null
+        hasStoredDraft = false
+        scheduleActive = false
+        appliedPayments.clear()
+        appliedFixedDay = null
+        appliedFixedAmount = ""
+        appliedRequisiteId = null
+        rateStr = null
         runCatching {
             val json = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
-                .getString(propertyId, null) ?: return
-            val dto = gson.fromJson(json, DraftDto::class.java)
+                .getString(propertyId, null)
+            if (json != null) hasStoredDraft = true
+            val dto = gson.fromJson(json ?: "{}", DraftDto::class.java)
+            scheduleActive = dto.scheduleActive
+            activeTypeIsFixed = dto.activeTypeIsFixed
+            appliedPayments.clear()
+            dto.appliedPayments.forEach { p ->
+                runCatching { VariablePayment(LocalDate.parse(p.date), p.amount) }.getOrNull()
+                    ?.let { appliedPayments.add(it) }
+            }
+            appliedPayments.sortBy { it.date }
+            appliedFixedDay = dto.appliedFixedDay
+            appliedFixedAmount = dto.appliedFixedAmount
+            appliedRequisiteId = dto.appliedRequisiteId
+            rateStr = dto.rateStr
             typeIsFixed = dto.typeIsFixed
             typeTouched = dto.typeTouched
             fixedDay = dto.fixedDay
@@ -136,8 +179,16 @@ object PaymentScheduleCache {
 
     /** Сохранение черновика — вызывается при каждом изменении полей. */
     fun save(context: android.content.Context, propertyId: String) {
+        hasStoredDraft = true
         runCatching {
             val dto = DraftDto(
+                scheduleActive = scheduleActive,
+                activeTypeIsFixed = activeTypeIsFixed,
+                appliedPayments = appliedPayments.map { DraftPaymentDto(it.date.toString(), it.amount) },
+                appliedFixedDay = appliedFixedDay,
+                appliedFixedAmount = appliedFixedAmount,
+                appliedRequisiteId = appliedRequisiteId,
+                rateStr = rateStr,
                 typeIsFixed = typeIsFixed,
                 typeTouched = typeTouched,
                 fixedDay = fixedDay,
@@ -176,8 +227,23 @@ fun PaymentScheduleScreen(
 
     // ---- Состояние экрана ----
     var typeIsFixed by remember { mutableStateOf(PaymentScheduleCache.typeIsFixed) }
-    var scheduleActive by remember { mutableStateOf(false) } // на сервере есть непустой график
-    var editing by remember { mutableStateOf(false) }        // режим правки активного графика
+    var scheduleActive by remember { mutableStateOf(PaymentScheduleCache.scheduleActive) } // на сервере есть непустой график
+    var activeTypeIsFixed by remember { mutableStateOf(PaymentScheduleCache.activeTypeIsFixed) } // тип применённого графика
+
+    // Снимок применённого состояния (с ним сравниваем черновик — «маяк»
+    // несохранённых изменений); переживает перезапуск вместе с черновиком
+    var appliedPayments by remember { mutableStateOf(PaymentScheduleCache.appliedPayments.toList()) }
+    var appliedFixedDay by remember { mutableStateOf(PaymentScheduleCache.appliedFixedDay) }
+    var appliedFixedAmount by remember { mutableStateOf(PaymentScheduleCache.appliedFixedAmount) }
+    var appliedRequisiteId by remember { mutableStateOf(PaymentScheduleCache.appliedRequisiteId) }
+
+    // Ставка из карточки объекта (обязательное поле при создании): плейсхолдер
+    // поля «Сумма, ₽» и значение по умолчанию, если сумму не указали.
+    // Пока объект грузится — последняя известная ставка из черновика,
+    // чтобы плейсхолдер не мигал при входе
+    val rateStr = uiState.property?.rentAmount?.let {
+        if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+    } ?: PaymentScheduleCache.rateStr
 
     var fixedDay by remember { mutableStateOf(PaymentScheduleCache.fixedDay) }
     var fixedAmount by remember { mutableStateOf(PaymentScheduleCache.fixedAmount) }
@@ -206,10 +272,20 @@ fun PaymentScheduleScreen(
     var deletedUndo by remember { mutableStateOf<(() -> Unit)?>(null) }
     // Диалог успеха добавления (Figma 2872-34864): без кнопок, закрытие тапом вне
     var paymentAddedText by remember { mutableStateOf<String?>(null) }
-    var toast by remember { mutableStateOf<DesignToastData?>(null) }
+    // Диалог «Нет связи с сервером» (Figma 2872-34883): зелёная рамка,
+    // глобус с «!», пояснение зависит от действия
+    var noConnectionText by remember { mutableStateOf<String?>(null) }
     var scheduleConsumed by remember { mutableStateOf(false) }
 
     fun persist() {
+        PaymentScheduleCache.scheduleActive = scheduleActive
+        PaymentScheduleCache.activeTypeIsFixed = activeTypeIsFixed
+        PaymentScheduleCache.appliedPayments.clear()
+        PaymentScheduleCache.appliedPayments.addAll(appliedPayments)
+        PaymentScheduleCache.appliedFixedDay = appliedFixedDay
+        PaymentScheduleCache.appliedFixedAmount = appliedFixedAmount
+        PaymentScheduleCache.appliedRequisiteId = appliedRequisiteId
+        PaymentScheduleCache.rateStr = rateStr
         PaymentScheduleCache.typeIsFixed = typeIsFixed
         PaymentScheduleCache.fixedDay = fixedDay
         PaymentScheduleCache.fixedAmount = fixedAmount
@@ -235,6 +311,10 @@ fun PaymentScheduleScreen(
         // Возврат в «первоначальное» состояние: вкладка — снова по типу аренды
         PaymentScheduleCache.typeTouched = false
         typeIsFixed = !viewModel.uiState.value.isDailyRent
+        appliedPayments = emptyList()
+        appliedFixedDay = null
+        appliedFixedAmount = ""
+        appliedRequisiteId = null
         persist()
     }
 
@@ -249,50 +329,61 @@ fun PaymentScheduleScreen(
         scheduleActive = hasFixed || hasVariable
         if (scheduleActive) {
             typeIsFixed = hasFixed
+            activeTypeIsFixed = hasFixed
+            // Снимок применённого — с сервера
             if (hasFixed) {
-                val serverAmount = s?.amount?.let {
+                appliedPayments = emptyList()
+                appliedFixedDay = s?.dayOfMonth
+                appliedFixedAmount = s?.amount?.let {
                     if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
                 } ?: ""
-                if (fixedDay != null || fixedAmount.isNotBlank() || requisiteId != s?.requisites) {
-                    // Черновик с правками (не совпал с сервером) — главнее
-                    // серверного состояния: держим его, экран в режиме правки
-                    if (fixedDay != s?.dayOfMonth || fixedAmount != serverAmount || requisiteId != s?.requisites) {
-                        editing = true
-                    }
-                } else {
-                    payments.clear()
-                    fixedDay = s?.dayOfMonth
-                    fixedAmount = serverAmount
-                    if (requisiteId == null) requisiteId = s?.requisites
-                }
+                appliedRequisiteId = s?.requisites
             } else {
-                val serverPayments = parseCustomDates(s?.customDates)
-                if (payments.isNotEmpty() && payments != serverPayments) {
-                    // Несохранённый черновик (другие суммы/даты) — держим его
-                    editing = true
+                appliedPayments = parseCustomDates(s?.customDates)
+                appliedFixedDay = null
+                appliedFixedAmount = ""
+                appliedRequisiteId = s?.requisites
+            }
+            // Сохранённый черновик (даже пустой — например, всё удалено)
+            // главнее сервера; с сервера берём только при первом входе
+            if (!PaymentScheduleCache.hasStoredDraft) {
+                if (hasFixed) {
+                    fixedDay = s?.dayOfMonth
+                    fixedAmount = s?.amount?.let {
+                        if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+                    } ?: ""
                 } else {
                     payments.clear()
-                    payments.addAll(serverPayments)
-                    if (requisiteId == null) requisiteId = s?.requisites
+                    payments.addAll(parseCustomDates(s?.customDates))
                 }
             }
-        } else if (!PaymentScheduleCache.typeTouched) {
-            // График ещё не настроен: стартовая вкладка «Тип платежей» — по типу
-            // аренды из карточки объекта («Аренда и платежи»: «₽ / сутки» →
-            // переменный, «₽ / месяц» → постоянный)
-            typeIsFixed = !uiState.isDailyRent
+            if (requisiteId == null) requisiteId = s?.requisites
+        } else {
+            // Графика на сервере нет — снимок применённого пуст
+            appliedPayments = emptyList()
+            appliedFixedDay = null
+            appliedFixedAmount = ""
+            appliedRequisiteId = null
+            if (!PaymentScheduleCache.typeTouched) {
+                // График ещё не настроен: стартовая вкладка «Тип платежей» — по типу
+                // аренды из карточки объекта («Аренда и платежи»: «₽ / сутки» →
+                // переменный, «₽ / месяц» → постоянный)
+                typeIsFixed = !uiState.isDailyRent
+            }
         }
         // Посуточно: дни броней без строки в списке (платежи, созданные до
         // правок, или брони из шахматки) тоже показываются строками —
-        // сумма = ставка объекта за сутки; введённые вручную суммы не трогаем
+        // сумма = ставка объекта за сутки; введённые вручную суммы не трогаем.
+        // Только будущие дни: прошедшие платежи неактуальны
         if (uiState.isDailyRent && uiState.bookings.isNotEmpty()) {
+            val today = LocalDate.now()
             val known = payments.map { it.date }.toHashSet()
             val rate = uiState.property?.rentAmount
             val rateStr = rate?.let {
                 if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
             } ?: "0"
             uiState.bookings.forEach { (s, e) ->
-                var d = s
+                var d = maxOf(s, today)
                 while (!d.isAfter(e)) {
                     if (known.add(d)) payments.add(VariablePayment(d, rateStr))
                     d = d.plusDays(1)
@@ -313,18 +404,28 @@ fun PaymentScheduleScreen(
                     val hasData = s.dayOfMonth != null || s.customDates != null
                     scheduleActive = hasData
                     if (hasData) {
-                        editing = false
                         typeIsFixed = s.dayOfMonth != null
+                        activeTypeIsFixed = s.dayOfMonth != null
                         if (typeIsFixed) payments.clear()
+                        // Снимок применённого = только что сохранённое состояние
+                        if (typeIsFixed) {
+                            appliedPayments = emptyList()
+                            appliedFixedDay = fixedDay
+                            appliedFixedAmount = fixedAmount.replace(" ", "")
+                            appliedRequisiteId = requisiteId
+                        } else {
+                            appliedPayments = payments.toList()
+                            appliedFixedDay = null
+                            appliedFixedAmount = ""
+                            appliedRequisiteId = requisiteId
+                        }
                     } else {
                         resetDraft()
                     }
                     persist()
                 }
-                ScheduleEvent.ApplyFailed -> toast = DesignToastData(
-                    text = "Не удалось применить график. Повторите еще раз",
-                    iconRes = R.drawable.ic_globe_warning
-                )
+                ScheduleEvent.ApplyFailed -> noConnectionText =
+                    "Не\u00A0удалось применить график. \nПовторите еще\u00A0раз"
                 ScheduleEvent.RequisiteCreated -> {
                     showCreateRequisite = false
                     requisiteId = viewModel.uiState.value.requisites.lastOrNull()?.id
@@ -334,28 +435,28 @@ fun PaymentScheduleScreen(
         }
     }
 
-    // Ошибка загрузки — тем же тостом дизайнера
+    // Ошибка загрузки экрана — тем же окном «Нет связи», не тостом
     LaunchedEffect(uiState.errorMessage) {
-        uiState.errorMessage?.let {
-            toast = DesignToastData(text = it, iconRes = R.drawable.ic_globe_warning)
-        }
+        uiState.errorMessage?.let { noConnectionText = it }
     }
 
     val isDailyRent = uiState.isDailyRent
-    val readOnly = scheduleActive && !editing
     val requisite = uiState.requisites.firstOrNull { it.id == requisiteId }
 
-    // Черновик начат, но «Применить график» ещё не нажат — любая введённая
-    // информация (даты, суммы, реквизиты) держит экран в состоянии черновика
-    val draftDirty = !scheduleActive && (
-        payments.isNotEmpty() ||
-            fixedDay != null || fixedAmount.isNotBlank() ||
-            variableDate != null || variableAmount.isNotBlank() ||
-            requisiteId != null
+    // Плашки относятся к вкладке применённого типа графика
+    val onAppliedTab = scheduleActive && typeIsFixed == activeTypeIsFixed
+    // «Маяк» (ответ дизайнера): был зелёный статус, пользователь изменил
+    // что-либо — добавил/удалил платёж, поменял сумму или реквизит — плашка
+    // краснеет и просит нажать кнопку, а не просто выйти
+    val hasUnsavedChanges = onAppliedTab && (
+        if (activeTypeIsFixed) {
+            fixedDay != appliedFixedDay ||
+                fixedAmount.replace(" ", "") != appliedFixedAmount ||
+                requisiteId != appliedRequisiteId
+        } else {
+            payments.toList() != appliedPayments || requisiteId != appliedRequisiteId
+        }
         )
-    // Плашка несохранённых изменений (Figma 2872-34545): и при правке
-    // активного графика, и при создании нового
-    val showUnsavedStrip = (scheduleActive && editing) || draftDirty
 
     // Даты для точек в календарном шите (Figma 2872-34192): строки списка
     // «Добавленные платежи» плюс (посуточно) дни броней — занятые даты,
@@ -399,14 +500,16 @@ fun PaymentScheduleScreen(
 
     fun addPayment() {
         // Заметка дизайнера (Figma 2872:34854): нажатие «Добавить платеж»
-        // подчёркивает незаполненные поля; платёж создаётся только когда всё заполнено
+        // подчёркивает незаполненные поля; платёж создаётся только когда всё заполнено.
+        // Исключение — сумма: пустое поле не ошибка, берётся ставка объекта
         var valid = true
         val date = variableDate
         if (date == null) {
             variableDateError = "Выберите значение"
             valid = false
         }
-        val amount = variableAmount.replace(" ", "").toDoubleOrNull()
+        val amountStr = variableAmount.replace(" ", "").ifEmpty { rateStr ?: "" }
+        val amount = amountStr.toDoubleOrNull()
         if (amount == null || amount <= 0.0) {
             variableAmountError = "Заполните поле"
             valid = false
@@ -423,20 +526,20 @@ fun PaymentScheduleScreen(
             viewModel.addBookingDay(propertyId, paymentDate) { added ->
                 if (added) {
                     // Строка списка — с введённой суммой (не ставкой из карточки)
-                    payments.add(VariablePayment(paymentDate, variableAmount.replace(" ", "")))
+                    payments.add(VariablePayment(paymentDate, amountStr))
                     payments.sortBy { it.date }
                     variableDate = null
                     variableAmount = ""
                     variableDateError = null
                     variableAmountError = null
+                    // Колбэк асинхронный: persist() в конце addPayment уже
+                    // отработал без этой строки — черновик обязан сохраниться тут
+                    persist()
                     paymentAddedText = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен"
                 } else {
-                    // Бронь не создалась (например, нет связи с сервером) —
-                    // молчаливое «ничего не происходит» недопустимо
-                    toast = DesignToastData(
-                        text = "Не удалось добавить платёж. Проверьте соединение",
-                        iconRes = R.drawable.ic_globe_warning
-                    )
+                    // Бронь не создалась (нет связи с сервером) — окно
+                    // «Нет связи» с пояснением действия (2872-34883)
+                    noConnectionText = "Не\u00A0удалось добавить платёж"
                 }
             }
         } else {
@@ -444,7 +547,7 @@ fun PaymentScheduleScreen(
                 conflictDate = paymentDate
                 return
             }
-            payments.add(VariablePayment(paymentDate, variableAmount.replace(" ", "")))
+            payments.add(VariablePayment(paymentDate, amountStr))
             payments.sortBy { it.date }
             variableDate = null
             variableAmount = ""
@@ -512,21 +615,21 @@ fun PaymentScheduleScreen(
                     onSelect = {
                         typeIsFixed = it
                         PaymentScheduleCache.typeTouched = true
-                        if (scheduleActive) editing = true
                         persist()
                     }
                 )
 
                 Spacer(Modifier.height(20.dp))
 
-                // ---- Плашка состояния — ОТДЕЛЬНЫЙ элемент над карточкой
-                // (Figma 2872-34556): 372×38 r10, зазор до карточки 12;
-                // «График активен» #E5F2E7/#2F7D4D (2872-34486),
-                // «Есть несохранённые изменения» #FBEAEC/#FF4249 (2872-34545)
-                if (scheduleActive && !editing) {
+                // ---- Плашки — ОТДЕЛЬНЫЙ элемент над карточкой (Figma 2872-34556):
+                // 372×38 r10, зазор до карточки 12. Зелёная «График активен»
+                // (2872-34486) — на вкладке применённого типа без изменений;
+                // красная «Есть несохранённые изменения» (2872-34545) — маяк:
+                // изменили платёж/сумму/реквизит — нажмите кнопку, а не выходите
+                if (onAppliedTab && !hasUnsavedChanges) {
                     StatusPlate("График активен", Color(0xFFE5F2E7), Color(0xFF2F7D4D))
                     Spacer(Modifier.height(12.dp))
-                } else if (showUnsavedStrip) {
+                } else if (onAppliedTab && hasUnsavedChanges) {
                     StatusPlate("Есть несохранённые изменения", Color(0xFFFBEAEC), ErrorRed)
                     Spacer(Modifier.height(12.dp))
                 }
@@ -576,13 +679,11 @@ fun PaymentScheduleScreen(
                                 DayField(
                                     day = fixedDay,
                                     error = fixedDayError,
-                                    readOnly = readOnly,
                                     onClick = { showDaySheet = true }
                                 )
                                 AmountField(
                                     amount = fixedAmount,
                                     error = fixedAmountError,
-                                    readOnly = readOnly,
                                     onValueChange = {
                                         fixedAmount = it
                                         fixedAmountError = null
@@ -593,13 +694,12 @@ fun PaymentScheduleScreen(
                                 DateField(
                                     date = variableDate,
                                     error = variableDateError,
-                                    readOnly = readOnly,
                                     onClick = { showCalendar = true }
                                 )
                                 AmountField(
                                     amount = variableAmount,
                                     error = variableAmountError,
-                                    readOnly = false,
+                                    placeholder = rateStr?.let { "$it ₽" } ?: "Сумма, ₽",
                                     onValueChange = {
                                         variableAmount = it
                                         variableAmountError = null
@@ -616,10 +716,7 @@ fun PaymentScheduleScreen(
                                 text = "Добавить платеж",
                                 borderColor = Graphite,
                                 iconRes = R.drawable.ic_plus_circle_graphite,
-                                onClick = {
-                                    if (readOnly) editing = true
-                                    addPayment()
-                                }
+                                onClick = { addPayment() }
                             )
                         }
 
@@ -674,10 +771,7 @@ fun PaymentScheduleScreen(
                         PaymentRow(
                             date = payment.date.format(DdMmYyyy),
                             amount = formatAmount(payment.amount.toDoubleOrNull() ?: 0.0),
-                            onDelete = {
-                                if (readOnly) editing = true
-                                deletePayment(index)
-                            }
+                            onDelete = { deletePayment(index) }
                         )
                         Box(
                             Modifier
@@ -711,46 +805,27 @@ fun PaymentScheduleScreen(
                         .navigationBarsPadding(),
                     verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    when {
-                        // Плашка «Есть несохранённые изменения» — верхняя CTA
-                        // всегда «Применить изменения» через диалог (Figma 2872-34890)
-                        showUnsavedStrip -> BlackCtaButton(
-                            text = "Применить изменения",
+                    // Верхняя CTA — только когда есть что применять:
+                    // зелёный статус (график применён, правок нет) — кнопки
+                    // нет вовсе; красная плашка/создание — кнопка на месте.
+                    // На вкладке применённого типа — «Применить изменения»
+                    // (Figma 2872-34890), иначе «Применить график» (34889)
+                    if (!onAppliedTab || hasUnsavedChanges) {
+                        BlackCtaButton(
+                            text = if (onAppliedTab) "Применить изменения" else "Применить график",
                             enabled = primaryEnabled,
                             onClick = { showApplyDialog = true }
                         )
-                        !scheduleActive -> BlackCtaButton(
-                            text = "Применить график",
-                            enabled = primaryEnabled,
-                            onClick = { applySchedule() }
-                        )
-                        else -> BlackCtaButton(
-                            text = "Изменить график",
-                            onClick = { editing = true }
-                        )
                     }
-                    // Нижняя CTA: при плашке — «Отменить изменения» (Figma 2872-34888),
-                    // для чистого активного графика — «Отменить и очистить»;
-                    // обе открывают диалог, прямых действий без подтверждения нет
+                    // Нижняя CTA (Figma 2872-34488): контурная красная,
+                    // открывает диалог подтверждения
                     OutlineCtaButton(
-                        text = if (showUnsavedStrip) "Отменить изменения" else "Отменить и очистить",
+                        text = "Отменить и очистить",
                         borderColor = ErrorRed,
                         textColor = ErrorRed,
                         onClick = { showCancelDialog = true }
                     )
                 }
-            }
-        }
-
-        // ---- Тост поверх контента, над Tabbar ----
-        toast?.let { data ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 170.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                DesignToast(data = data, onDismiss = { toast = null })
             }
         }
     }
@@ -813,6 +888,16 @@ fun PaymentScheduleScreen(
         )
     }
 
+    // «Нет связи с сервером» (Figma 2872-34883): глобус с «!», пояснение
+    // зависит от действия; закрытие тапом вне
+    noConnectionText?.let { text ->
+        IconNotificationDialog(
+            iconRes = R.drawable.ic_globe_warning_vec,
+            text = text,
+            onDismiss = { noConnectionText = null }
+        )
+    }
+
     // ---- Диалоги ----
     conflictDate?.let { date ->
         ScheduleDialog(
@@ -838,47 +923,43 @@ fun PaymentScheduleScreen(
             onDismiss = { conflictDate = null }
         )
     }
-    // «Платёж на … добавлен» (Figma 2872-34864): карточка 380×120 r20,
-    // зелёная рамка 1dp; галочка 50 по центру (+21 сверху), зазор 10,
-    // текст 15/600 с высотой строки 18, снизу 21 — всё по координатам макета
+    // «Платёж на … добавлен» (Figma 2872-34864): галочка, зазор 10, без кнопок
     paymentAddedText?.let { text ->
-        DesignWidthDialog(onDismissRequest = { paymentAddedText = null }) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = CardShape,
-                color = Color.White,
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2F7D4D))
-            ) {
-                Column(
-                    modifier = Modifier.padding(top = 21.dp, bottom = 21.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_check_green),
-                        contentDescription = null,
-                        modifier = Modifier.size(50.dp)
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        text,
-                        style = Headline2MobStyle.copy(lineHeight = 18.sp)
-                    )
-                }
-            }
-        }
+        IconNotificationDialog(
+            iconRes = R.drawable.ic_check_green,
+            text = text,
+            iconGap = 10.dp,
+            onDismiss = { paymentAddedText = null }
+        )
     }
     if (showApplyDialog) {
-        ScheduleDialog(
-            iconRes = null,
-            title = "Применить изменения?",
-            body = "Новые условия графика заменят текущие и будут отправлены арендатору",
-            confirmText = "Применить изменения",
-            onConfirm = {
-                showApplyDialog = false
-                applySchedule()
-            },
-            onDismiss = { showApplyDialog = false }
-        )
+        if (scheduleActive) {
+            // Правка активного графика (Figma 2872-34890)
+            ScheduleDialog(
+                iconRes = null,
+                title = "Применить изменения?",
+                body = "Новые условия графика заменят текущие и будут отправлены арендатору",
+                confirmText = "Применить изменения",
+                onConfirm = {
+                    showApplyDialog = false
+                    applySchedule()
+                },
+                onDismiss = { showApplyDialog = false }
+            )
+        } else {
+            // Первый запуск графика (Figma 2872-34889)
+            ScheduleDialog(
+                iconRes = null,
+                title = "Применить график?",
+                body = "График начнёт действовать. В указанные даты арендатор получит push-уведомление в 10:00 по местному времени",
+                confirmText = "Применить график",
+                onConfirm = {
+                    showApplyDialog = false
+                    applySchedule()
+                },
+                onDismiss = { showApplyDialog = false }
+            )
+        }
     }
     if (showCancelDialog) {
         ScheduleDialog(
@@ -889,6 +970,13 @@ fun PaymentScheduleScreen(
             confirmColor = ErrorRed,
             onConfirm = {
                 showCancelDialog = false
+                // Посуточно брони и есть платежи: отменяем будущие, иначе
+                // список воскреснет при следующем входе (merge по броням)
+                if (isDailyRent) {
+                    viewModel.deleteBooking(
+                        propertyId, LocalDate.now(), LocalDate.now().plusYears(10)
+                    )
+                }
                 if (scheduleActive) viewModel.cancelSchedule(propertyId) else resetDraft()
             },
             onDismiss = { showCancelDialog = false }
@@ -979,7 +1067,6 @@ private fun SegmentLabel(
 private fun RowScope.DateField(
     date: LocalDate?,
     error: String?,
-    readOnly: Boolean,
     onClick: () -> Unit
 ) {
     FieldContainer(error = error, modifier = Modifier.weight(1f)) {
@@ -987,7 +1074,7 @@ private fun RowScope.DateField(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .clickable(enabled = !readOnly) { onClick() }
+                .clickable { onClick() }
                 .padding(start = 20.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1023,7 +1110,6 @@ private fun RowScope.DateField(
 private fun RowScope.DayField(
     day: Int?,
     error: String?,
-    readOnly: Boolean,
     onClick: () -> Unit
 ) {
     FieldContainer(error = error, modifier = Modifier.weight(1f)) {
@@ -1031,7 +1117,7 @@ private fun RowScope.DayField(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .clickable(enabled = !readOnly) { onClick() }
+                .clickable { onClick() }
                 .padding(start = 20.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1054,19 +1140,19 @@ private fun RowScope.DayField(
     }
 }
 
-/** Поле «Сумма, ₽»: числовой ввод, паддинг 20 (иконки нет — Figma 2872-34122). */
+/** Поле «Сумма, ₽»: числовой ввод, паддинг 20 (иконки нет — Figma 2872-34122).
+ *  Плейсхолдер переопределяется ставкой объекта для переменного графика. */
 @Composable
 private fun RowScope.AmountField(
     amount: String,
     error: String?,
-    readOnly: Boolean,
+    placeholder: String = "Сумма, ₽",
     onValueChange: (String) -> Unit
 ) {
     FieldContainer(error = error, modifier = Modifier.weight(1f)) {
         BasicTextField(
             value = amount,
             onValueChange = onValueChange,
-            enabled = !readOnly,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
@@ -1087,7 +1173,7 @@ private fun RowScope.AmountField(
                 Box(contentAlignment = Alignment.CenterStart) {
                     if (amount.isEmpty()) {
                         Text(
-                            "Сумма, ₽",
+                            placeholder,
                             style = if (error != null) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
                             else Headline2MobPlaceholderStyle
                         )

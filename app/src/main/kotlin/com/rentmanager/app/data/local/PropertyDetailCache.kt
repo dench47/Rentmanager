@@ -3,6 +3,7 @@ package com.rentmanager.app.data.local
 import android.content.Context
 import android.content.SharedPreferences
 import com.google.gson.Gson
+import com.rentmanager.app.data.model.PaymentScheduleDto
 import com.rentmanager.app.data.model.PropertyDto
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -24,7 +25,10 @@ class PropertyDetailCache @Inject constructor(
         val property: PropertyDto,
         val tenantName: String = "",
         val tenantPhone: String = "",
-        val tenantCompany: String = ""
+        val tenantCompany: String = "",
+        /** График платежей: без него «Арендная плата» при входе в карточку
+         *  мелькает ставкой объявления, пока график не придёт с сервера */
+        val schedule: PaymentScheduleDto? = null
     )
 
     fun load(propertyId: String): Entry? {
@@ -32,7 +36,8 @@ class PropertyDetailCache @Inject constructor(
         return try { gson.fromJson(json, Entry::class.java) } catch (_: Exception) { null }
     }
 
-    /** Сохраняет объект (без арендатора) — используется при создании/загрузке списка. */
+    /** Сохраняет объект (без арендатора) — используется при создании/загрузке списка.
+     *  График не затирает: он обновляется отдельно через saveSchedule. */
     fun saveProperty(dto: PropertyDto) {
         try {
             val existing = load(dto.id)
@@ -41,9 +46,18 @@ class PropertyDetailCache @Inject constructor(
                     property = dto,
                     tenantName = existing?.tenantName ?: "",
                     tenantPhone = existing?.tenantPhone ?: "",
-                    tenantCompany = existing?.tenantCompany ?: ""
+                    tenantCompany = existing?.tenantCompany ?: "",
+                    schedule = existing?.schedule
                 )
             )
+        } catch (_: Exception) { }
+    }
+
+    /** Обновляет график в кэше карточки (после каждой загрузки с сервера). */
+    fun saveSchedule(propertyId: String, schedule: PaymentScheduleDto?) {
+        try {
+            val existing = load(propertyId) ?: return
+            save(existing.copy(schedule = schedule))
         } catch (_: Exception) { }
     }
 

@@ -78,6 +78,11 @@ class MyPropertiesViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    /** Закрытие окна «Нет связи с сервером» тапом вне */
+    fun clearError() {
+        _errorMessage.value = null
+    }
+
     private val _viewMode = MutableStateFlow(ViewMode.MONTHS)
     val viewMode: StateFlow<ViewMode> = _viewMode.asStateFlow()
 
