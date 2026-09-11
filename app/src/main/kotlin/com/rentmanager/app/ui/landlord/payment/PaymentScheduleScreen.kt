@@ -1,6 +1,5 @@
 package com.rentmanager.app.ui.landlord.payment
 
-import androidx.core.content.edit
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,17 +43,16 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.edit
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.gson.Gson
 import com.rentmanager.app.R
-import com.rentmanager.app.ui.components.DesignWidthDialog
+import com.rentmanager.app.ui.components.DatePickerSheet
+import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
 import com.rentmanager.app.ui.components.IconNotificationDialog
 import com.rentmanager.app.ui.components.ScheduleDialog
-import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
-import com.rentmanager.app.ui.components.DatePickerSheet
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.OutlineCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.ScreenToolbar
