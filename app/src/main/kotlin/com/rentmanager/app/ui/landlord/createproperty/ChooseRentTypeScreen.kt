@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.theme.SectionTitleStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 
 // Шаг 2: выбор варианта сдачи (Figma 2533:17764)
@@ -38,10 +39,11 @@ fun ChooseRentTypeScreen(
 
             Text(
                 "Вариант сдачи",
-                style = ToolbarTitleStyle,
+                style = SectionTitleStyle,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
-            Spacer(Modifier.height(30.dp))
+            // Заголовок → список: 12 (правка дизайнера, файл «8»)
+            Spacer(Modifier.height(12.dp))
 
             Column(
                 modifier = Modifier

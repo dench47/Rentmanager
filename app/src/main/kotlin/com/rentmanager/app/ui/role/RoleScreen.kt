@@ -137,7 +137,9 @@ fun RoleScreen(
                         else -> TenantStatsSection(uiState.nextPaymentDate, uiState.nextPaymentAmount, uiState.hasDebt, onPay = { viewModel.pay() })
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                // Статы -> сетка карточек: у дашборда арендодателя 10 (правка
+                // дизайнера, файл «8»); остальные экраны этой ветки не размечены — 12
+                Spacer(Modifier.height(if (uiState.role == UserRole.LANDLORD) 10.dp else 12.dp))
 
                 // Cards grid
                 LazyVerticalGrid(
@@ -172,7 +174,8 @@ fun RoleScreen(
                         text = "Управление подпиской",
                         onClick = onNavigateToSubscription
                     )
-                    Spacer(Modifier.height(12.dp))
+                    // Между кнопками 6 (правка дизайнера, файл «8»)
+                    Spacer(Modifier.height(6.dp))
                     OutlineCtaButton(
                         iconRes = R.drawable.ic_cta_pin,
                         text = "Разместить объявление о сдаче",

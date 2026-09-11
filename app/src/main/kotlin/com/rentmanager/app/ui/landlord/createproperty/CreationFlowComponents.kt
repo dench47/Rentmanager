@@ -34,6 +34,7 @@ import com.rentmanager.app.ui.theme.CardBackground
 import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
+import com.rentmanager.app.ui.theme.SectionTitleStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 import kotlin.math.abs
 import kotlin.math.cos
@@ -112,7 +113,8 @@ fun CreationProgressBar(currentStep: Int, modifier: Modifier = Modifier) {
 // Заголовок секции (Figma: Headline 1 mob — 20 SemiBold)
 @Composable
 fun FlowSectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(text, style = ToolbarTitleStyle, modifier = modifier)
+    // 18/600 — правка дизайнера (зелёная звезда, файл «8»)
+    Text(text, style = SectionTitleStyle, modifier = modifier)
 }
 
 // Карточка выбора (Figma: 124, радиус 30, #EFEFEF, padding 15/31, иконка 74, зазор 20)

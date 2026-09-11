@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
+import com.rentmanager.app.util.shortAddress
 import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
@@ -73,6 +74,7 @@ import com.rentmanager.app.ui.theme.FieldTextStyle
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.PropertyNameStyle
 import com.rentmanager.app.ui.theme.TextIconeStyle
+import com.rentmanager.app.ui.theme.SectionTitleStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 import kotlin.math.abs
 import kotlin.math.cos
@@ -221,7 +223,8 @@ fun PropertyCardScreen(
             ) {
                 if (property != null) {
                     Text(property.name.ifBlank { "Без названия" }, style = PropertyNameStyle)
-                    Text(property.address, style = Headline2MobStyle.copy(color = GreyText))
+                    // Короткий адрес — как в «Моя недвижимость» (улица, дом)
+                    Text(property.address.shortAddress(), style = Headline2MobStyle.copy(color = GreyText))
                 }
 
                 // Плашка задолженности — как на дашборде: красная с суммой
@@ -349,7 +352,7 @@ fun PropertyCardScreen(
                 SectionHeader("Об объекте", onPencilClick = { onEditAbout(propertyId) })
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ValueCard("Название", property?.name ?: "", Modifier.fillMaxWidth())
-                    ValueCard("Адрес", property?.address ?: "", Modifier.fillMaxWidth())
+                    ValueCard("Адрес", property?.address?.shortAddress() ?: "", Modifier.fillMaxWidth())
                     ValueCard("Кол-во комнат", property?.rooms ?: "", Modifier.fillMaxWidth())
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ValueCard(
@@ -739,7 +742,8 @@ private fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text, style = ToolbarTitleStyle)
+        // 18/600 — правка дизайнера (зелёная звезда, файл «8»)
+        Text(text, style = SectionTitleStyle)
         Image(
             painter = painterResource(pencilRes),
             contentDescription = "Редактировать",

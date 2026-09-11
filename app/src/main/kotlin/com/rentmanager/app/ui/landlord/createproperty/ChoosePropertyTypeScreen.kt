@@ -29,6 +29,7 @@ import com.rentmanager.app.R
 import com.rentmanager.app.ui.theme.ErrorRed
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
+import com.rentmanager.app.ui.theme.SectionTitleStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 import com.rentmanager.app.ui.components.DesignWidthDialog
 
@@ -63,10 +64,11 @@ fun ChoosePropertyTypeScreen(
 
             Text(
                 "Выберите тип недвижимости",
-                style = ToolbarTitleStyle,
+                style = SectionTitleStyle,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
-            Spacer(Modifier.height(30.dp))
+            // Заголовок → список: 12 (правка дизайнера, файл «8»)
+            Spacer(Modifier.height(12.dp))
 
             Column(
                 modifier = Modifier

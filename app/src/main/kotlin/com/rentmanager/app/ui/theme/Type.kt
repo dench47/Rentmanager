@@ -115,6 +115,15 @@ val ToolbarTitleStyle = TextStyle(
     letterSpacing = (-0.3).sp,
     color = Graphite
 )
+// Заголовок секции внутри экрана (правка дизайнера: 20 → 18, файл «8»,
+// зелёные звёзды): «Аренда и платежи», «О квартире» и т.п.
+val SectionTitleStyle = TextStyle(
+    fontFamily = InterFontFamily,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 18.sp,
+    letterSpacing = (-0.3).sp,
+    color = Graphite
+)
 val FieldTextStyle = TextStyle(
     fontFamily = InterFontFamily,
     fontWeight = FontWeight.Medium,

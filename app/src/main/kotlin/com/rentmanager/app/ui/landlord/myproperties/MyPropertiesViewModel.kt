@@ -14,6 +14,7 @@ import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PropertyRepository
 import com.rentmanager.app.util.PaymentOverdue
+import com.rentmanager.app.util.shortAddress
 import com.rentmanager.app.util.mergeRanges
 import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -328,8 +329,6 @@ private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
     rentAmount = rentAmount
 )
 
-private fun String.shortAddress(): String =
-    split(',').map { it.trim() }.filter { it.isNotEmpty() }.take(2).joinToString(", ")
 
 private fun BookingDto.toBookingRange(): BookingRange = BookingRange(
     id = id,
