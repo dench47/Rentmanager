@@ -723,12 +723,18 @@ fun CreatePropertyScreen(
                     }
                 }
 
-                // 8. Кнопки (создание: «Создать и опубликовать» + «Создать объект»;
-                // редактирование: чёрная «Сохранить изменения» + контурная «Сбросить изменения», Figma 2677-26609)
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+            }
+
+            // 8. Кнопки — статичная область внизу, не уезжают со скроллом
+            // (просьба дизайнера, файл «8», экраны 2751-36069/2533-20832/2751-35798);
+            // клавиатура по-прежнему поднимает их над собой (imePadding)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 20.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                     if (isEditMode) {
                         BlackCtaButton(
                             text = "Сохранить изменения",
@@ -768,9 +774,6 @@ fun CreatePropertyScreen(
                         GradientCtaButton(text = "Создать и опубликовать", enabled = !uiState.isCreating) { validateAndCreate() }
                         OutlineCtaButton(text = "Создать объект", enabled = !uiState.isCreating) { validateAndCreate() }
                     }
-                }
-
-                Spacer(Modifier.height(8.dp))
             }
         }
     }
