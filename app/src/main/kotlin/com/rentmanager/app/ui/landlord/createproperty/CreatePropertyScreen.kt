@@ -750,9 +750,9 @@ fun CreatePropertyScreen(
                         // Валидация + создание (общая для обеих кнопок).
                         // Guard от повторного нажатия: пока создание идёт (или уже
                         // succeeded и ждём навигации) — новый объект не создаём
-                        fun validateAndCreate() {
+                        fun validateAndCreate(requireName: Boolean = true, publishNow: Boolean = false) {
                             if (uiState.isCreating) return
-                            nameError = name.isBlank()
+                            nameError = requireName && name.isBlank()
                             addressError = effAddress.isBlank()
                             priceError = price.isBlank()
                             sleepingError = effRentType == "посуточно" && sleepingPlaces == null
@@ -762,7 +762,7 @@ fun CreatePropertyScreen(
                                     viewModel, name, effAddress, area, price, description,
                                     photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
                                     effPropertyType, effRentType, rooms, sleepingPlaces, floor,
-                                    floorsInHouse, effLatitude, effLongitude
+                                    floorsInHouse, effLatitude, effLongitude, publishNow
                                 ) { newId ->
                                     // Черновые счётчики шага 4 — в API после создания объекта
                                     viewModel.createDraftMeters(newId, CreateDraftHolder.meters)
@@ -770,9 +770,25 @@ fun CreatePropertyScreen(
                                 }
                             }
                         }
-                        // Figma 5: градиентная «Создать и опубликовать» первой, затем контурная
-                        GradientCtaButton(text = "Создать и опубликовать", enabled = !uiState.isCreating) { validateAndCreate() }
-                        OutlineCtaButton(text = "Создать объект", enabled = !uiState.isCreating) { validateAndCreate() }
+                        // Figma 5: градиентная «Создать и опубликовать» первой, затем контурная.
+                        // Пока обязательные поля не заполнены — кнопки неактивны (Figma 3002-50420):
+                        // «Создать объект» — название, адрес, цена, спальные места (посуточно);
+                        // «Создать и опубликовать» — все поля, кроме названия,
+                        // блока «Дополнительно» и счётчиков (этажи — обязательны)
+                        GradientCtaButton(
+                            text = "Создать и опубликовать",
+                            enabled = !uiState.isCreating && photoUris.isNotEmpty() &&
+                                effAddress.isNotBlank() && rooms != null &&
+                                (effRentType != "посуточно" || sleepingPlaces != null) &&
+                                area.isNotBlank() && description.isNotBlank() && price.isNotBlank() &&
+                                floor != null && floorsInHouse != null
+                        ) { validateAndCreate(requireName = false, publishNow = true) }
+                        OutlineCtaButton(
+                            text = "Создать объект",
+                            enabled = !uiState.isCreating && name.isNotBlank() &&
+                                effAddress.isNotBlank() && price.isNotBlank() &&
+                                (effRentType != "посуточно" || sleepingPlaces != null)
+                        ) { validateAndCreate() }
                     }
             }
         }
@@ -898,6 +914,7 @@ private fun submitCreate(
     floorsInHouse: String?,
     latitude: Double?,
     longitude: Double?,
+    publishNow: Boolean = false,
     onSuccess: (String) -> Unit
 ) {
     viewModel.createProperty(
@@ -919,6 +936,7 @@ private fun submitCreate(
         floorsInHouse = floorsInHouse,
         latitude = latitude,
         longitude = longitude,
+        publishNow = publishNow,
         onSuccess = onSuccess
     )
 }

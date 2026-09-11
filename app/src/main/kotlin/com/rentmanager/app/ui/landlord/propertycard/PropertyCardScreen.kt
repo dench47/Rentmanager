@@ -55,9 +55,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.IconNotificationDialog
 import com.rentmanager.app.util.shortAddress
 import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PropertyDto
@@ -101,6 +103,49 @@ private val DividerGrey = Color(0x66212121)
 // rgba(33,33,33,0.4) — drag handle шита действий (Figma 2574:21650)
 private val SheetHandleGrey = Color(0x66212121)
 
+/** Шит «Открепить арендатора?» (Figma 2936:41556): красная CTA + «Отменить». */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun DetachTenantSheet(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White,
+        dragHandle = null
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp)
+        ) {
+            com.rentmanager.app.ui.components.SheetDragHandle()
+            Text("Открепить арендатора?", style = Headline2MobStyle.copy(fontSize = 20.sp))
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Арендатор потеряет доступ к объекту и перестанет получать уведомления",
+                style = Headline2MobStyle.copy(color = GreyText)
+            )
+            Spacer(Modifier.height(20.dp))
+            BlackCtaButton(
+                text = "Открепить арендатора",
+                containerColor = ErrorRed,
+                onClick = onConfirm
+            )
+            Spacer(Modifier.height(6.dp))
+            OutlineCtaButton(
+                text = "Отменить",
+                borderColor = Graphite,
+                onClick = onDismiss
+            )
+        }
+    }
+}
+
 // Карточка объекта (Figma 2Y1uc9owPaF7N9jzQhhuIr, node 2574:20588)
 @Suppress("ASSIGNED_VALUE_NEVER_READ") // K2 не понимает порядок колбэков шитов (KT-78881): сбросы showXxxSheet = false в onDismiss читаются рендером выше по файлу
 @Composable
@@ -112,6 +157,7 @@ fun PropertyCardScreen(
     onEditAbout: (String) -> Unit = {},
     onAddCounter: (String) -> Unit = {},
     onOpenMeters: (String) -> Unit = {},
+    onAttachTenant: (String) -> Unit = {},
     onDeleted: () -> Unit = {},
     viewModel: PropertyCardViewModel = hiltViewModel()
 ) {
@@ -142,6 +188,10 @@ fun PropertyCardScreen(
     // Шиты быстрого редактирования секций (карандаши у заголовков) и сетки фото
     var showRentSheet by remember { mutableStateOf(false) }
     var showTenantSheet by remember { mutableStateOf(false) }
+    // Открепление арендатора (Figma 2936:41556/41570): шит-подтверждение
+    // и окно «Арендатор откреплен» после
+    var showDetachSheet by remember { mutableStateOf(false) }
+    var tenantDetached by remember { mutableStateOf(false) }
     var readingMeter by remember { mutableStateOf<MeterDto?>(null) }
     var showPhotosSheet by remember { mutableStateOf(false) }
 
@@ -341,10 +391,13 @@ fun PropertyCardScreen(
                                 onClick = {}
                             )
                         }
+                        val attached = property?.tenantInfo?.isNotBlank() == true
                         BlackCtaButton(
-                            // Прикреплённый арендатор (tenantInfo заполнен) — «Открепить», иначе «Прикрепить»
-                            text = if (property?.tenantInfo?.isNotBlank() == true) "Открепить арендатора" else "Прикрепить арендатора",
-                            onClick = {}
+                            text = if (attached) "Открепить арендатора" else "Прикрепить арендатора",
+                            onClick = {
+                                if (attached) showDetachSheet = true
+                                else onAttachTenant(propertyId)
+                            }
                         )
                     }
                 }
@@ -506,11 +559,10 @@ fun PropertyCardScreen(
             },
             onPublish = {
                 showActionsSheet = false
-                // Шлюз публикации: адрес и цена обязательны для объявления —
+                // Шлюз публикации: тот же набор обязательных полей, что у кнопки
+                // «Создать и опубликовать» на экране создания объекта —
                 // без них не публикуем, предлагаем дозаполнить в редакторе
-                val missingAddress = property?.address.isNullOrBlank()
-                val missingPrice = property?.rentAmount == null || property.rentAmount <= 0.0
-                if (missingAddress || missingPrice) {
+                if (missingPublishItems(property).isNotEmpty()) {
                     showPublishBlocker = true
                 } else {
                     viewModel.publish()
@@ -539,11 +591,12 @@ fun PropertyCardScreen(
         )
     }
 
-    // Блокер публикации: адрес и цена обязательны для объявления
+    // Блокер публикации: валидация та же, что у «Создать и опубликовать»
+    // (см. missingPublishItems) — без полного набора не публикуем,
+    // предлагаем дозаполнить в «Редактировать объект».
     if (showPublishBlocker) {
         PublishBlockerDialog(
-            missingAddress = property?.address.isNullOrBlank(),
-            missingPrice = property?.rentAmount == null || property.rentAmount <= 0.0,
+            missingItems = missingPublishItems(property),
             onEdit = {
                 showPublishBlocker = false
                 onEditProperty(propertyId)
@@ -564,6 +617,23 @@ fun PropertyCardScreen(
                     viewModel.saveRentInfo(rentAmount, rentEndDate)
                 },
                 onDismiss = { showRentSheet = false }
+            )
+        }
+        if (showDetachSheet) {
+            DetachTenantSheet(
+                onConfirm = {
+                    showDetachSheet = false
+                    viewModel.detachTenant(propertyId) { tenantDetached = true }
+                },
+                onDismiss = { showDetachSheet = false }
+            )
+        }
+        if (tenantDetached) {
+            IconNotificationDialog(
+                iconRes = R.drawable.ic_check_green,
+                text = "Арендатор откреплен",
+                iconGap = 12.dp,
+                onDismiss = { tenantDetached = false }
             )
         }
         if (showTenantSheet) {
@@ -1339,13 +1409,34 @@ private fun PropertyActionsSheet(
     }
 }
 
-// Блокер публикации: у объявления обязательны адрес и цена (решение по
-// обсуждению с дизайнером 02.09) — без них не публикуем, предлагаем
+// Набор обязательных для публикации полей — один к одному с условием
+// активности кнопки «Создать и опубликовать» на экране создания объекта:
+// фото, адрес, комнаты, площадь, цена, описание, этажи и спальные места
+// (последние — только для посуточной аренды). Название не входит:
+// для публикации оно не обязательно.
+private fun missingPublishItems(p: PropertyDto?): List<String> {
+    if (p == null) return emptyList()
+    return buildList {
+        if (p.address.isNullOrBlank()) add("адрес объекта")
+        if (p.rentAmount == null || p.rentAmount <= 0.0) add("цену аренды")
+        if (p.photos.isNullOrEmpty()) add("фотографии")
+        if (p.rooms.isNullOrBlank()) add("количество комнат")
+        if (p.area == null || p.area <= 0.0) add("площадь")
+        if (p.description.isNullOrBlank()) add("описание")
+        if (p.floor.isNullOrBlank()) add("этаж")
+        if (p.floorsInHouse.isNullOrBlank()) add("количество этажей в доме")
+        if (p.rentType == "посуточно" && p.sleepingPlaces.isNullOrBlank()) {
+            add("количество спальных мест")
+        }
+    }
+}
+
+// Блокер публикации: у объявления обязательны все поля кнопки
+// «Создать и опубликовать» — без них не публикуем, предлагаем
 // дозаполнить в «Редактировать объект». Оформление — как у DeletePropertyDialog.
 @Composable
 private fun PublishBlockerDialog(
-    missingAddress: Boolean,
-    missingPrice: Boolean,
+    missingItems: List<String>,
     onEdit: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1360,14 +1451,17 @@ private fun PublishBlockerDialog(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Заполните обязательные поля", style = ToolbarTitleStyle)
+                // Перечисление без пропусков собирается грамматически корректно
+                // для любого количества: «A», «A и B», «A, B и C»
+                val enumeration = when (missingItems.size) {
+                    0 -> ""
+                    1 -> missingItems[0]
+                    2 -> missingItems.joinToString(" и ")
+                    else -> missingItems.dropLast(1).joinToString(", ") + " и " + missingItems.last()
+                }
                 Text(
-                    buildString {
-                        append("Чтобы опубликовать объявление, укажите")
-                        if (missingAddress) append("\u00A0адрес объекта")
-                        if (missingAddress && missingPrice) append(" и")
-                        if (missingPrice) append("\u00A0цену аренды")
-                        append(" — без них объявление не будет видно арендаторам")
-                    },
+                    "Чтобы опубликовать объявление, укажите\u00A0$enumeration" +
+                        " — без них объявление не будет видно арендаторам",
                     style = Headline2MobStyle.copy(color = GreyText)
                 )
             }

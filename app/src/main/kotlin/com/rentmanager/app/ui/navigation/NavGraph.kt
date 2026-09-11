@@ -333,6 +333,7 @@ fun RentManagerNavGraph(
                 onEditAbout = { pid -> navController.navigate(Screen.AboutEdit.createRoute(pid)) },
                 onAddCounter = { pid -> navController.navigate(Screen.AddCounter.createRoute(pid)) },
                 onOpenMeters = { pid -> navController.navigate(Screen.MetersList.createRoute(pid)) },
+                onAttachTenant = { pid -> navController.navigate(Screen.AttachTenant.createRoute(pid)) },
                 onDeleted = {
                     propertiesViewModel.refresh()
                     navController.popBackStack()

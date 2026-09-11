@@ -90,7 +90,9 @@ fun DatePickerSheet(
     onDone: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
     ctaText: String = "Готово",
-    markedDates: Set<LocalDate> = emptySet()
+    markedDates: Set<LocalDate> = emptySet(),
+    /** Нижняя граница выбора (напр., «Окончание аренды» не раньше начала) */
+    minDate: LocalDate? = null
 ) {
     var displayMonth by remember {
         mutableStateOf(YearMonth.from(initialDate ?: LocalDate.now()))
@@ -189,6 +191,7 @@ fun DatePickerSheet(
                     picked = picked,
                     today = today,
                     markedDates = markedDates,
+                    minDate = minDate,
                     onPickDay = { picked = it }
                 )
             }
@@ -357,6 +360,7 @@ private fun CalendarGrid(
     picked: LocalDate?,
     today: LocalDate,
     markedDates: Set<LocalDate>,
+    minDate: LocalDate? = null,
     onPickDay: (LocalDate) -> Unit
 ) {
     val firstDay = displayMonth.atDay(1)
@@ -385,6 +389,8 @@ private fun CalendarGrid(
                     val inMonth = date.month == displayMonth.month
                     // Прошедшие дни выбрать нельзя: приглушены, без реакции на тап
                     val isPast = date.isBefore(today)
+                    // Раньше нижней границы (например, начала аренды) — тоже
+                    val unavailable = minDate?.let { date.isBefore(it) } ?: false
                     val selected = picked == date
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                         Box(
@@ -395,7 +401,7 @@ private fun CalendarGrid(
                                     if (selected) Modifier.background(Graphite)
                                     else Modifier.background(Color.Transparent)
                                 )
-                                .clickable { if (inMonth && !isPast) onPickDay(date) },
+                                .clickable { if (inMonth && !isPast && !unavailable) onPickDay(date) },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -405,7 +411,7 @@ private fun CalendarGrid(
                                 fontFamily = InterFontFamily,
                                 color = when {
                                     selected -> Color.White
-                                    inMonth && !isPast -> Graphite.copy(alpha = 0.85f)
+                                    inMonth && !isPast && !unavailable -> Graphite.copy(alpha = 0.85f)
                                     else -> Graphite.copy(alpha = 0.4f)
                                 }
                             )

@@ -263,6 +263,8 @@ fun GradientCtaButton(
         modifier = modifier
             .fillMaxWidth()
             .height(55.dp)
+            // Неактивна — приглушаем (как у BlackCtaButton), Figma 3002-50420
+            .alpha(if (enabled) 1f else 0.4f)
             .clip(RoundedCornerShape(100.dp))
             .background(brush)
             .clickable(enabled = enabled) { onClick() },
