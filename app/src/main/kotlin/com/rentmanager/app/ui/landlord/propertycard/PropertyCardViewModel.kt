@@ -230,6 +230,13 @@ class PropertyCardViewModel @Inject constructor(
     fun saveRentInfo(rentAmount: String, rentEndDate: String) {
         val current = _uiState.value.property ?: return
         val rentEndDateChanged = current.rentEndDate != rentEndDate.takeIf { it.isNotBlank() }
+        // Посуточно: «Срок аренды» = дата из шита — обновляем сразу,
+        // не дожидаясь перезагрузки экрана
+        val instantRentEnd = if ((current.rentType ?: "посуточно") == "посуточно" && rentEndDate.isNotBlank()) {
+            rentEndDate
+        } else {
+            null
+        }
         saveProperty(
             current.copy(
                 rentAmount = parseAmount(rentAmount),
@@ -237,6 +244,9 @@ class PropertyCardViewModel @Inject constructor(
             ),
             "Изменения сохранены",
             onSaved = { saved ->
+                if (instantRentEnd != null) {
+                    _uiState.value = _uiState.value.copy(lastBookingEnd = instantRentEnd)
+                }
                 val schedule = _uiState.value.schedule
                 // Тип отображения = тип графика; без графика — по типу аренды объекта
                 val type = schedule?.type

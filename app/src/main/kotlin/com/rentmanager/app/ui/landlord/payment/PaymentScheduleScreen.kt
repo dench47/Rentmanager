@@ -52,6 +52,7 @@ import com.google.gson.Gson
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.DesignWidthDialog
 import com.rentmanager.app.ui.components.IconNotificationDialog
+import com.rentmanager.app.ui.components.ScheduleDialog
 import com.rentmanager.app.ui.components.DayOfMonthPickerSheet
 import com.rentmanager.app.ui.components.DatePickerSheet
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
@@ -268,6 +269,10 @@ fun PaymentScheduleScreen(
     var fixedDayError by remember { mutableStateOf<String?>(null) }
     var fixedAmountError by remember { mutableStateOf<String?>(null) }
 
+    // Сумма постоянного графика: пустое поле = ставка из плейсхолдера
+    // (как в переменном) — CTA доступны сразу после выбора дня
+    val fixedAmountEffective = fixedAmount.replace(" ", "").ifEmpty { rateStr ?: "" }
+
     var variableDate by remember { mutableStateOf(PaymentScheduleCache.variableDate) }
     var variableAmount by remember { mutableStateOf(PaymentScheduleCache.variableAmount) }
     var variableDateError by remember { mutableStateOf<String?>(null) }
@@ -438,7 +443,12 @@ fun PaymentScheduleScreen(
                         if (typeIsFixed) {
                             appliedPayments = emptyList()
                             appliedFixedDay = fixedDay
-                            appliedFixedAmount = fixedAmount.replace(" ", "")
+                        // Снимок применённого — из ответа сервера: обработчик
+                        // события живёт в LaunchedEffect(Unit), локальные
+                        // производные значения в нём успели бы устареть
+                        appliedFixedAmount = s.amount?.let {
+                            if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+                        } ?: ""
                             appliedRequisiteId = requisiteId
                         } else {
                             appliedPayments = payments.toList()
@@ -486,7 +496,7 @@ fun PaymentScheduleScreen(
     val hasUnsavedChanges = onAppliedTab && (
         if (activeTypeIsFixed) {
             fixedDay != appliedFixedDay ||
-                fixedAmount.replace(" ", "") != appliedFixedAmount ||
+                fixedAmountEffective != appliedFixedAmount ||
                 requisiteId != appliedRequisiteId
         } else {
             payments.toList() != appliedPayments || requisiteId != appliedRequisiteId
@@ -514,7 +524,7 @@ fun PaymentScheduleScreen(
 
     fun validateFixed(): Boolean {
         fixedDayError = if (fixedDay == null || fixedDay !in 1..31) "Выберите значение" else null
-        val amount = fixedAmount.replace(" ", "").toDoubleOrNull()
+        val amount = fixedAmountEffective.toDoubleOrNull()
         fixedAmountError = if (amount == null || amount <= 0.0) "Заполните поле" else null
         return fixedDayError == null && fixedAmountError == null
     }
@@ -523,7 +533,7 @@ fun PaymentScheduleScreen(
         if (typeIsFixed) {
             if (!validateFixed()) return
             viewModel.saveFixed(
-                propertyId, fixedDay!!, fixedAmount.replace(" ", "").toDouble(), requisiteId
+                propertyId, fixedDay!!, fixedAmountEffective.toDouble(), requisiteId
             )
         } else {
             // Даты + введённые на этом экране суммы — единый список для обоих
@@ -593,6 +603,27 @@ fun PaymentScheduleScreen(
         persist()
     }
 
+    /** «Отменить изменения»: мгновенный откат черновика к применённому
+     *  состоянию — без диалога (диалог — только у «Отменить и очистить»). */
+    fun revertChanges() {
+        if (activeTypeIsFixed) {
+            fixedDay = appliedFixedDay
+            fixedAmount = appliedFixedAmount
+        } else {
+            payments.clear()
+            payments.addAll(appliedPayments)
+            payments.sortBy { it.date }
+        }
+        requisiteId = appliedRequisiteId
+        variableDate = null
+        variableAmount = ""
+        variableDateError = null
+        variableAmountError = null
+        fixedDayError = null
+        fixedAmountError = null
+        persist()
+    }
+
     fun deletePayment(index: Int) {
         val snapshot = payments.toList()
         val row = payments.getOrNull(index) ?: return
@@ -611,7 +642,7 @@ fun PaymentScheduleScreen(
 
     // ---- Валидность верхней кнопки ----
     val primaryEnabled = if (typeIsFixed) {
-        fixedDay != null && (fixedAmount.replace(" ", "").toDoubleOrNull() ?: 0.0) > 0.0
+        fixedDay != null && (fixedAmountEffective.toDoubleOrNull() ?: 0.0) > 0.0
     } else {
         payments.isNotEmpty()
     }
@@ -728,6 +759,7 @@ fun PaymentScheduleScreen(
                                 AmountField(
                                     amount = fixedAmount,
                                     error = fixedAmountError,
+                                    placeholder = rateStr?.let { "$it ₽" } ?: "Сумма, ₽",
                                     onValueChange = {
                                         fixedAmount = it
                                         fixedAmountError = null
@@ -785,7 +817,7 @@ fun PaymentScheduleScreen(
                                 )
                                 Spacer(Modifier.weight(1f))
                                 Text(
-                                    formatAmount(fixedAmount.replace(" ", "").toDoubleOrNull() ?: 0.0),
+                                    formatAmount(fixedAmountEffective.toDoubleOrNull() ?: 0.0),
                                     style = CardSubtitleStyle.copy(
                                         color = Graphite,
                                         fontWeight = FontWeight.SemiBold
@@ -869,14 +901,18 @@ fun PaymentScheduleScreen(
                             onClick = { showApplyDialog = true }
                         )
                     }
-                    // Нижняя CTA: при несохранённых правках — «Отменить
-                    // изменения» (2872-34594), иначе «Отменить и очистить»
-                    // (2872-34488); обе через диалог подтверждения
+                    // Нижняя CTA: «Отменить изменения» (2872-34594) — мгновенный
+                    // откат к применённому графику, БЕЗ диалога; «Отменить
+                    // и очистить» (2872-34488) — полное очищение через диалог
+                    val hasChangesToRevert = onAppliedTab && hasUnsavedChanges
                     OutlineCtaButton(
-                        text = if (onAppliedTab && hasUnsavedChanges) "Отменить изменения" else "Отменить и очистить",
+                        text = if (hasChangesToRevert) "Отменить изменения" else "Отменить и очистить",
                         borderColor = ErrorRed,
                         textColor = ErrorRed,
-                        onClick = { showCancelDialog = true }
+                        onClick = {
+                            if (hasChangesToRevert) revertChanges()
+                            else showCancelDialog = true
+                        }
                     )
                 }
             }
@@ -904,10 +940,15 @@ fun PaymentScheduleScreen(
             onDone = {
                 fixedDay = it
                 fixedDayError = null
+                showDaySheet = false
                 persist()
             },
             onDismiss = { showDaySheet = false },
-            subtitle = "Выберите день, когда арендатор должен вносить платёж"
+            // Тексты шита постоянного графика (Figma 2886-36342)
+            title = "День оплаты",
+            subtitle = "Выберите день ежемесячной оплаты",
+            // Заметка про короткие месяцы — из экрана счётчиков, здесь не нужна
+            showShortMonthNote = false
         )
     }
     if (showRequisites) {
@@ -1137,7 +1178,8 @@ private fun SegmentLabel(
     }
 }
 
-/** Поле «Дата» (переменный график): белое 64dp r20, календарь из макета в зоне 40dp. */
+/** Поле «Дата» (переменный график): белое 64dp r20, календарь в зоне 40dp.
+ *  Заполненное — подпись «Дата» + значение (Figma 2872-34210). */
 @Composable
 private fun RowScope.DateField(
     date: LocalDate?,
@@ -1154,15 +1196,21 @@ private fun RowScope.DateField(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                date?.format(DdMmYyyy) ?: "Дата",
-                style = when {
-                    date != null -> Headline2MobStyle
-                    error != null -> Headline2MobPlaceholderStyle.copy(color = ErrorRed)
-                    else -> Headline2MobPlaceholderStyle
-                },
-                modifier = Modifier.weight(1f)
-            )
+            if (date != null) {
+                Column(Modifier.weight(1f)) {
+                    Text("Дата", style = CardSubtitleStyle)
+                    Text(date.format(DdMmYyyy), style = Headline2MobStyle)
+                }
+            } else {
+                Text(
+                    "Дата",
+                    style = when {
+                        error != null -> Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                        else -> Headline2MobPlaceholderStyle
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
             // Иконка 24×24 в зоне 40 с padding 8 — как в макете (Figma 2460:8862)
             Box(
                 modifier = Modifier
@@ -1180,7 +1228,9 @@ private fun RowScope.DateField(
     }
 }
 
-/** Поле «День месяца» (постоянный график): белое 64dp r20, наш шеврон 40dp. */
+/** Поле «День оплаты» (постоянный график): белое 64dp r20, шеврон 40dp.
+ *  Заполненное — подпись «День оплаты» + значение (Figma 2885-35660),
+ *  пустое — плейсхолдер «День оплаты» (2886-36795). */
 @Composable
 private fun RowScope.DayField(
     day: Int?,
@@ -1197,15 +1247,19 @@ private fun RowScope.DayField(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                day?.toString() ?: "День месяца",
-                style = when {
-                    day != null -> Headline2MobStyle
-                    error != null -> Headline2MobPlaceholderStyle.copy(color = ErrorRed)
-                    else -> Headline2MobPlaceholderStyle
-                },
-                modifier = Modifier.weight(1f)
-            )
+            if (day != null) {
+                Column(Modifier.weight(1f)) {
+                    Text("День оплаты", style = CardSubtitleStyle)
+                    Text(day.toString(), style = Headline2MobStyle)
+                }
+            } else {
+                Text(
+                    "День оплаты",
+                    style = if (error != null) Headline2MobPlaceholderStyle.copy(color = ErrorRed)
+                    else Headline2MobPlaceholderStyle,
+                    modifier = Modifier.weight(1f)
+                )
+            }
             Image(
                 painter = painterResource(R.drawable.ic_card_chevron),
                 contentDescription = null,
@@ -1382,74 +1436,6 @@ private fun RequisitesField(
             contentDescription = null,
             modifier = Modifier.size(40.dp)
         )
-    }
-}
-
-/** Диалог дизайнера (Figma 2872-34877/34888/34890): карточка r20, опционально
- *  иконка 50 сверху, заголовок 20/600, тело 15/600 #717171, чёрная + контурная
- *  кнопки; вариант «Платёж был удален» — зелёная рамка и без «Назад». */
-@Composable
-private fun ScheduleDialog(
-    iconRes: Int?,
-    title: String,
-    body: String?,
-    confirmText: String,
-    confirmColor: Color = Graphite,
-    borderColor: Color? = null,
-    showBack: Boolean = true,
-    backText: String = "Назад",
-    onBackAction: (() -> Unit)? = null,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    DesignWidthDialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = CardShape,
-            color = Color.White,
-            border = borderColor?.let { androidx.compose.foundation.BorderStroke(1.dp, it) }
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                iconRes?.let {
-                    Image(
-                        painter = painterResource(it),
-                        contentDescription = null,
-                        modifier = Modifier.size(50.dp)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                }
-                Text(
-                    title,
-                    style = Headline2MobStyle,
-                    textAlign = TextAlign.Center
-                )
-                body?.let {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        it,
-                        style = Headline2MobStyle.copy(color = GreyText),
-                        textAlign = TextAlign.Center
-                    )
-                }
-                Spacer(Modifier.height(20.dp))
-                BlackCtaButton(
-                    text = confirmText,
-                    containerColor = confirmColor,
-                    onClick = onConfirm
-                )
-                if (showBack) {
-                    Spacer(Modifier.height(6.dp))
-                    OutlineCtaButton(
-                        text = backText,
-                        borderColor = Graphite,
-                        onClick = { onBackAction?.invoke() ?: onDismiss() }
-                    )
-                }
-            }
-        }
     }
 }
 

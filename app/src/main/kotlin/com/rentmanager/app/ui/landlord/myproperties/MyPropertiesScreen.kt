@@ -78,6 +78,7 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.IconNotificationDialog
+import com.rentmanager.app.ui.components.ScheduleDialog
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -139,6 +140,8 @@ fun MyPropertiesScreen(
     }
 
     var pickerPropertyId by remember { mutableStateOf<String?>(null) }
+    // Долгое нажатие на красной ячейке: подтверждение ручного гашения просрочки
+    var confirmPaidPropertyId by remember { mutableStateOf<String?>(null) }
 
     // Общий кэш раскладки текста шапки: мерим уникальные подписи один раз.
     val textMeasurer = rememberTextMeasurer(cacheSize = 256)
@@ -232,9 +235,15 @@ fun MyPropertiesScreen(
                             onClick = { onPropertyClick(property.id) },
                             onPeriodClick = { pickerPropertyId = property.id },
                             onRangeSelected = { start, end, isRemove ->
-                                if (isRemove) viewModel.deleteBookings(property.id, start, end)
-                                else viewModel.saveBooking(property.id, start, end)
-                            }
+                                // Покраска месяца = весь месяц: конец диапазона —
+                                // конец месяца (ячейка-представитель хранит 1-е число)
+                                val monthEnd = if (viewMode == ViewMode.MONTHS) {
+                                    java.time.YearMonth.from(end).atEndOfMonth()
+                                } else end
+                                if (isRemove) viewModel.deleteBookings(property.id, start, monthEnd)
+                                else viewModel.saveBooking(property.id, start, monthEnd)
+                            },
+                            onOverdueMark = { confirmPaidPropertyId = property.id }
                         )
                     }
                 }
@@ -242,14 +251,38 @@ fun MyPropertiesScreen(
                     properties = properties,
                     viewMode = viewMode,
                     onRangeSelected = { propertyId, start, end, isRemove ->
-                        if (isRemove) viewModel.deleteBookings(propertyId, start, end)
-                        else viewModel.saveBooking(propertyId, start, end)
+                        val monthEnd = if (viewMode == ViewMode.MONTHS) {
+                            java.time.YearMonth.from(end).atEndOfMonth()
+                        } else end
+                        if (isRemove) viewModel.deleteBookings(propertyId, start, monthEnd)
+                        else viewModel.saveBooking(propertyId, start, monthEnd)
                     },
+                    onOverdueMark = { confirmPaidPropertyId = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                 )
             }
+        }
+    }
+
+    // Ручное гашение просрочки (долгое нажатие на красной ячейке шахматки):
+    // арендатор мог заплатить наличными/вне приложения, а код ждёт подтверждения
+    confirmPaidPropertyId?.let { id ->
+        val item = properties.find { it.id == id }
+        if (item != null) {
+            ScheduleDialog(
+                iconRes = null,
+                title = "Отметить платёж полученным?",
+                body = "Платёж " + String.format("%,.0f ₽", item.overdueAmount).replace(',', ' ') +
+                    " будет отмечен как полученный сегодня — например, оплаченный наличными",
+                confirmText = "Отметить оплату",
+                onConfirm = {
+                    confirmPaidPropertyId = null
+                    viewModel.markOverduePaid(id)
+                },
+                onDismiss = { confirmPaidPropertyId = null }
+            )
         }
     }
 
@@ -452,7 +485,8 @@ private fun PropertyCard(
     headerLayoutCache: HeaderLayoutCache,
     onClick: () -> Unit,
     onPeriodClick: () -> Unit,
-    onRangeSelected: (LocalDate, LocalDate, Boolean) -> Unit
+    onRangeSelected: (LocalDate, LocalDate, Boolean) -> Unit,
+    onOverdueMark: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -542,7 +576,8 @@ private fun PropertyCard(
             viewMode = viewMode,
             year = property.year,
             month = property.month,
-            onRangeSelected = onRangeSelected
+            onRangeSelected = onRangeSelected,
+            onOverdueMark = onOverdueMark
         )
     }
 }
@@ -561,7 +596,8 @@ private fun ScheduleRow(
     viewMode: ViewMode,
     year: Int,
     month: Int,
-    onRangeSelected: (LocalDate, LocalDate, Boolean) -> Unit
+    onRangeSelected: (LocalDate, LocalDate, Boolean) -> Unit,
+    onOverdueMark: () -> Unit
 ) {
     val cells = remember(viewMode, year, month, property) {
         buildCells(viewMode, year, month, property)
@@ -570,6 +606,7 @@ private fun ScheduleRow(
     var selectionEnd by remember { mutableStateOf<Int?>(null) }
     var selectionRemove by remember { mutableStateOf(false) }
     val currentOnRangeSelected by rememberUpdatedState(onRangeSelected)
+    val currentOnOverdueMark by rememberUpdatedState(onOverdueMark)
     val cellPitchPx = with(LocalDensity.current) { (44.dp + 4.dp).toPx() }
 
     Row(
@@ -593,7 +630,10 @@ private fun ScheduleRow(
                                 if (start == null) {
                                     selectionStart = index
                                     selectionEnd = index
-                                    selectionRemove = cells.states.getOrNull(index) == "fullness"
+                                    // «expired» (занято + просрочка) — тоже занятая
+                                    // ячейка: тап по ней снимает бронь, а не создаёт дубль
+                                    val state = cells.states.getOrNull(index)
+                                    selectionRemove = state == "fullness" || state == "expired"
                                 } else {
                                     val lo = minOf(start, index)
                                     val hi = maxOf(start, index)
@@ -604,6 +644,16 @@ private fun ScheduleRow(
                                     }
                                     selectionStart = null
                                     selectionEnd = null
+                                }
+                            }
+                        },
+                        // Долгое нажатие на красной ячейке — ручное гашение просрочки
+                        onLongPress = { offset ->
+                            if (cells.dates.isNotEmpty()) {
+                                val index = (offset.x / cellPitchPx).toInt()
+                                    .coerceIn(0, cells.dates.lastIndex)
+                                if (cells.states.getOrNull(index) == "expired") {
+                                    currentOnOverdueMark()
                                 }
                             }
                         }

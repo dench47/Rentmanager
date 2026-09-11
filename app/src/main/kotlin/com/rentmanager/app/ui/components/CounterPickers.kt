@@ -433,7 +433,8 @@ private fun CalendarGrid(
 /**
  * Шит «День месяца» (Figma 2755-38085): подпись + сетка 1–31 по 7 в ряд,
  * выбранный — тёмный круг 40dp, CTA «Готово». Правило коротких месяцев —
- * подпись под сеткой (решение дизайн-вопроса: в последний день месяца).
+ * подпись под сеткой (решение дизайн-вопроса: в последний день месяца);
+ * она уместна только у счётчиков (день передачи показаний).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -441,7 +442,9 @@ fun DayOfMonthPickerSheet(
     selectedDay: Int?,
     onDone: (Int) -> Unit,
     onDismiss: () -> Unit,
-    subtitle: String = "Выберите число, до которого нужно передавать показания каждый месяц"
+    title: String = "День месяца",
+    subtitle: String = "Выберите число, до которого нужно передавать показания каждый месяц",
+    showShortMonthNote: Boolean = true
 ) {
     var picked by remember { mutableStateOf(selectedDay) }
     ModalBottomSheet(
@@ -459,7 +462,7 @@ fun DayOfMonthPickerSheet(
                 .padding(bottom = 20.dp)
         ) {
             SheetDragHandle()
-            Text("День месяца", style = ToolbarTitleStyle)
+            Text(title, style = ToolbarTitleStyle)
             Spacer(Modifier.height(6.dp))
             Text(
                 subtitle,
@@ -494,11 +497,13 @@ fun DayOfMonthPickerSheet(
                     repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "В короткие месяцы — в последний день",
-                style = CardSubtitleStyle.copy(color = GreyText)
-            )
+            if (showShortMonthNote) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "В короткие месяцы — в последний день",
+                    style = CardSubtitleStyle.copy(color = GreyText)
+                )
+            }
             Spacer(Modifier.height(12.dp))
             BlackCtaButton(
                 text = "Готово",

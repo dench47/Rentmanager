@@ -214,15 +214,19 @@ private fun RentedUntilField(
                 .padding(start = 20.dp, end = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            var dateValue by remember(date) {
-                mutableStateOf(TextFieldValue(date, TextRange(date.length)))
-            }
+            // Курсор свободный: позиция правки пересчитывается по префиксу —
+            // можно встать на месяц и заменить его, не стирая год.
+            // Помним только стартовое значение (без ключа по date — иначе
+            // курсор сбрасывался бы в конец на каждый символ)
+            var dateValue by remember { mutableStateOf(TextFieldValue(date, TextRange(date.length))) }
             BasicTextField(
                 value = dateValue,
                 onValueChange = { incoming ->
                     val masked = formatDateMask(incoming.text)
-                    // Курсор всегда в конце отформатированной даты
-                    dateValue = TextFieldValue(masked, TextRange(masked.length))
+                    val pos = incoming.selection.end.coerceIn(0, incoming.text.length)
+                    val cursor = formatDateMask(incoming.text.substring(0, pos)).length
+                        .coerceIn(0, masked.length)
+                    dateValue = TextFieldValue(masked, TextRange(cursor))
                     if (masked != date) onDateChange(masked)
                 },
                 modifier = Modifier.fillMaxWidth(),

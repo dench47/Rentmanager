@@ -83,6 +83,7 @@ fun ScheduleTable(
     properties: List<MyPropertyItem>,
     viewMode: ViewMode,
     onRangeSelected: (String, LocalDate, LocalDate, Boolean) -> Unit,
+    onOverdueMark: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val dates = remember(viewMode) { buildTimeline(viewMode) }
@@ -95,6 +96,7 @@ fun ScheduleTable(
     var selEnd by remember { mutableStateOf<Int?>(null) }
     var selRemove by remember { mutableStateOf(false) }
     val currentOnRangeSelected by rememberUpdatedState(onRangeSelected)
+    val currentOnOverdueMark by rememberUpdatedState(onOverdueMark)
     val cellPitchPx = with(LocalDensity.current) { (44.dp + 4.dp).toPx() }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -189,7 +191,10 @@ fun ScheduleTable(
                                                     selPropertyId = currentProperty.id
                                                     selStart = index
                                                     selEnd = index
-                                                    selRemove = currentProperty.statusAt(dates[index]) == "fullness"
+                                                    // «expired» (занято + просрочка) — тоже
+                                                    // занятая ячейка: тап снимает бронь
+                                                    val state = currentProperty.statusAt(dates[index])
+                                                    selRemove = state == "fullness" || state == "expired"
                                                 } else {
                                                     val s = selStart ?: index
                                                     val lo = minOf(s, index)
@@ -202,6 +207,17 @@ fun ScheduleTable(
                                                     selPropertyId = null
                                                     selStart = null
                                                     selEnd = null
+                                                }
+                                            }
+                                        },
+                                        // Долгое нажатие на красной ячейке —
+                                        // ручное гашение просрочки
+                                        onLongPress = { offset ->
+                                            if (dates.isNotEmpty()) {
+                                                val index = (offset.x / cellPitchPx).toInt()
+                                                    .coerceIn(0, dates.lastIndex)
+                                                if (currentProperty.statusAt(dates[index]) == "expired") {
+                                                    currentOnOverdueMark(currentProperty.id)
                                                 }
                                             }
                                         }

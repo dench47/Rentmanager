@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreateBookingRequest
+import com.rentmanager.app.data.api.CreatePaymentRequest
 import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.model.BookingDto
@@ -44,6 +45,8 @@ data class MyPropertyItem(
     val photoUrl: String? = null,
     val bookings: List<BookingRange> = emptyList(),
     val overdue: Boolean = false,
+    /** Сумма просрочки — для ручного гашения с шахматки */
+    val overdueAmount: Double = 0.0,
     val rentType: String = "посуточно",
     val rentAmount: Double? = null,
     val year: Int = LocalDate.now().year,
@@ -51,14 +54,18 @@ data class MyPropertyItem(
 )
 
 /**
- * Статус занятости на дату: по умолчанию свободно,
- * попадание в диапазон брони — занято, просрочка — expired.
+ * Статус занятости на дату: попадание в диапазон брони — занято
+ * («fullness»), а на занятом текущем месяце при просрочке — «expired»
+ * (красная рамка: месяц арендуется, но платёж не получен).
+ * Без брони ячейка всегда «free» — просрочка не может держать месяц
+ * занятым, иначе его невозможно освободить.
  */
 fun MyPropertyItem.statusAt(date: LocalDate): String {
-    if (bookings.any { !date.isBefore(it.start) && !date.isAfter(it.end) }) return "fullness"
+    val booked = bookings.any { !date.isBefore(it.start) && !date.isAfter(it.end) }
+    if (!booked) return "free"
     val today = LocalDate.now()
-    if (overdue && date.year == today.year && date.monthValue == today.monthValue) return "expired"
-    return "free"
+    return if (overdue && date.year == today.year && date.monthValue == today.monthValue) "expired"
+    else "fullness"
 }
 
 enum class ViewMode { MONTHS, DAYS }
@@ -152,6 +159,25 @@ class MyPropertiesViewModel @Inject constructor(
                 if (toDelete.isEmpty()) return@launch
                 for (b in toDelete) {
                     bookingApi.deleteBooking(propertyId, b.id!!)
+                    // Вырезаем только выделенный диапазон: нераскрашенные
+                    // остатки брони пересоздаём, иначе снятие одного месяца
+                    // сносило бы всю многомесячную бронь целиком
+                    if (b.start.isBefore(start)) {
+                        runCatching {
+                            bookingApi.createBooking(
+                                propertyId,
+                                CreateBookingRequest(b.start.toString(), start.minusDays(1).toString())
+                            )
+                        }
+                    }
+                    if (b.end.isAfter(end)) {
+                        runCatching {
+                            bookingApi.createBooking(
+                                propertyId,
+                                CreateBookingRequest(end.plusDays(1).toString(), b.end.toString())
+                            )
+                        }
+                    }
                 }
                 syncAfterBookingChange(propertyId)
                 refresh()
@@ -175,9 +201,12 @@ class MyPropertiesViewModel @Inject constructor(
                 .map { it.toBookingRange() }
                 .sortedBy { it.start }
             val schedule = financeApi.getSchedules().body()?.forProperty(propertyId)
-            // Тип отображения = тип графика; без графика — по типу аренды объекта
-            val scheduleType = schedule?.type
-                ?: if ((dto.rentType ?: "посуточно") == "длительно") "auto" else "manual"
+            // Семантика «брони = посуточные платежи (ставка × сутки)» — только
+            // для посуточных объектов. Длительная аренда: покраска месяцев — это
+            // срок аренды; график из броней не пересобирается, иначе месячная
+            // ставка превращается в «ставку за сутки» × число дней (30 000 × 92)
+            val scheduleType = if ((dto.rentType ?: "посуточно") == "длительно") "auto"
+            else (schedule?.type ?: "manual")
             val dd = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
             if (scheduleType == "auto") {
@@ -263,10 +292,30 @@ class MyPropertiesViewModel @Inject constructor(
         try {
             val schedule = schedules.forProperty(item.id)
             val payments = financeApi.listPayments(item.id).body() ?: emptyList()
-            item.copy(overdue = PaymentOverdue.isOverdue(schedule, payments))
+            val overdue = PaymentOverdue.isOverdue(schedule, payments)
+            item.copy(
+                overdue = overdue,
+                overdueAmount = if (overdue) PaymentOverdue.overdueAmount(schedule, payments) else 0.0
+            )
         } catch (_: Exception) {
             item
         }
+
+    /**
+     * Ручное гашение просрочки с шахматки (долгое нажатие на красной ячейке):
+     * арендатор мог заплатить наличными или вне приложения, а код ждёт
+     * подтверждения. Записываем платёж со статусом «paid» и сегодняшней
+     * датой — просрочка гаснет в шахматке, на дашборде и в карточке.
+     */
+    fun markOverduePaid(propertyId: String) {
+        viewModelScope.launch {
+            try {
+                val item = _properties.value.find { it.id == propertyId } ?: return@launch
+                financeApi.createPayment(propertyId, CreatePaymentRequest(item.overdueAmount))
+                refresh()
+            } catch (_: Exception) { }
+        }
+    }
 }
 
 private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
