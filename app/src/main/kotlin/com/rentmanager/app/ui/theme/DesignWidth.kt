@@ -53,16 +53,23 @@ private fun Context.scaledContext(configuration: Configuration, targetDpi: Int):
     return createConfigurationContext(scaled)
 }
 
-/** Пиксельная ширина экрана: DisplayManager → WindowManager → ресурсы. */
+/** Пиксельная ширина экрана: DisplayManager → WindowManager → ресурсы.
+ *  Приложение портретное (manifest screenOrientation=portrait), поэтому
+ *  дизайн-ширина — всегда КОРОТКАЯ сторона: MIUI на холодном старте
+ *  отдаёт ландшафтные метрики (1600×720 вместо 720×1600), и без этого
+ *  первая инстанция получала неверную плотность → каскад recreate. */
 private fun Context.displayWidthPixels(): Int {
-    displayMetricsFromDisplayManager()?.let { if (it.widthPixels > 0) return it.widthPixels }
-    displayMetricsFromWindowManager()?.let { if (it.widthPixels > 0) return it.widthPixels }
+    displayMetricsFromDisplayManager()?.let { if (it.widthPixels > 0) return it.shortSidePx() }
+    displayMetricsFromWindowManager()?.let { if (it.widthPixels > 0) return it.shortSidePx() }
     return try {
-        resources.displayMetrics.widthPixels
+        resources.displayMetrics.shortSidePx()
     } catch (_: Exception) {
         0
     }
 }
+
+/** Короткая сторона — кандидат на портретную ширину окна. */
+private fun DisplayMetrics.shortSidePx(): Int = minOf(widthPixels, heightPixels)
 
 private fun Context.displayMetricsFromDisplayManager(): DisplayMetrics? = try {
     val context = appContext()
@@ -144,16 +151,18 @@ fun Activity.ensureDesignWidth() {
     }
 }
 
-/** Физическая ширина окна Activity (надёжно начиная с onCreate). */
+/** Физическая ширина окна Activity (надёжно начиная с onCreate).
+ *  Портретное приложение — ширина это короткая сторона bounds. */
 private fun Activity.windowRealWidthPx(): Int = try {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        windowManager.currentWindowMetrics.bounds.width()
+    val bounds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        windowManager.currentWindowMetrics.bounds
     } else {
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
         windowManager.defaultDisplay.getRealMetrics(metrics)
-        metrics.widthPixels
+        android.graphics.Rect(0, 0, metrics.widthPixels, metrics.heightPixels)
     }
+    minOf(bounds.width(), bounds.height())
 } catch (_: Exception) {
     0
 }

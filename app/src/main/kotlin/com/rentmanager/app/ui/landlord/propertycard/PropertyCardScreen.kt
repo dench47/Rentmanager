@@ -1,6 +1,12 @@
 package com.rentmanager.app.ui.landlord.propertycard
 
+import android.Manifest
+import android.content.ContentProviderOperation
+import android.content.pm.PackageManager
+import android.provider.ContactsContract
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
@@ -63,6 +70,8 @@ import com.rentmanager.app.ui.components.IconNotificationDialog
 import com.rentmanager.app.util.shortAddress
 import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PropertyDto
+import com.rentmanager.app.ui.landlord.myproperties.propertydetail.ContactSuggestionHolder
+import com.rentmanager.app.ui.landlord.myproperties.propertydetail.PhoneContact
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.GradientCtaButton
 import com.rentmanager.app.ui.landlord.createproperty.OutlineCtaButton
@@ -194,6 +203,56 @@ fun PropertyCardScreen(
     var tenantDetached by remember { mutableStateOf(false) }
     var readingMeter by remember { mutableStateOf<MeterDto?>(null) }
     var showPhotosSheet by remember { mutableStateOf(false) }
+
+    // Ручной ввод арендатора: после успешного прикрепления предлагаем
+    // сохранить контакт в телефонную книгу (кладёт экран прикрепления)
+    var contactSuggestion by remember { mutableStateOf(ContactSuggestionHolder.pending) }
+    LaunchedEffect(Unit) { ContactSuggestionHolder.pending = null }
+
+    fun insertSuggestedContact(c: PhoneContact) {
+        try {
+            val ops = arrayListOf(
+                ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                    .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+                    .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                    .build(),
+                ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                    .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                    .withValue(
+                        ContactsContract.Data.MIMETYPE,
+                        ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE
+                    )
+                    .withValue(
+                        ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME,
+                        c.name
+                    )
+                    .build(),
+                ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                    .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                    .withValue(
+                        ContactsContract.Data.MIMETYPE,
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE
+                    )
+                    .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, c.phone)
+                    .withValue(
+                        ContactsContract.CommonDataKinds.Phone.TYPE,
+                        ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE
+                    )
+                    .build()
+            )
+            context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+        } catch (_: Exception) {
+            Toast.makeText(context, "Не удалось сохранить контакт", Toast.LENGTH_SHORT).show()
+        }
+        contactSuggestion = null
+    }
+
+    val writeContactsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val c = contactSuggestion
+        if (granted && c != null) insertSuggestedContact(c) else contactSuggestion = null
+    }
 
     // Инлайн-редактирование «Информация об объекте» (Figma 2677-26576):
     // карандаш превращает контент раскрытого аккордеона в редактируемые поля
@@ -588,6 +647,23 @@ fun PropertyCardScreen(
                 viewModel.deleteProperty()
             },
             onDismiss = { showDeleteDialog = false }
+        )
+    }
+
+    // Ручной ввод арендатора — предложить сохранить контакт в книгу телефона
+    contactSuggestion?.let { suggested ->
+        AddContactSuggestionDialog(
+            name = suggested.name,
+            onAdd = {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CONTACTS) ==
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    insertSuggestedContact(suggested)
+                } else {
+                    writeContactsLauncher.launch(Manifest.permission.WRITE_CONTACTS)
+                }
+            },
+            onDismiss = { contactSuggestion = null }
         )
     }
 
@@ -1472,6 +1548,39 @@ private fun PublishBlockerDialog(
                     borderColor = Graphite85,
                     onClick = onDismiss
                 )
+            }
+        }
+    }
+}
+
+// Диалог «Добавить в контакты?» после ручного прикрепления арендатора:
+// карточка 380 r20 pad20, заголовок 20/600 + 6 + тело 15/600 серым,
+// +20 → чёрная CTA + 6 + контурная «Не сейчас» (семейство 2935-40049)
+@Composable
+private fun AddContactSuggestionDialog(
+    name: String,
+    onAdd: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    DesignWidthDialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Добавить в контакты?", style = ToolbarTitleStyle)
+                Text(
+                    "Контакт «$name» сохранён только в приложении. Добавить его в телефонную книгу телефона?",
+                    style = Headline2MobStyle.copy(color = GreyText)
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                BlackCtaButton(text = "Добавить", onClick = onAdd)
+                OutlineCtaButton(text = "Не сейчас", borderColor = Graphite, onClick = onDismiss)
             }
         }
     }

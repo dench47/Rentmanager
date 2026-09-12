@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,9 +48,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -146,6 +154,16 @@ object AttachTenantDraftHolder {
 }
 
 /**
+ * Предложение добавить вручную введённого арендатора в телефонную книгу:
+ * экран прикрепления кладёт сюда контакт при успешном прикреплении, если
+ * контакт НЕ был выбран из книги; карточка объекта после возврата
+ * показывает диалог «Добавить в контакты?» и очищает предложение.
+ */
+object ContactSuggestionHolder {
+    var pending: PhoneContact? = null
+}
+
+/**
  * Экран «Добавить арендатора» (канвас Figma «Добавить арендатора»,
  * файл KyNooQwZuHP9Fz3qShY2Lg): карточка объекта, период аренды
  * (Начало/Окончание — календарные шиты), арендатор (контакты или вручную),
@@ -183,6 +201,8 @@ fun AttachTenantScreen(
     }
     val storedDraft = remember(propertyId) { AttachTenantDraftHolder.get(context, propertyId) }
     var showResumeDialog by remember { mutableStateOf(storedDraft != null) }
+    // Контакт выбран из книги — предложение «добавить в контакты» не нужно
+    var pickedFromBook by remember { mutableStateOf(false) }
     DisposableEffect(propertyId) {
         onDispose {
             if (attached) AttachTenantDraftHolder.clear(context, propertyId) else saveDraft()
@@ -204,17 +224,24 @@ fun AttachTenantScreen(
         startError = startDate == null
         endError = endDate == null
         nameError = fullName.isBlank()
+        // Полное значение — ровно 10 цифр; иностранный/неполный — ошибка
         phoneError = when {
             phone.isBlank() -> "Обязательное поле"
-            ruPhoneDigits(phone) != 10 -> "Проверьте правильность заполнения"
+            phone.any { !it.isDigit() } || phone.length != 10 -> "Проверьте правильность заполнения"
             else -> null
         }
         if (startError || endError || nameError || phoneError != null) return
         val end = endDate ?: return
         val start = startDate ?: return
         // Период включает последний выбранный день (вопрос дизайнера решён так)
-        viewModel.attach(propertyId, fullName.trim(), phone.trim(), start, end) {
+        viewModel.attach(propertyId, fullName.trim(), phone, start, end) {
             attached = true
+            // Ручной ввод: предложить добавить контакт в телефонную книгу —
+            // диалог покажет карточка объекта после возврата
+            if (!pickedFromBook) {
+                ContactSuggestionHolder.pending =
+                    PhoneContact(fullName.trim(), formatRuPhone(phone))
+            }
             onAttached()
         }
     }
@@ -316,7 +343,7 @@ fun AttachTenantScreen(
                     value = phone,
                     error = phoneError,
                     onValueChange = {
-                        phone = formatRuPhone(it)
+                        phone = it
                         phoneError = null
                         saveDraft()
                     }
@@ -369,9 +396,10 @@ fun AttachTenantScreen(
         ContactsPickerSheet(
             onPick = {
                 fullName = it.name
-                phone = formatRuPhone(it.phone)
+                phone = contactPhoneValue(it.phone)
                 nameError = false
                 phoneError = null
+                pickedFromBook = true
                 showContactsSheet = false
                 saveDraft()
             },
@@ -413,7 +441,8 @@ fun AttachTenantScreen(
                         startDate = storedDraft.startDate
                         endDate = storedDraft.endDate
                         fullName = storedDraft.fullName
-                        phone = storedDraft.phone
+                        // Старые черновики могли хранить маску «+7-…» — приводим к цифрам
+                        phone = contactPhoneValue(storedDraft.phone)
                         showResumeDialog = false
                     }
                     OutlineCtaButton(
@@ -524,11 +553,24 @@ private fun TextValueField(
                 .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val keyboardController = LocalSoftwareKeyboardController.current
+            val focusManager = LocalFocusManager.current
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = keyboardType,
+                    // Enter = «Готово»: скрываем клавиатуру, фокус и мигающий
+                    // курсор остаются в поле (единое поведение полей приложения)
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = {
+                    keyboardController?.hide()
+                    // Курсор исчезает: поле отдаёт фокус (стандартное «Готово»)
+                    focusManager.clearFocus()
+                }),
+                modifier = Modifier.fillMaxWidth(),
                 textStyle = TextStyle(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -538,19 +580,19 @@ private fun TextValueField(
                 cursorBrush = SolidColor(Graphite),
                 decorationBox = { inner ->
                     if (value.isNotEmpty() || error) {
-                        Column {
+                        Column(Modifier.fillMaxWidth()) {
                             Text(
                                 caption,
                                 style = CardSubtitleStyle.copy(color = if (error) ErrorRed else GreyText)
                             )
                             Spacer(Modifier.height(4.dp))
-                            Box { inner() }
+                            Box(Modifier.fillMaxWidth()) { inner() }
                         }
                     } else {
                         // Пустое поле: жирный плейсхолдер слева (Default-макет)
                         Box(Modifier.fillMaxWidth()) {
                             Text(caption, style = Headline2MobStyle.copy(color = GreyText))
-                            inner()
+                            Box(Modifier.fillMaxWidth()) { inner() }
                         }
                     }
                 }
@@ -595,11 +637,42 @@ private fun PhoneValueField(
                 .padding(horizontal = 20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val keyboardController = LocalSoftwareKeyboardController.current
+            val focusManager = LocalFocusManager.current
+            // Ввод начали с +7/7/8 — префикс маски уже набран: «+7» так и
+            // записываем, «8» перерисовываем в «+7»; пустой ввод сбрасывает
+            var prefixTyped by remember { mutableStateOf(false) }
             BasicTextField(
                 value = value,
-                onValueChange = onValueChange,
+                // Значение — только цифры номера (без префикса), как в поле
+                // телефона при регистрации: маска — VisualTransformation,
+                // значение не переписывается, курсор и тапы ведут себя обычно
+                onValueChange = { raw ->
+                    val s = raw.trim()
+                    prefixTyped = when {
+                        s.isEmpty() -> false
+                        s.startsWith("+") || s.firstOrNull() == '7' || s.firstOrNull() == '8' -> true
+                        else -> prefixTyped
+                    }
+                    onValueChange(normalizePhoneInput(s))
+                },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = {
+                    keyboardController?.hide()
+                    // Курсор исчезает: поле отдаёт фокус (стандартное «Готово»)
+                    focusManager.clearFocus()
+                }),
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (value.isNotEmpty() && value.any { !it.isDigit() }) {
+                    // Иностранный номер из книги — без русской маски, как записан
+                    VisualTransformation.None
+                } else {
+                    RuPhoneVisualTransformation(prefixWhenEmpty = prefixTyped)
+                },
                 textStyle = TextStyle(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -608,19 +681,21 @@ private fun PhoneValueField(
                 ),
                 cursorBrush = SolidColor(Graphite),
                 decorationBox = { inner ->
-                    if (value.isNotEmpty() || error != null) {
-                        Column {
+                    // prefixTyped: «+7»/«8» уже набраны — цифр ещё нет, но
+                    // поле больше не пустое: плейсхолдер уходит, виден префикс
+                    if (value.isNotEmpty() || prefixTyped || error != null) {
+                        Column(Modifier.fillMaxWidth()) {
                             Text(
                                 "Телефон",
                                 style = CardSubtitleStyle.copy(color = if (error != null) ErrorRed else GreyText)
                             )
                             Spacer(Modifier.height(4.dp))
-                            Box { inner() }
+                            Box(Modifier.fillMaxWidth()) { inner() }
                         }
                     } else {
                         Box(Modifier.fillMaxWidth()) {
                             Text("Телефон", style = Headline2MobStyle.copy(color = GreyText))
-                            inner()
+                            Box(Modifier.fillMaxWidth()) { inner() }
                         }
                     }
                 }
@@ -657,11 +732,78 @@ private fun formatRuPhone(input: String): String {
     }
 }
 
-/** Сколько цифр введено после семёрки (полный российский номер = 10). */
-private fun ruPhoneDigits(input: String): Int {
-    var digits = input.filter { it.isDigit() }
-    if (digits.startsWith("8")) digits = "7" + digits.drop(1)
-    return (digits.length - 1).coerceAtLeast(0)
+/**
+ * Российская маска +7-900-000-00-08 как VisualTransformation: значение поля —
+ * только 10 цифр без префикса (механика поля телефона при регистрации),
+ * форматирование — только отображение, курсор живёт в координатах цифр.
+ * prefixWhenEmpty — пользователь уже набрал «+7»/«8»: при пустом номере
+ * показываем префикс «+7» (курсор после него), а не плейсхолдер.
+ */
+private class RuPhoneVisualTransformation(
+    private val prefixWhenEmpty: Boolean = false
+) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val digits = text.text
+        val formatted = when {
+            digits.isNotEmpty() -> formatRuPhone(digits)
+            prefixWhenEmpty -> "+7"
+            else -> ""
+        }
+        // Позиции цифр значения внутри отформатированной строки
+        // (префикс «+7» не считаем — это не часть значения)
+        val digitPositions = formatted.drop(2).mapIndexedNotNull { i, c ->
+            if (c.isDigit()) i + 2 else null
+        }
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int = when {
+                // Пустой номер с набранным префиксом — курсор после «+7»
+                digits.isEmpty() -> formatted.length
+                offset <= 0 -> digitPositions.firstOrNull() ?: formatted.length
+                else -> digitPositions.getOrNull(offset - 1)?.plus(1) ?: formatted.length
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                var count = 0
+                for (i in 0 until offset.coerceAtMost(formatted.length)) {
+                    if (i >= 2 && formatted[i].isDigit()) count++
+                }
+                return count.coerceAtMost(digits.length)
+            }
+        }
+        return TransformedText(AnnotatedString(formatted), offsetMapping)
+    }
+}
+
+/**
+ * Значение поля «Телефон» из номера контакта: русские (+7/8) → 10 цифр
+ * без семёрки (под маску), иностранные → как записан (без маски).
+ */
+private fun contactPhoneValue(raw: String): String {
+    val digits = raw.filter(Char::isDigit)
+    return if (digits.startsWith("7") || digits.startsWith("8")) digits.drop(1).take(10)
+    else raw.trim()
+}
+
+/**
+ * Ручной ввод телефона: 10 цифр — это сам номер, БЕЗ учёта ведущей 8 или +7.
+ * Если ввод начали с 8/7 — это префикс, убираем сразу, чтобы маска
+ * не ломалась на промежуточном вводе (8905… → 905…).
+ */
+private fun normalizePhoneInput(raw: String): String {
+    var d = raw.filter(Char::isDigit)
+    if (d.firstOrNull() == '8' || d.firstOrNull() == '7') d = d.drop(1)
+    return d.take(10)
+}
+
+/**
+ * Телефон контакта из книги: русская маска применяется ТОЛЬКО к номерам,
+ * начинающимся с +7 или 8; остальные (например +49…) показываются
+ * как записаны — семёрку никому не дописываем.
+ */
+private fun formatContactPhone(raw: String): String {
+    val digits = raw.filter(Char::isDigit)
+    return if (digits.startsWith("7") || digits.startsWith("8")) formatRuPhone(raw)
+    else raw.trim()
 }
 
 /**
@@ -701,28 +843,28 @@ private fun ContactsPickerSheet(
         }
     }
 
+    // Ранжированный поиск: СНАЧАЛА все имена, начинающиеся с запроса
+    // (внутри блока — алфавит), затем совпадения по фамилии (любое слово
+    // имени), затем телефон по цифрам. Подстрока из середины слова
+    // («мЭри» по «Э») не матчится никогда.
     val filtered = remember(query, contacts) {
         val q = query.trim()
         if (q.isEmpty()) {
             contacts
         } else {
-            // Строгое совпадение по первым символам: имя (или любое слово
-            // имени — чтобы находить и по фамилии «Иванова Эля») должно
-            // НАЧИНАТЬСЯ с запроса. Подстрока в середине слова («мЭри» по «Э»)
-            // не матчится. Телефон сравниваем только по цифрам: в книге номера
-            // лежат с разделителями («+7 905 123-45-67», «8 (905) …»)
             val digits = q.filter(Char::isDigit)
-            fun nameMatches(name: String): Boolean {
-                val trimmed = name.trim()
-                return trimmed.startsWith(q, ignoreCase = true) ||
-                    trimmed.split(' ', ' ').any {
-                        it.isNotBlank() && it.startsWith(q, ignoreCase = true)
-                    }
+            val byName = mutableListOf<PhoneContact>()
+            val byWord = mutableListOf<PhoneContact>()
+            val byPhone = mutableListOf<PhoneContact>()
+            contacts.forEach { c ->
+                val n = c.name.trim()
+                when {
+                    n.startsWith(q, ignoreCase = true) -> byName += c
+                    n.split(' ', ' ').any { it.isNotBlank() && it.startsWith(q, ignoreCase = true) } -> byWord += c
+                    digits.isNotEmpty() && c.phone.filter(Char::isDigit).contains(digits) -> byPhone += c
+                }
             }
-            contacts.filter {
-                nameMatches(it.name) ||
-                    (digits.isNotEmpty() && it.phone.filter(Char::isDigit).contains(digits))
-            }
+            byName + byWord + byPhone
         }
     }
     val grouped = remember(filtered) {
@@ -817,15 +959,25 @@ private fun ContactsPickerSheet(
                     modifier = Modifier.padding(bottom = 20.dp)
                 )
                 else -> LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                    grouped.forEach { (letter, group) ->
-                        item(key = "letter_$letter") {
-                            Text(
-                                letter.toString(),
-                                style = Headline2MobStyle.copy(color = GreyText)
-                            )
-                            Spacer(Modifier.height(6.dp))
+                    if (query.isBlank()) {
+                        // Полный список — секциями по буквам
+                        grouped.forEach { (letter, group) ->
+                            item(key = "letter_$letter") {
+                                Text(
+                                    letter.toString(),
+                                    style = Headline2MobStyle.copy(color = GreyText)
+                                )
+                                Spacer(Modifier.height(6.dp))
+                            }
+                            items(group, key = { it.name + it.phone }) { contact ->
+                                ContactRow(contact, onPick)
+                            }
                         }
-                        items(group, key = { it.name + it.phone }) { contact ->
+                    } else {
+                        // Результаты поиска — ранжированный список без
+                        // буквенных заголовков: сначала имена на запрос,
+                        // ниже — фамильные совпадения, ещё ниже — телефоны
+                        items(filtered, key = { it.name + it.phone }) { contact ->
                             ContactRow(contact, onPick)
                         }
                     }
@@ -866,7 +1018,7 @@ private fun ContactRow(contact: PhoneContact, onPick: (PhoneContact) -> Unit) {
                 Text(contact.name, style = Headline2MobStyle)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    formatRuPhone(contact.phone),
+                    formatContactPhone(contact.phone),
                     style = CardSubtitleStyle
                 )
             }
