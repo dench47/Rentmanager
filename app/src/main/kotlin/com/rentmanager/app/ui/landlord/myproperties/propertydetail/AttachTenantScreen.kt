@@ -175,6 +175,10 @@ fun AttachTenantScreen(
     propertyId: String,
     onDismiss: () -> Unit,
     onAttached: () -> Unit,
+    // Пресет периода из шахматки «Моя недвижимость» (аннотация дизайнера:
+    // выбранная в шахматке дата автоматически подставляется здесь)
+    presetStart: LocalDate? = null,
+    presetEnd: LocalDate? = null,
     viewModel: AttachTenantViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -182,8 +186,8 @@ fun AttachTenantScreen(
     val context = LocalContext.current
     LaunchedEffect(propertyId) { viewModel.load(propertyId) }
 
-    var startDate by remember { mutableStateOf<LocalDate?>(null) }
-    var endDate by remember { mutableStateOf<LocalDate?>(null) }
+    var startDate by remember { mutableStateOf<LocalDate?>(presetStart) }
+    var endDate by remember { mutableStateOf<LocalDate?>(presetEnd) }
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
 

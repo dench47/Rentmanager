@@ -1,23 +1,24 @@
 package com.rentmanager.app.ui.landlord.myproperties
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -26,9 +27,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -42,6 +42,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -49,26 +50,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -79,42 +71,48 @@ import coil.request.ImageRequest
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.IconNotificationDialog
 import com.rentmanager.app.ui.components.ScheduleDialog
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-// Цвета из Figma (node 2183:9531)
+// Палитра канваса «Моя недвижимость» 2 вариант (2949:45807)
 private val White = Color.White
 private val TextPrimary = Color(0xFF212121)
-private val TextGray = Color(0xFF727272)
-private val ToggleBg = Color(0xFFEFEFEF)
+private val TextGray = Color(0xFF717171)
+private val DividerGrey = Color(0xFFDBDBDB)
+private val CellFree = Color(0xFFEFEFEF)
+private val CellBusy = Color(0xFFE5F2E7)
+private val BusyGreen = Color(0xFF2F7D4D)
+private val OverdueRed = Color(0xFFFF4249)
 
-// Шахматка (ячейки 44×39, r=4, gap=4)
-
-private val NameTextStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
-private val AddressTextStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, letterSpacing = (-0.4).sp)
-private val PeriodMonthTextStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
-private val PeriodYearTextStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.4).sp)
-
-// Названия месяцев (полные)
+private val RuMonthGenitive = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
 private val MonthNames = listOf(
     "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
     "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
 )
+private val MonthShort = listOf(
+    "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
+    "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"
+)
 
-private fun monthName(month: Int): String =
-    MonthNames.getOrElse(month - 1) { "" }
+private fun monthName(month: Int): String = MonthNames.getOrElse(month - 1) { "" }
 
-private fun weekdayAbbr(dow: DayOfWeek): String = when (dow) {
-    DayOfWeek.MONDAY -> "ПН"
-    DayOfWeek.TUESDAY -> "ВТ"
-    DayOfWeek.WEDNESDAY -> "СР"
-    DayOfWeek.THURSDAY -> "ЧТ"
-    DayOfWeek.FRIDAY -> "ПТ"
-    DayOfWeek.SATURDAY -> "СБ"
-    DayOfWeek.SUNDAY -> "ВС"
+/** Способ сортировки списка (аннотация дизайнера к иконке в тулбаре) */
+private enum class SortMode(val label: String) {
+    AS_IS("Без сортировки"),
+    ALPHA("По алфавиту"),
+    DAILY_FIRST("Сначала посуточные"),
+    MONTHLY_FIRST("Сначала помесячные")
 }
 
+/**
+ * «Моя недвижимость», 2 вариант редизайна (канвас 2949:45807):
+ * табы «Объекты | Шахматка», карточки-объекты с лентой ближайшей загрузки
+ * и строкой арендатора, шахматка-таблица с закреплённой колонкой объектов,
+ * компактный нижний таббар (Финансы / Создать объект / На главную).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyPropertiesScreen(
     onPropertyClick: (String) -> Unit,
@@ -122,11 +120,11 @@ fun MyPropertiesScreen(
     onBack: () -> Unit,
     onFinanceClick: () -> Unit,
     onWriteClick: () -> Unit,
+    onAttachTenant: (propertyId: String, start: LocalDate?, end: LocalDate?) -> Unit = { _, _, _ -> },
     viewModel: MyPropertiesViewModel = viewModel()
 ) {
-    val properties by viewModel.visibleProperties.collectAsState()
+    val propertiesRaw by viewModel.properties.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
-    val displayMode by viewModel.displayMode.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
     // Обновление списка при возврате на экран / из фона
@@ -139,24 +137,43 @@ fun MyPropertiesScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    var pickerPropertyId by remember { mutableStateOf<String?>(null) }
-    // Долгое нажатие на красной ячейке: подтверждение ручного гашения просрочки
+    var activeTab by remember { mutableStateOf(0) } // 0 — Объекты, 1 — Шахматка
+    var sortMode by remember { mutableStateOf(SortMode.AS_IS) }
+    var showSortSheet by remember { mutableStateOf(false) }
+
+    // Месяц шапки вкладки «Объекты» и период шахматки
+    val today = remember { LocalDate.now() }
+    var selectedYear by remember { mutableIntStateOf(today.year) }
+    var selectedMonth by remember { mutableIntStateOf(today.monthValue) }
+    var showMonthPicker by remember { mutableStateOf(false) }
+    var showYearPicker by remember { mutableStateOf(false) }
+
+    // Долгое нажатие на красной ячейке — ручное гашение просрочки
     var confirmPaidPropertyId by remember { mutableStateOf<String?>(null) }
 
-    // Общий кэш раскладки текста шапки: мерим уникальные подписи один раз.
-    val textMeasurer = rememberTextMeasurer(cacheSize = 256)
+    // На «Шахматке» сортировка по типу аренды не имеет смысла — тип
+    // выбирают тумблеры; там действует только алфавит/без сортировки
+    val effectiveSortMode = if (activeTab == 1) {
+        if (sortMode == SortMode.DAILY_FIRST || sortMode == SortMode.MONTHLY_FIRST) SortMode.AS_IS
+        else sortMode
+    } else sortMode
+    val properties = remember(propertiesRaw, effectiveSortMode) {
+        when (effectiveSortMode) {
+            SortMode.AS_IS -> propertiesRaw
+            SortMode.ALPHA -> propertiesRaw.sortedBy { it.name.lowercase() }
+            SortMode.DAILY_FIRST -> propertiesRaw.sortedBy { it.rentType != "посуточно" }
+            SortMode.MONTHLY_FIRST -> propertiesRaw.sortedBy { it.rentType == "посуточно" }
+        }
+    }
 
-    val cameraPainter = rememberVectorPainter(Icons.Outlined.PhotoCamera)
-
-    // Прогрев кэша фото: грузим превью заранее, чтобы при скролле карточки не мигали пустым квадратом.
+    // Прогрев кэша фото 40dp — карточки не мигают пустым квадратом при скролле
     val prefetchContext = LocalContext.current
     val prefetchDensity = LocalDensity.current
     LaunchedEffect(properties) {
         val photoSizePx = with(prefetchDensity) { 40.dp.roundToPx() }
-        val loader = prefetchContext.imageLoader
         properties.forEach { property ->
             property.photoUrl?.let { url ->
-                loader.enqueue(
+                prefetchContext.imageLoader.enqueue(
                     ImageRequest.Builder(prefetchContext)
                         .data(url)
                         .size(photoSizePx)
@@ -166,27 +183,14 @@ fun MyPropertiesScreen(
         }
     }
 
-    val headerLayoutCache = remember(properties, textMeasurer) {
-        val currentYear = LocalDate.now().year
-        HeaderLayoutCache(
-            nameAddress = properties.associate {
-                it.id to (textMeasurer.measure(it.name, NameTextStyle) to textMeasurer.measure(it.address, AddressTextStyle))
-            },
-            monthNames = MonthNames.associate { it to textMeasurer.measure(it, PeriodMonthTextStyle) },
-            years = (currentYear..(currentYear + 20)).associate {
-                it.toString() to textMeasurer.measure(it.toString(), PeriodYearTextStyle)
-            }
-        )
-    }
-
     Scaffold(
         containerColor = White,
         contentWindowInsets = WindowInsets.systemBars,
         bottomBar = {
-            BottomTabBar(
+            CompactTabBar(
                 onFinanceClick = onFinanceClick,
                 onCreateProperty = onCreateProperty,
-                onWriteClick = onWriteClick
+                onHomeClick = onBack
             )
         }
     ) { paddingValues ->
@@ -196,78 +200,96 @@ fun MyPropertiesScreen(
                 .padding(paddingValues)
                 .background(White)
         ) {
-            MyPropertiesNavBar(onBack = onBack)
-
-            ViewModeToggle(
-                currentMode = viewMode,
-                onModeChange = { viewModel.setViewMode(it) }
-            )
-
-            DisplayModeToggle(
-                currentMode = displayMode,
-                onModeChange = { viewModel.setDisplayMode(it) }
-            )
-
-            errorMessage?.let {
-                // Ошибка загрузки — окном-уведомлением (Figma 2872-34883),
-                // а не красной строкой; закрытие тапом вне окна
-                IconNotificationDialog(
-                    iconRes = R.drawable.ic_globe_warning_vec,
-                    text = it,
-                    onDismiss = { viewModel.clearError() }
+            // ---- Тулбар: назад + заголовок + сортировка ----
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onBack() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_arrow_left),
+                        contentDescription = "Назад",
+                        modifier = Modifier.size(24.dp),
+                        tint = TextPrimary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Моя недвижимость",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.3).sp,
+                        color = TextPrimary
+                    )
+                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_sort_transfer),
+                    contentDescription = "Сортировка",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { showSortSheet = true },
+                    tint = Color.Unspecified
                 )
             }
 
-            // Отображение: карточки (независимая шахматка) или общая таблица
-            when (displayMode) {
-                DisplayMode.CARDS -> LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    items(properties, key = { it.id }) { property ->
-                        PropertyCard(
-                            property = property,
-                            viewMode = viewMode,
-                            cameraPainter = cameraPainter,
-                            headerLayoutCache = headerLayoutCache,
-                            onClick = { onPropertyClick(property.id) },
-                            onPeriodClick = { pickerPropertyId = property.id },
-                            onRangeSelected = { start, end, isRemove ->
-                                // Покраска месяца = весь месяц: конец диапазона —
-                                // конец месяца (ячейка-представитель хранит 1-е число)
-                                val monthEnd = if (viewMode == ViewMode.MONTHS) {
-                                    java.time.YearMonth.from(end).atEndOfMonth()
-                                } else end
-                                if (isRemove) viewModel.deleteBookings(property.id, start, monthEnd)
-                                else viewModel.saveBooking(property.id, start, monthEnd)
-                            },
-                            onOverdueMark = { confirmPaidPropertyId = property.id }
-                        )
-                    }
-                }
-                DisplayMode.TABLE -> ScheduleTable(
+            // ---- Табы «Объекты | Шахматка» с волной активной вкладки ----
+            TabsRow(activeTab = activeTab, onSelect = { activeTab = it })
+
+            if (activeTab == 0) {
+                ObjectsTab(
+                    modifier = Modifier.weight(1f),
                     properties = properties,
+                    selectedYear = selectedYear,
+                    selectedMonth = selectedMonth,
+                    onMonthClick = { showMonthPicker = true },
+                    onPropertyClick = onPropertyClick,
+                    onAddTenant = { propertyId -> onAttachTenant(propertyId, null, null) }
+                )
+            } else {
+                ChessTab(
+                    modifier = Modifier.weight(1f),
+                    properties = properties.filter {
+                        if (viewMode == ViewMode.MONTHS) it.rentType != "посуточно"
+                        else it.rentType == "посуточно"
+                    },
                     viewMode = viewMode,
+                    selectedYear = selectedYear,
+                    selectedMonth = selectedMonth,
+                    onModeChange = { viewModel.setViewMode(it) },
+                    onPeriodClick = {
+                        if (viewMode == ViewMode.MONTHS) showYearPicker = true else showMonthPicker = true
+                    },
                     onRangeSelected = { propertyId, start, end, isRemove ->
+                        // Покраска месяца = весь месяц: конец диапазона — конец месяца
                         val monthEnd = if (viewMode == ViewMode.MONTHS) {
-                            java.time.YearMonth.from(end).atEndOfMonth()
+                            YearMonth.from(end).atEndOfMonth()
                         } else end
                         if (isRemove) viewModel.deleteBookings(propertyId, start, monthEnd)
                         else viewModel.saveBooking(propertyId, start, monthEnd)
                     },
                     onOverdueMark = { confirmPaidPropertyId = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
+                    onAttachTenant = onAttachTenant
                 )
             }
         }
     }
 
-    // Ручное гашение просрочки (долгое нажатие на красной ячейке шахматки):
-    // арендатор мог заплатить наличными/вне приложения, а код ждёт подтверждения
+    // Ошибка загрузки — окном-уведомлением, закрытие тапом вне
+    errorMessage?.let {
+        IconNotificationDialog(
+            iconRes = R.drawable.ic_globe_warning_vec,
+            text = it,
+            onDismiss = { viewModel.clearError() }
+        )
+    }
+
+    // Ручное гашение просрочки (долгое нажатие на красной ячейке шахматки)
     confirmPaidPropertyId?.let { id ->
         val item = properties.find { it.id == id }
         if (item != null) {
@@ -286,585 +308,798 @@ fun MyPropertiesScreen(
         }
     }
 
-    pickerPropertyId?.let { id ->
-        val pickerProperty = properties.find { it.id == id }
-        if (pickerProperty != null) {
-            PeriodPickerSheet(
-                viewMode = viewMode,
-                selectedYear = pickerProperty.year,
-                selectedMonth = pickerProperty.month,
-                onSelect = { year, month ->
-                    viewModel.selectPeriod(id, year, month)
-                    pickerPropertyId = null
-                },
-                onDismiss = { pickerPropertyId = null }
-            )
-        }
-    }
-}
-@Composable
-private fun MyPropertiesNavBar(onBack: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .padding(horizontal = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        // Левая часть: стрелка + заголовок
-        Row(
-            modifier = Modifier.clickable { onBack() },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Box(
-                modifier = Modifier.size(44.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_arrow_left),
-                    contentDescription = "Назад",
-                    modifier = Modifier.size(24.dp),
-                    tint = TextPrimary
-                )
-            }
-            Text(
-                "Моя недвижимость",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary,
-                letterSpacing = (-0.3).sp
-            )
-        }
-
-        // Правая часть: поиск + transfer
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable { /* TODO: поиск */ },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_search),
-                    contentDescription = "Поиск",
-                    modifier = Modifier.size(24.dp),
-                    tint = TextPrimary
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clickable { /* TODO: transfer */ },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.SwapVert,
-                    contentDescription = "Transfer",
-                    modifier = Modifier.size(24.dp),
-                    tint = TextPrimary
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ViewModeToggle(
-    currentMode: ViewMode,
-    onModeChange: (ViewMode) -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
-    ) {
-        // Фон — светло-серая капсула
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(100.dp))
-                .background(ToggleBg)
+    if (showSortSheet) {
+        val available = if (activeTab == 0) SortMode.entries
+        else listOf(SortMode.AS_IS, SortMode.ALPHA)
+        OptionSheet(
+            title = "Сортировка",
+            options = available.map { it.label },
+            selected = effectiveSortMode.label,
+            onSelect = { label ->
+                sortMode = SortMode.entries.first { it.label == label }
+                showSortSheet = false
+            },
+            onDismiss = { showSortSheet = false }
         )
+    }
 
-        // Сегменты
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ToggleSegment(
-                label = "Месяцы",
-                active = currentMode == ViewMode.MONTHS,
-                onClick = { onModeChange(ViewMode.MONTHS) }
-            )
-            ToggleSegment(
-                label = "Сутки",
-                active = currentMode == ViewMode.DAYS,
-                onClick = { onModeChange(ViewMode.DAYS) }
-            )
-        }
+    if (showMonthPicker) {
+        PeriodPickerSheet(
+            viewMode = ViewMode.DAYS,
+            selectedYear = selectedYear,
+            selectedMonth = selectedMonth,
+            onSelect = { year, month ->
+                selectedYear = year
+                selectedMonth = month
+                showMonthPicker = false
+            },
+            onDismiss = { showMonthPicker = false }
+        )
+    }
+
+    if (showYearPicker) {
+        PeriodPickerSheet(
+            viewMode = ViewMode.MONTHS,
+            selectedYear = selectedYear,
+            selectedMonth = selectedMonth,
+            onSelect = { year, _ ->
+                selectedYear = year
+                showYearPicker = false
+            },
+            onDismiss = { showYearPicker = false }
+        )
     }
 }
 
+// ===================== Табы «Объекты | Шахматка» =====================
+
+/** Строка табов: подписи 18/600 через 13, под активной — волна 4dp,
+ *  под всей строкой — разделитель #DBDBDB (2949:45807). */
 @Composable
-private fun DisplayModeToggle(
-    currentMode: DisplayMode,
-    onModeChange: (DisplayMode) -> Unit
-) {
-    Box(
+private fun TabsRow(activeTab: Int, onSelect: (Int) -> Unit) {
+    var w0 by remember { mutableIntStateOf(0) }
+    var w1 by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(horizontal = 20.dp)
     ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+            TabLabel("Объекты", active = activeTab == 0, onSize = { w0 = it }) { onSelect(0) }
+            TabLabel("Шахматка", active = activeTab == 1, onSize = { w1 = it }) { onSelect(1) }
+        }
+        // Зона 12dp: разделитель по центру, волна активного таба поверх
         Box(
-            modifier = Modifier
+            Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(100.dp))
-                .background(ToggleBg)
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .height(12.dp)
         ) {
-            ToggleSegment(
-                label = "Карточки",
-                active = currentMode == DisplayMode.CARDS,
-                onClick = { onModeChange(DisplayMode.CARDS) }
+            HorizontalDivider(
+                color = DividerGrey,
+                thickness = 1.dp,
+                modifier = Modifier.align(Alignment.Center)
             )
-            ToggleSegment(
-                label = "Таблица",
-                active = currentMode == DisplayMode.TABLE,
-                onClick = { onModeChange(DisplayMode.TABLE) }
-            )
+            val gapPx = with(density) { 13.dp.roundToPx() }
+            val widthDp = with(density) {
+                (if (activeTab == 0) w0 else w1).toDp()
+            }
+            val offsetDp = with(density) {
+                (if (activeTab == 0) 0 else w0 + gapPx).toDp()
+            }
+            if (w0 > 0 || w1 > 0) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .offset(x = offsetDp)
+                        .width(widthDp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(TextPrimary)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun RowScope.ToggleSegment(
-    label: String,
+private fun TabLabel(
+    text: String,
     active: Boolean,
+    onSize: (Int) -> Unit,
     onClick: () -> Unit
 ) {
-    Box(
+    Text(
+        text,
+        fontSize = 18.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = (-0.3).sp,
+        color = if (active) TextPrimary else TextGray,
         modifier = Modifier
-            .weight(1f)
-            .height(48.dp)
-            .clip(RoundedCornerShape(100.dp))
-            .then(
-                if (active) Modifier.background(TextPrimary)
-                else Modifier.background(Color.Transparent)
-            )
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = (-0.4).sp,
-            color = if (active) White else TextGray
-        )
-    }
-}
-@Composable
-private fun PropertyCard(
-    property: MyPropertyItem,
-    viewMode: ViewMode,
-    cameraPainter: Painter,
-    headerLayoutCache: HeaderLayoutCache,
-    onClick: () -> Unit,
-    onPeriodClick: () -> Unit,
-    onRangeSelected: (LocalDate, LocalDate, Boolean) -> Unit,
-    onOverdueMark: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp)
-            .logMeasure("PropertyCard"),
-        verticalArrangement = Arrangement.spacedBy(15.dp)
-    ) {
-        // Шапка карточки
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onClick() },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Фото 40×40 с borderRadius 8 (нет фото — заглушка-фотоаппарат)
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFF2F2F7)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Заглушка видна всегда: пока фото грузится, при ошибке или если фото нет.
-                    Icon(
-                        painter = cameraPainter,
-                        contentDescription = null,
-                        tint = Color(0xFF8E8E93),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    if (property.photoUrl != null) {
-                        val context = LocalContext.current
-                        val density = LocalDensity.current
-                        val photoSizePx = with(density) { 40.dp.roundToPx() }
-                        val imageRequest = remember(property.photoUrl, photoSizePx) {
-                            ImageRequest.Builder(context)
-                                .data(property.photoUrl)
-                                .size(photoSizePx)
-                                .crossfade(true)
-                                .build()
-                        }
-                        AsyncImage(
-                            model = imageRequest,
-                            contentDescription = property.name,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                }
-
-                // Название + адрес (рисуем из кэша раскладки)
-                val nameAddress = headerLayoutCache.nameAddress[property.id]
-                if (nameAddress != null) {
-                    val (nameLayout, addressLayout) = nameAddress
-                    val density = LocalDensity.current
-                    Canvas(
-                        modifier = Modifier.size(
-                            width = with(density) { maxOf(nameLayout.size.width, addressLayout.size.width).toDp() },
-                            height = with(density) { (nameLayout.size.height + addressLayout.size.height).toDp() }
-                        )
-                    ) {
-                        drawText(nameLayout, color = TextPrimary, topLeft = Offset(0f, 0f))
-                        drawText(addressLayout, color = TextGray, topLeft = Offset(0f, nameLayout.size.height.toFloat()))
-                    }
-                }
-            }
-
-            // Селектор периода (год / месяц+год)
-            PeriodSelector(
-                viewMode = viewMode,
-                selectedYear = property.year,
-                selectedMonth = property.month,
-                headerLayoutCache = headerLayoutCache,
-                onClick = onPeriodClick
-            )
-        }
-
-        // Шахматка загруженности
-        ScheduleRow(
-            property = property,
-            viewMode = viewMode,
-            year = property.year,
-            month = property.month,
-            onRangeSelected = onRangeSelected,
-            onOverdueMark = onOverdueMark
-        )
-    }
+            .clickable { onClick() }
+            .onSizeChanged { onSize(it.width) }
+    )
 }
 
-private val MonthAbbrevLabels = listOf("ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮН", "ИЮЛ", "АВГ", "СЕН", "ОКТ", "НОЯ", "ДЕК")
-
-private class HeaderLayoutCache(
-    val nameAddress: Map<String, Pair<TextLayoutResult, TextLayoutResult>>,
-    val monthNames: Map<String, TextLayoutResult>,
-    val years: Map<String, TextLayoutResult>
-)
+// ===================== Вкладка «Объекты» =====================
 
 @Composable
-private fun ScheduleRow(
-    property: MyPropertyItem,
-    viewMode: ViewMode,
-    year: Int,
-    month: Int,
-    onRangeSelected: (LocalDate, LocalDate, Boolean) -> Unit,
-    onOverdueMark: () -> Unit
-) {
-    val cells = remember(viewMode, year, month, property) {
-        buildCells(viewMode, year, month, property)
-    }
-    var selectionStart by remember { mutableStateOf<Int?>(null) }
-    var selectionEnd by remember { mutableStateOf<Int?>(null) }
-    var selectionRemove by remember { mutableStateOf(false) }
-    val currentOnRangeSelected by rememberUpdatedState(onRangeSelected)
-    val currentOnOverdueMark by rememberUpdatedState(onOverdueMark)
-    val cellPitchPx = with(LocalDensity.current) { (44.dp + 4.dp).toPx() }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(39.dp)
-            .horizontalScroll(rememberScrollState())
-            .logMeasure("ScheduleRow"),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .height(39.dp)
-                .pointerInput(cells) {
-                    detectTapGestures(
-                        onTap = { offset ->
-                            if (cells.dates.isNotEmpty()) {
-                                val index = (offset.x / cellPitchPx).toInt()
-                                    .coerceIn(0, cells.dates.lastIndex)
-                                val start = selectionStart
-                                if (start == null) {
-                                    selectionStart = index
-                                    selectionEnd = index
-                                    // «expired» (занято + просрочка) — тоже занятая
-                                    // ячейка: тап по ней снимает бронь, а не создаёт дубль
-                                    val state = cells.states.getOrNull(index)
-                                    selectionRemove = state == "fullness" || state == "expired"
-                                } else {
-                                    val lo = minOf(start, index)
-                                    val hi = maxOf(start, index)
-                                    val startDate = cells.dates.getOrNull(lo)
-                                    val endDate = cells.dates.getOrNull(hi)
-                                    if (startDate != null && endDate != null) {
-                                        currentOnRangeSelected(startDate, endDate, selectionRemove)
-                                    }
-                                    selectionStart = null
-                                    selectionEnd = null
-                                }
-                            }
-                        },
-                        // Долгое нажатие на красной ячейке — ручное гашение просрочки
-                        onLongPress = { offset ->
-                            if (cells.dates.isNotEmpty()) {
-                                val index = (offset.x / cellPitchPx).toInt()
-                                    .coerceIn(0, cells.dates.lastIndex)
-                                if (cells.states.getOrNull(index) == "expired") {
-                                    currentOnOverdueMark()
-                                }
-                            }
-                        }
-                    )
-                }
-        ) {
-            AndroidView(
-                factory = { context -> ScheduleGridView(context) },
-                modifier = Modifier.height(39.dp),
-                update = { view ->
-                    view.setData(cells.labels, cells.topLabels, cells.states, viewMode == ViewMode.DAYS)
-                    view.setSelection(selectionStart, selectionEnd)
-                }
-            )
-        }
-    }
-}
-
-
-
-// TEMP: диагностика времени measure (удалить после профилирования)
-private fun Modifier.logMeasure(tag: String): Modifier = layout { measurable, constraints ->
-    val start = System.nanoTime()
-    val placeable = measurable.measure(constraints)
-    val ms = (System.nanoTime() - start) / 1_000_000.0
-    if (ms > 0.5) android.util.Log.d("Bench", "$tag measure = $ms ms")
-    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
-}
-
-private data class ScheduleCells(
-    val labels: List<String>,
-    val topLabels: List<String?>,
-    val states: List<String>,
-    val dates: List<LocalDate>
-)
-
-private fun buildCells(
-    viewMode: ViewMode,
-    year: Int,
-    month: Int,
-    property: MyPropertyItem
-): ScheduleCells {
-    val today = LocalDate.now()
-    return when (viewMode) {
-        ViewMode.MONTHS -> {
-            // Календарный год: текущий год — с текущего месяца по декабрь,
-            // будущие годы — полный ЯНВ..ДЕК.
-            val startMonth = if (year == today.year) today.monthValue else 1
-            val months = (startMonth..12).toList()
-            ScheduleCells(
-                labels = months.map { MonthAbbrevLabels[it - 1] },
-                topLabels = List(months.size) { null },
-                states = months.map { m -> property.statusAt(LocalDate.of(year, m, 1)) },
-                dates = months.map { m -> LocalDate.of(year, m, 1) }
-            )
-        }
-        ViewMode.DAYS -> {
-            // С текущего дня (в текущем месяце), прошлых дней нет.
-            val daysInMonth = YearMonth.of(year, month).lengthOfMonth()
-            val startDay =
-                if (year == today.year && month == today.monthValue) today.dayOfMonth else 1
-            val days = (startDay..daysInMonth).toList()
-            ScheduleCells(
-                labels = days.map { it.toString() },
-                topLabels = days.map { day -> weekdayAbbr(LocalDate.of(year, month, day).dayOfWeek) },
-                states = days.map { day -> property.statusAt(LocalDate.of(year, month, day)) },
-                dates = days.map { day -> LocalDate.of(year, month, day) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun BottomTabBar(
-    onFinanceClick: () -> Unit,
-    onCreateProperty: () -> Unit,
-    onWriteClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-            .background(Color(0x99EDEDED))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .height(80.dp)
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TabItem(
-                iconRes = R.drawable.ic_menu_finance,
-                label = "Финансы",
-                onClick = onFinanceClick
-            )
-            TabItem(
-                iconRes = R.drawable.ic_plus_circle,
-                label = "Создать объект",
-                iconSize = 30.dp,
-                onClick = onCreateProperty
-            )
-            TabItem(
-                iconRes = R.drawable.ic_email,
-                label = "Написать",
-                onClick = onWriteClick
-            )
-        }
-    }
-}
-
-@Composable
-private fun TabItem(
-    iconRes: Int,
-    label: String,
-    onClick: () -> Unit,
-    iconSize: Dp = 24.dp
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val contentColor = if (isPressed) White else TextPrimary
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier
-            .width(84.dp)
-            .clip(RoundedCornerShape(30.dp))
-            .background(if (isPressed) TextPrimary else Color.Transparent)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null
-            ) { onClick() }
-            .padding(6.dp)
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = label,
-            modifier = Modifier.size(iconSize),
-            tint = contentColor
-        )
-        Text(
-            label,
-            fontSize = 9.5.sp,
-            fontWeight = FontWeight.Normal,
-            letterSpacing = (-0.4).sp,
-            color = contentColor
-        )
-    }
-}
-
-@Composable
-private fun PeriodSelector(
-    viewMode: ViewMode,
+private fun ObjectsTab(
+    modifier: Modifier = Modifier,
+    properties: List<MyPropertyItem>,
     selectedYear: Int,
     selectedMonth: Int,
-    headerLayoutCache: HeaderLayoutCache,
-    onClick: () -> Unit
+    onMonthClick: () -> Unit,
+    onPropertyClick: (String) -> Unit,
+    onAddTenant: (String) -> Unit
 ) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = 20.dp, end = 20.dp, top = 6.dp, bottom = 20.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        item(key = "month_dropdown") {
+            MonthDropdown(
+                text = monthName(selectedMonth) + " " + selectedYear,
+                onClick = onMonthClick
+            )
+        }
+        items(properties, key = { it.id }) { property ->
+            ObjectCard(
+                property = property,
+                selectedYear = selectedYear,
+                selectedMonth = selectedMonth,
+                onClick = { onPropertyClick(property.id) },
+                onAddTenant = { onAddTenant(property.id) }
+            )
+        }
+    }
+}
+
+/** Дропдаун «Сентябрь 2026»: текст 15/600 + стрелка вниз, высота 36. */
+@Composable
+private fun MonthDropdown(text: String, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.clickable { onClick() },
+        modifier = Modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val density = LocalDensity.current
-        if (viewMode == ViewMode.DAYS) {
-            val monthLayout = headerLayoutCache.monthNames.getValue(monthName(selectedMonth))
-            val yearLayout = headerLayoutCache.years.getValue(selectedYear.toString())
-            val widthPx = maxOf(monthLayout.size.width, yearLayout.size.width)
-            val gapPx = with(density) { 1.dp.roundToPx() }
-            Canvas(
-                modifier = Modifier.size(
-                    width = with(density) { widthPx.toDp() },
-                    height = with(density) { (monthLayout.size.height + gapPx + yearLayout.size.height).toDp() }
-                )
-            ) {
-                drawText(
-                    monthLayout,
-                    color = TextPrimary,
-                    topLeft = Offset((widthPx - monthLayout.size.width).toFloat(), 0f)
-                )
-                drawText(
-                    yearLayout,
-                    color = TextPrimary,
-                    topLeft = Offset(
-                        (widthPx - yearLayout.size.width).toFloat(),
-                        (monthLayout.size.height + gapPx).toFloat()
-                    )
-                )
-            }
-        } else {
-            val yearLayout = headerLayoutCache.years.getValue(selectedYear.toString())
-            Canvas(
-                modifier = Modifier.size(
-                    width = with(density) { yearLayout.size.width.toDp() },
-                    height = with(density) { yearLayout.size.height.toDp() }
-                )
-            ) {
-                drawText(yearLayout, color = TextPrimary, topLeft = Offset(0f, 0f))
-            }
-        }
+        Text(
+            text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.4).sp,
+            color = TextPrimary
+        )
+        Spacer(Modifier.width(4.dp))
         Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "Выбрать период",
+            painter = painterResource(R.drawable.ic_calendar_arrow_down),
+            contentDescription = null,
             modifier = Modifier.size(24.dp),
             tint = TextPrimary
         )
     }
 }
 
+/** Карточка объекта (2 вариант): белая с обводкой #DBDBDB r20, pad 10,
+ *  шапка с типом аренды справа, задолженность при наличии, лента
+ *  ближайшей загрузки, строка арендатора с шевроном. */
+@Composable
+private fun ObjectCard(
+    property: MyPropertyItem,
+    selectedYear: Int,
+    selectedMonth: Int,
+    onClick: () -> Unit,
+    onAddTenant: () -> Unit
+) {
+    val daily = property.rentType == "посуточно"
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, DividerGrey, RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // ---- Шапка: фото + имя/адрес, тип аренды справа ----
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF2F2F7)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = rememberVectorPainter(Icons.Outlined.PhotoCamera),
+                    contentDescription = null,
+                    tint = Color(0xFF8E8E93),
+                    modifier = Modifier.size(20.dp)
+                )
+                AsyncImage(
+                    model = property.photoUrl,
+                    contentDescription = property.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    property.name.ifBlank { "Без названия" },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.4).sp,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    property.address,
+                    fontSize = 13.sp,
+                    letterSpacing = (-0.4).sp,
+                    color = TextGray
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(
+                        if (daily) R.drawable.ic_renttype_clock else R.drawable.ic_renttype_calendar
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = Color.Unspecified
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    if (daily) "Посуточно" else "Помесячно",
+                    fontSize = 13.sp,
+                    letterSpacing = (-0.4).sp,
+                    color = TextGray
+                )
+            }
+        }
+
+        HorizontalDivider(color = DividerGrey, thickness = 1.dp)
+
+        // ---- Задолженность — только при наличии ----
+        if (property.overdue && property.overdueAmount > 0.0) {
+            Text(
+                "Задолженность " +
+                    String.format("%,.0f ₽", property.overdueAmount).replace(',', ' '),
+                fontSize = 13.sp,
+                letterSpacing = (-0.4).sp,
+                color = OverdueRed
+            )
+        }
+
+        // ---- Лента загрузки: месяцы (12 вперёд) или дни выбранного месяца ----
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                if (daily) "Открыть шахматку" else "Ближайшая загрузка",
+                fontSize = 13.sp,
+                letterSpacing = (-0.4).sp,
+                color = TextGray
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val cells = if (daily) {
+                    val ym = YearMonth.of(selectedYear, selectedMonth)
+                    (1..ym.lengthOfMonth()).map { day ->
+                        LocalDate.of(selectedYear, selectedMonth, day)
+                    }
+                } else {
+                    val start = YearMonth.of(selectedYear, selectedMonth)
+                    (0 until 12).map { start.plusMonths(it.toLong()).atDay(1) }
+                }
+                cells.forEach { date ->
+                    LoadCell(
+                        label = if (daily) date.dayOfMonth.toString() else MonthShort[date.monthValue - 1],
+                        state = property.statusAt(date)
+                    )
+                }
+            }
+        }
+
+        // ---- Арендатор · до N (или «не добавлен») ----
+        // Своя кликабельная зона (перехватывает тап у карточки):
+        // арендатора нет → «Добавить арендатора»; есть → пока заглушка
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.let {
+                if (property.tenantInfo == null) it.clickable { onAddTenant() } else it
+            }
+        ) {
+            val tenantLine = property.tenantInfo?.let { tenant ->
+                val lastEnd = property.bookings.maxOfOrNull { it.end }
+                if (lastEnd != null) "$tenant · до ${lastEnd.format(RuMonthGenitive)}"
+                else tenant
+            } ?: "Арендатор не добавлен · готова к аренде"
+            Text(
+                tenantLine,
+                fontSize = 13.sp,
+                letterSpacing = (-0.4).sp,
+                color = TextGray,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                painter = painterResource(R.drawable.ic_chevron_right),
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = Color.Unspecified
+            )
+        }
+    }
+}
+
+/** Ячейка ленты загрузки: 48×38 r4; занято #E5F2E7/#2F7D4D, свободно
+ *  #EFEFEF/#717171, просрочка — красная рамка и текст (2949:45807). */
+@Composable
+private fun LoadCell(label: String, state: String) {
+    val busy = state != "free"
+    val expired = state == "expired"
+    Box(
+        modifier = Modifier
+            .size(width = 48.dp, height = 38.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (busy) CellBusy else CellFree)
+            .then(
+                if (expired) Modifier.border(1.dp, OverdueRed, RoundedCornerShape(4.dp))
+                else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.4).sp,
+            color = when {
+                expired -> OverdueRed
+                busy -> BusyGreen
+                else -> TextGray
+            }
+        )
+    }
+}
+
+// ===================== Вкладка «Шахматка» =====================
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ChessTab(
+    modifier: Modifier = Modifier,
+    properties: List<MyPropertyItem>,
+    viewMode: ViewMode,
+    selectedYear: Int,
+    selectedMonth: Int,
+    onModeChange: (ViewMode) -> Unit,
+    onPeriodClick: () -> Unit,
+    onRangeSelected: (String, LocalDate, LocalDate, Boolean) -> Unit,
+    onOverdueMark: (String) -> Unit,
+    onAttachTenant: (String, LocalDate, LocalDate) -> Unit
+) {
+    // Выбор диапазона: строка объекта + индекс первой ячейки; по второму
+    // тапу — покраска/стирание. Градиентная кнопка «Добавить арендатора»
+    // появляется ПОСЛЕ применения периода (ячейки позеленели), а не после
+    // первого тапа; новый выбор её сбрасывает
+    var selPropertyId by remember { mutableStateOf<String?>(null) }
+    var selStart by remember { mutableStateOf<Int?>(null) }
+    var pendingAttach by remember {
+        mutableStateOf<Triple<String, LocalDate, LocalDate>?>(null)
+    }
+
+    val currentOnAttachTenant by rememberUpdatedState(onAttachTenant)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+    ) {
+        // ---- Сегмент «Месяцы / Сутки» ----
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(CellFree),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ChessSegment(
+                    label = "Месяцы",
+                    active = viewMode == ViewMode.MONTHS,
+                    left = true,
+                    onClick = { onModeChange(ViewMode.MONTHS) }
+                )
+                ChessSegment(
+                    label = "Сутки",
+                    active = viewMode == ViewMode.DAYS,
+                    left = false,
+                    onClick = { onModeChange(ViewMode.DAYS) }
+                )
+            }
+        }
+
+        // ---- Дропдаун периода: год (месяцы) или месяц (сутки) ----
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MonthDropdown(
+                text = if (viewMode == ViewMode.MONTHS) selectedYear.toString()
+                else monthName(selectedMonth) + " " + selectedYear,
+                onClick = onPeriodClick
+            )
+        }
+
+        // ---- Таблица: закреплённая колонка + горизонтальная сетка ----
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
+            val sharedScroll = rememberScrollState()
+            val dates = remember(viewMode, selectedYear, selectedMonth) {
+                if (viewMode == ViewMode.MONTHS) {
+                    (1..12).map { LocalDate.of(selectedYear, it, 1) }
+                } else {
+                    val ym = YearMonth.of(selectedYear, selectedMonth)
+                    (1..ym.lengthOfMonth()).map { LocalDate.of(selectedYear, selectedMonth, it) }
+                }
+            }
+
+            // Заголовочная строка: «Объект» + месяцы/дни (11/500)
+            ChessRowContainer(
+                label = {
+                    Box(
+                        Modifier
+                            .width(112.dp)
+                            .padding(start = 20.dp)
+                    ) {
+                        Text(
+                            "Объект",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = (-0.4).sp,
+                            color = TextGray
+                        )
+                    }
+                },
+                cells = {
+                    Row(
+                        modifier = Modifier.horizontalScroll(sharedScroll),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        dates.forEach { date ->
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 48.dp, height = 38.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    if (viewMode == ViewMode.MONTHS) MonthShort[date.monthValue - 1]
+                                    else date.dayOfMonth.toString(),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = (-0.4).sp,
+                                    color = TextPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            // Строки объектов
+            properties.forEachIndexed { propertyIndex, property ->
+                val states = remember(property, dates) { dates.map { property.statusAt(it) } }
+                if (propertyIndex > 0) Spacer(Modifier.height(12.dp))
+                val rowSelected = selPropertyId == property.id
+                ChessRowContainer(
+                    label = {
+                        Column(
+                            Modifier
+                                .width(112.dp)
+                                .padding(start = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                property.name.ifBlank { "Без названия" },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = (-0.4).sp,
+                                color = TextPrimary
+                            )
+                            Text(
+                                property.address.substringBefore(',').trim(),
+                                fontSize = 9.5.sp,
+                                letterSpacing = (-0.2).sp,
+                                color = TextGray
+                            )
+                        }
+                    },
+                    cells = {
+                        Row(
+                            modifier = Modifier.horizontalScroll(sharedScroll),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            dates.forEachIndexed { index, date ->
+                                val state = states.getOrNull(index) ?: "free"
+                                val inSelection = rowSelected && selStart != null && index == selStart
+                                ChessCell(
+                                    state = state,
+                                    highlighted = inSelection,
+                                    onClick = {
+                                        val start = selStart
+                                        if (!rowSelected || start == null) {
+                                            selPropertyId = property.id
+                                            selStart = index
+                                            pendingAttach = null
+                                        } else {
+                                            val lo = minOf(start, index)
+                                            val hi = maxOf(start, index)
+                                            val remove = states.getOrNull(lo) == "fullness" ||
+                                                states.getOrNull(lo) == "expired"
+                                            onRangeSelected(
+                                                property.id,
+                                                dates[lo],
+                                                dates[hi],
+                                                remove
+                                            )
+                                            selPropertyId = null
+                                            selStart = null
+                                            // Применили бронь — период готов
+                                            // к добавлению арендатора
+                                            pendingAttach = if (!remove) {
+                                                Triple(property.id, dates[lo], dates[hi])
+                                            } else null
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (state == "expired") onOverdueMark(property.id)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+    }
+
+
+    // Статичная градиентная кнопка: период применён (ячейки позеленели) —
+    // предлагаем добавить арендатора на этот период
+    pendingAttach?.let { (propertyId, start, end) ->
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFEDEDED))
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+        ) {
+            com.rentmanager.app.ui.landlord.createproperty.GradientCtaButton(
+                text = "Добавить арендатора",
+                onClick = { currentOnAttachTenant(propertyId, start, end) }
+            )
+        }
+    }
+}
+
+/** Строка таблицы: закреплённая подпись слева + прокручиваемые ячейки. */
+@Composable
+private fun ChessRowContainer(
+    label: @Composable () -> Unit,
+    cells: @Composable () -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        label()
+        cells()
+    }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.ChessSegment(
+    label: String,
+    active: Boolean,
+    left: Boolean,
+    onClick: () -> Unit
+) {
+    // Половина трека: тёмная плашка 184×44 прижата к внешнему краю
+    // с отступом 2 (2949-44886), неактивная подпись — по центру половины
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth()
+            .fillMaxHeight()
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(vertical = 2.dp)
+                .padding(
+                    start = if (left) 2.dp else 0.dp,
+                    end = if (left) 0.dp else 2.dp
+                )
+                .clip(RoundedCornerShape(100.dp))
+                .then(if (active) Modifier.background(TextPrimary) else Modifier)
+        )
+        Text(
+            label,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.4).sp,
+            color = if (active) White else TextGray
+        )
+    }
+}
+
+/** Ячейка шахматки: 48×38 r4; выбор — рамка графитом. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ChessCell(
+    state: String,
+    highlighted: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(width = 48.dp, height = 38.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (state == "free") CellFree else CellBusy)
+            .then(
+                when {
+                    highlighted -> Modifier.border(1.5.dp, TextPrimary, RoundedCornerShape(4.dp))
+                    state == "expired" -> Modifier.border(1.dp, OverdueRed, RoundedCornerShape(4.dp))
+                    else -> Modifier
+                }
+            )
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    )
+}
+
+// ===================== Нижний таббар =====================
+
+/** Компактный таббар (2 вариант): #EDEDED, три таба 24+2+9.5/400. */
+@Composable
+private fun CompactTabBar(
+    onFinanceClick: () -> Unit,
+    onCreateProperty: () -> Unit,
+    onHomeClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+            .background(Color(0xFFEDEDED))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            CompactTab(
+                iconRes = R.drawable.ic_myprops_finance,
+                label = "Финансы",
+                onClick = onFinanceClick
+            )
+            CompactTab(
+                iconRes = R.drawable.ic_plus_circle_graphite,
+                label = "Создать объект",
+                onClick = onCreateProperty
+            )
+            CompactTab(
+                iconRes = R.drawable.ic_myprops_home,
+                label = "На главную",
+                onClick = onHomeClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactTab(
+    iconRes: Int,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier
+            .width(102.dp)
+            .clip(RoundedCornerShape(30.dp))
+            .clickable { onClick() }
+            .padding(6.dp)
+    ) {
+        // Многоцветные иконки макета (тёмный круг + белый плюс) — без tint
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = label,
+            modifier = Modifier.size(24.dp),
+            tint = Color.Unspecified
+        )
+        Text(
+            label,
+            fontSize = 9.5.sp,
+            fontWeight = FontWeight.Normal,
+            letterSpacing = (-0.2).sp,
+            color = TextPrimary
+        )
+    }
+}
+
+// ===================== Общие шиты =====================
+
+/** Простой лист выбора одной опции (сортировка). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OptionSheet(
+    title: String,
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                title,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            )
+            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                items(options) { option ->
+                    PickerRow(
+                        label = option,
+                        isSelected = option == selected,
+                        onClick = { onSelect(option) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Шит выбора года (Месяцы) или месяца (Сутки) — как в прежней шахматке. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PeriodPickerSheet(
@@ -893,7 +1128,7 @@ private fun PeriodPickerSheet(
                 text = if (viewMode == ViewMode.MONTHS) "Выберите год" else "Выберите месяц",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF151515),
+                color = TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -901,7 +1136,6 @@ private fun PeriodPickerSheet(
             )
 
             if (viewMode == ViewMode.MONTHS) {
-                // 20 лет вперёд, начиная с текущего
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -920,7 +1154,6 @@ private fun PeriodPickerSheet(
                     }
                 }
             } else {
-                // Ближайшие 2 года × 12 месяцев
                 val years = listOf(currentYear, currentYear + 1)
                 LazyColumn(
                     modifier = Modifier
@@ -978,7 +1211,7 @@ private fun PickerRow(
             text = label,
             fontSize = 16.sp,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-            color = Color(0xFF151515),
+            color = TextPrimary,
             modifier = Modifier.weight(1f)
         )
         if (isSelected) {
@@ -991,6 +1224,3 @@ private fun PickerRow(
     }
     HorizontalDivider(color = Color(0xFFF2F2F7), thickness = 1.dp)
 }
-
-
-

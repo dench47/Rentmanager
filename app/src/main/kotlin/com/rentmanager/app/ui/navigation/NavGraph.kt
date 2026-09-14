@@ -210,6 +210,10 @@ fun RentManagerNavGraph(
                 onBack = { navController.popBackStack() },
                 onFinanceClick = { navController.navigate(Screen.Finance.route) },
                 onWriteClick = { navController.navigate(Screen.Messages.route) },
+                // Выбор периода в шахматке → экран добавления арендатора с пресетом дат
+                onAttachTenant = { propertyId, start, end ->
+                    navController.navigate(Screen.AttachTenant.createRoute(propertyId, start, end))
+                },
                 viewModel = propertiesViewModel
             )
         }
@@ -436,11 +440,28 @@ fun RentManagerNavGraph(
         // ========== Attach Tenant ==========
         composable(
             route = Screen.AttachTenant.route,
-            arguments = listOf(navArgument("propertyId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("propertyId") { type = NavType.StringType },
+                navArgument("startDate") {
+                    type = NavType.StringType
+                    defaultValue = "none"
+                },
+                navArgument("endDate") {
+                    type = NavType.StringType
+                    defaultValue = "none"
+                }
+            )
         ) { backStackEntry ->
             val propertyId = backStackEntry.arguments?.getString("propertyId") ?: ""
+            // Пресет периода из шахматки: ISO-строка или "none"
+            val presetStart = backStackEntry.arguments?.getString("startDate")
+                ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            val presetEnd = backStackEntry.arguments?.getString("endDate")
+                ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
             com.rentmanager.app.ui.landlord.myproperties.propertydetail.AttachTenantScreen(
                 propertyId = propertyId,
+                presetStart = presetStart,
+                presetEnd = presetEnd,
                 onDismiss = { navController.popBackStack() },
                 onAttached = { navController.popBackStack() }
             )

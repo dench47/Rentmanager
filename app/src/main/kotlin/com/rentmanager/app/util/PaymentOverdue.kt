@@ -22,7 +22,9 @@ object PaymentOverdue {
         val monthPrefix = "%d-%02d".format(today.year, today.monthValue)
         val paidThisMonth = payments.any { it.status == "paid" && it.date.startsWith(monthPrefix) }
         return when {
-            s.dayOfMonth != null -> today.dayOfMonth >= s.dayOfMonth && !paidThisMonth
+            // Просрочка — со следующего дня после даты платежа:
+            // в сам день оплаты платёж ещё не считается просроченным
+            s.dayOfMonth != null -> today.dayOfMonth > s.dayOfMonth && !paidThisMonth
             s.customDates != null -> hasOverdueCustom(s.customDates, payments, today)
             else -> false
         }
@@ -92,7 +94,7 @@ object PaymentOverdue {
                     }
                 val paidDates = payments.filter { it.status == "paid" }.map { it.date }
                 dueDates.filter { (due, _) ->
-                    !due.isAfter(today) && paidDates.none { it >= due.toString() }
+                    due.isBefore(today) && paidDates.none { it >= due.toString() }
                 }.sumOf { it.second }
             }
             else -> 0.0
@@ -105,7 +107,7 @@ object PaymentOverdue {
             .mapNotNull { runCatching { LocalDate.parse(it.date, ddMMyyyy) }.getOrNull() }
         val paidDates = payments.filter { it.status == "paid" }.map { it.date }
         return dueDates.any { due ->
-            !due.isAfter(today) && paidDates.none { it >= due.toString() }
+            due.isBefore(today) && paidDates.none { it >= due.toString() }
         }
     }
 

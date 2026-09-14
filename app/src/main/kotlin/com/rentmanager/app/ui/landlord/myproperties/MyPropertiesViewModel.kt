@@ -51,7 +51,9 @@ data class MyPropertyItem(
     val rentType: String = "посуточно",
     val rentAmount: Double? = null,
     val year: Int = LocalDate.now().year,
-    val month: Int = LocalDate.now().monthValue // 1..12
+    val month: Int = LocalDate.now().monthValue, // 1..12
+    /** Арендатор объекта — для строки «Имя · до N» в списке (вариант 2) */
+    val tenantInfo: String? = null
 )
 
 /**
@@ -65,7 +67,9 @@ fun MyPropertyItem.statusAt(date: LocalDate): String {
     val booked = bookings.any { !date.isBefore(it.start) && !date.isAfter(it.end) }
     if (!booked) return "free"
     val today = LocalDate.now()
-    return if (overdue && date.year == today.year && date.monthValue == today.monthValue) "expired"
+    // Просрочка — только у ПРОШЕДШИХ занятых дат: в посуточном режиме
+    // красным должен быть неоплаченный прошлый день, а не весь текущий месяц
+    return if (overdue && date.isBefore(today)) "expired"
     else "fullness"
 }
 
@@ -157,7 +161,14 @@ class MyPropertiesViewModel @Inject constructor(
                 val toDelete = item.bookings.filter { b ->
                     b.id != null && !start.isAfter(b.end) && !end.isBefore(b.start)
                 }
-                if (toDelete.isEmpty()) return@launch
+                // Пересечения нет (бронь уже снята) — всё равно синкаем график
+                // с бронями: без этого старые платежи custom_dates оставались
+                // в графике навсегда и «долг не убирался»
+                if (toDelete.isEmpty()) {
+                    syncAfterBookingChange(propertyId)
+                    refresh()
+                    return@launch
+                }
                 for (b in toDelete) {
                     bookingApi.deleteBooking(propertyId, b.id!!)
                     // Вырезаем только выделенный диапазон: нераскрашенные
@@ -326,7 +337,8 @@ private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
     address = address.shortAddress(),
     photoUrl = photos?.firstOrNull()?.url,
     rentType = rentType ?: "посуточно",
-    rentAmount = rentAmount
+    rentAmount = rentAmount,
+    tenantInfo = tenantInfo?.takeIf { it.isNotBlank() }
 )
 
 

@@ -1,5 +1,7 @@
 package com.rentmanager.app.ui.navigation
 
+import java.time.LocalDate
+
 /**
  * Маршруты экранов приложения.
  */
@@ -105,8 +107,11 @@ sealed class Screen(val route: String) {
     data object Services : Screen("services")
 
     // Attach tenant
-    data object AttachTenant : Screen("landlord/attach_tenant/{propertyId}") {
-        fun createRoute(propertyId: String) = "landlord/attach_tenant/$propertyId"
+    data object AttachTenant : Screen("landlord/attach_tenant/{propertyId}/{startDate}/{endDate}") {
+        /** startDate/endDate — ISO-строки или "none": пресет периода,
+         *  выбранного в шахматке «Моя недвижимость» (аннотация дизайнера) */
+        fun createRoute(propertyId: String, start: LocalDate? = null, end: LocalDate? = null) =
+            "landlord/attach_tenant/$propertyId/${start?.toString() ?: "none"}/${end?.toString() ?: "none"}"
     }
 
     // Meter detail
