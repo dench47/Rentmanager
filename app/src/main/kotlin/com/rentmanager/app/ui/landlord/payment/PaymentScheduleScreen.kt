@@ -65,6 +65,7 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.InterFontFamily
+import com.rentmanager.app.ui.theme.SectionTitleStyle
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -678,9 +679,10 @@ fun PaymentScheduleScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
             ) {
-                // ---- Тип платежей: лейбл через 12dp после тулбара (Figma: label y115, toolbar до y103)
-                Spacer(Modifier.height(12.dp))
-                Text("Тип платежей", style = Headline2MobStyle)
+                // ---- Тип платежей: 6 после тулбара, стиль 18/600
+                // (канвас «График платежей» 2872-35635: toolbar до y264, label y270)
+                Spacer(Modifier.height(6.dp))
+                Text("Тип платежей", style = SectionTitleStyle)
                 Spacer(Modifier.height(6.dp))
                 PaymentTypeSegment(
                     fixedSelected = typeIsFixed,
@@ -785,11 +787,13 @@ fun PaymentScheduleScreen(
 
                         // ---- Добавить платеж (переменный) ----
                         if (!typeIsFixed) {
-                            Spacer(Modifier.height(10.dp))
+                            // 12 от полей, иконка→текст 6 (2872-35635: y492→504, sp=6)
+                            Spacer(Modifier.height(12.dp))
                             OutlineCtaButton(
                                 text = "Добавить платеж",
                                 borderColor = Graphite,
                                 iconRes = R.drawable.ic_plus_circle_graphite,
+                                iconSpacing = 6.dp,
                                 onClick = { addPayment() }
                             )
                         }
@@ -832,14 +836,9 @@ fun PaymentScheduleScreen(
                 // зазор от карточки 22, до строк 6, строки 44, после каждой
                 // разделитель #DBDBDB во всю ширину
                 if (!typeIsFixed && payments.isNotEmpty()) {
-                    Spacer(Modifier.height(22.dp))
-                    Text(
-                        "Добавленные платежи",
-                        style = CardSubtitleStyle.copy(
-                            fontWeight = FontWeight.Medium,
-                            color = Graphite
-                        )
-                    )
+                    // 12 от карточки, заголовок 15/600 (2872-35635: y569→581)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Добавленные платежи", style = Headline2MobStyle)
                     Spacer(Modifier.height(6.dp))
                     payments.forEachIndexed { index, payment ->
                         PaymentRow(
@@ -866,7 +865,7 @@ fun PaymentScheduleScreen(
                     onClick = { showRequisites = true }
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
             }
 
             // ---- Tabbar ----
@@ -895,7 +894,10 @@ fun PaymentScheduleScreen(
                     if (!onAppliedTab || hasUnsavedChanges) {
                         BlackCtaButton(
                             text = if (onAppliedTab) "Применить изменения" else "Применить график",
-                            enabled = primaryEnabled,
+                            // Активна и при «пустых» правках применённого графика:
+                            // удаление единственного платежа — уже изменение,
+                            // кнопка обязана давать его применить (плашка-то красная)
+                            enabled = primaryEnabled || hasUnsavedChanges,
                             onClick = { showApplyDialog = true }
                         )
                     }
@@ -1418,9 +1420,12 @@ private fun RequisitesField(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (name != null) {
+            // Заполнено (2872-35635): подпись «Реквизиты для оплаты» 13/400
+            // сверху, имя 15/600 снизу, зазор 4 — как в полях дат
             Column(Modifier.weight(1f)) {
+                Text("Реквизиты для оплаты", style = CardSubtitleStyle)
+                Spacer(Modifier.height(4.dp))
                 Text(name, style = Headline2MobStyle)
-                caption?.let { Text(it, style = CardSubtitleStyle) }
             }
         } else {
             Text(

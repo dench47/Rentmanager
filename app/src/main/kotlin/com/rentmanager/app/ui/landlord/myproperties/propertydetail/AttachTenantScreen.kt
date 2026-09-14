@@ -273,7 +273,7 @@ fun AttachTenantScreen(
                         contentDescription = null,
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFFEFEFEF)),
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
@@ -318,6 +318,9 @@ fun AttachTenantScreen(
                 OutlineCtaButton(
                     text = "Выбрать из контактов",
                     iconRes = R.drawable.ic_user_outline,
+                    // Figma «10» 2935-37006: иконка и текст через 6 (не дефолтные 10)
+                    iconSpacing = 6.dp,
+                    borderColor = Graphite,
                     onClick = { showContactsSheet = true }
                 )
                 Spacer(Modifier.height(12.dp))
@@ -903,12 +906,13 @@ private fun ContactsPickerSheet(
             }
             Spacer(Modifier.height(20.dp))
 
-            // Поиск (Figma «10», 2935-36538): лупа 20 на x+20, текст с x+46
+            // Поиск (Figma «10», 2935-36538): лупа 20 на x+20, текст с x+46;
+            // скругление 20 (не пилюля)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(55.dp)
-                    .clip(RoundedCornerShape(100.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Color(0xFFEFEFEF)),
                 verticalAlignment = Alignment.CenterVertically
             ) {
