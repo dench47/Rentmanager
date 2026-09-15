@@ -38,9 +38,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,7 +76,6 @@ import com.rentmanager.app.ui.theme.CardSubtitleStyle
 import com.rentmanager.app.ui.theme.ErrorRed
 import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
-import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.SectionTitleStyle

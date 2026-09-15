@@ -334,7 +334,7 @@ class RoleViewModel @Inject constructor(
 
     private fun formatAmount(amount: Double?): String {
         val v = amount ?: return ""
-        return String.format("%,.0f ₽", v).replace(',', ' ')
+        return String.format(java.util.Locale.US, "%,.0f ₽", v).replace(',', ' ')
     }
 
     private fun formatDate(date: LocalDate): String =

@@ -15,6 +15,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,7 +50,7 @@ fun SecurityScreen(
 
     // ===== Email: диалог активации (шаг 0 — ввод почты, шаг 1 — ввод кода) =====
     var showEmailDialog by remember { mutableStateOf(false) }
-    var emailStep by remember { mutableStateOf(0) }
+    var emailStep by remember { mutableIntStateOf(0) }
     var emailInput by remember { mutableStateOf("") }
     var emailCode by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf<String?>(null) }

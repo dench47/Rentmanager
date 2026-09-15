@@ -18,10 +18,10 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,8 +83,8 @@ fun ScheduleTable(
     properties: List<MyPropertyItem>,
     viewMode: ViewMode,
     onRangeSelected: (String, LocalDate, LocalDate, Boolean) -> Unit,
-    onOverdueMark: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOverdueMark: (String) -> Unit = {}
 ) {
     val dates = remember(viewMode) { buildTimeline(viewMode) }
     val horizontalScroll = rememberScrollState()

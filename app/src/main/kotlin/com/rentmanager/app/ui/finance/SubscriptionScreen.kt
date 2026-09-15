@@ -28,9 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +64,7 @@ private val DividerSoft = Graphite.copy(alpha = 0.4f)
 
 /** Формат суммы баланса: «500 ₽» / «1 250 ₽» */
 private fun Double.toRub(): String =
-    String.format("%,.0f ₽", this).replace(',', ' ')
+    String.format(java.util.Locale.US, "%,.0f ₽", this).replace(',', ' ')
 
 /**
  * «Управление подпиской» (канвас 2990:50668): баланс, тариф и промокод —

@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.theme.SectionTitleStyle
-import com.rentmanager.app.ui.theme.ToolbarTitleStyle
 
 // Шаг 2: выбор варианта сдачи (Figma 2533:17764)
 @Composable

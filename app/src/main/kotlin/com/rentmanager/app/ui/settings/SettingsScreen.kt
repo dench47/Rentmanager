@@ -40,9 +40,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -192,7 +193,7 @@ fun SettingsScreen(
 
     // Email verification dialog
     var showEmailVerifyDialog by remember { mutableStateOf(false) }
-    var emailVerifyStep by remember { mutableStateOf(0) } // 0 = инфо, 1 = код
+    var emailVerifyStep by remember { mutableIntStateOf(0) } // 0 = инфо, 1 = код
     var emailVerifyCode by remember { mutableStateOf("") }
     var emailVerifyError by remember { mutableStateOf<String?>(null) }
     var emailVerifyLoading by remember { mutableStateOf(false) }

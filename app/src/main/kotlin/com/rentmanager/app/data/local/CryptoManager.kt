@@ -1,6 +1,7 @@
 package com.rentmanager.app.data.local
 
 import android.content.Context
+import androidx.compose.runtime.getValue
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext

@@ -41,11 +41,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -137,7 +137,7 @@ fun MyPropertiesScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    var activeTab by remember { mutableStateOf(0) } // 0 — Объекты, 1 — Шахматка
+    var activeTab by remember { mutableIntStateOf(0) } // 0 — Объекты, 1 — Шахматка
     var sortMode by remember { mutableStateOf(SortMode.AS_IS) }
     var showSortSheet by remember { mutableStateOf(false) }
 
@@ -297,7 +297,7 @@ fun MyPropertiesScreen(
             ScheduleDialog(
                 iconRes = null,
                 title = "Отметить платёж полученным?",
-                body = "Платёж " + String.format("%,.0f ₽", item.overdueAmount).replace(',', ' ') +
+                body = "Платёж " + String.format(java.util.Locale.US, "%,.0f ₽", item.overdueAmount).replace(',', ' ') +
                     " будет отмечен как полученный сегодня — например, оплаченный наличными",
                 confirmText = "Отметить оплату",
                 onConfirm = {
@@ -573,7 +573,7 @@ private fun ObjectCard(
         if (property.overdue && property.overdueAmount > 0.0) {
             Text(
                 "Задолженность " +
-                    String.format("%,.0f ₽", property.overdueAmount).replace(',', ' '),
+                    String.format(java.util.Locale.US, "%,.0f ₽", property.overdueAmount).replace(',', ' '),
                 fontSize = 13.sp,
                 letterSpacing = (-0.4).sp,
                 color = OverdueRed
