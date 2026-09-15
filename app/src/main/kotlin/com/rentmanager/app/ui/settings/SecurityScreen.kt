@@ -54,9 +54,10 @@ fun SecurityScreen(
     var emailError by remember { mutableStateOf<String?>(null) }
     var emailLoading by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().background(Color(0xFFF5F5F5))) {
+    Column(Modifier.fillMaxSize().background(Color(0xFFF5F5F5)).statusBarsPadding()) {
+        Spacer(Modifier.height(27.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 60.dp, end = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Клик по всей зоне «стрелка + название» = назад (единый стандарт приложения)

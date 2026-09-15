@@ -283,10 +283,11 @@ fun PropertyCardScreen(
             // обрабатываем вручную, контент и таб-бар поднимаются над IME
             .imePadding()
     ) {
+        Spacer(Modifier.height(27.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 13.dp),
+                .padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {

@@ -40,9 +40,28 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
-// Toolbar экранов флоу создания объекта (Figma: padding 13/20, иконка 24, зазор 8, крестик справа)
+// Toolbar экранов — делегирует единому шаблону AppScreenHeader
+// (правила: ui/components/AppScreenHeader.kt). Оставлен для совместимости.
 @Composable
 fun ScreenToolbar(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    showClose: Boolean = false,
+    onClose: (() -> Unit)? = null
+) {
+    com.rentmanager.app.ui.components.AppScreenHeader(
+        title = title,
+        onBack = onBack,
+        modifier = modifier,
+        showClose = showClose,
+        onClose = onClose
+    )
+}
+
+@Suppress("unused")
+@Composable
+private fun ScreenToolbarLegacy(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,

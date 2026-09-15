@@ -99,12 +99,11 @@ fun MetersListScreen(
             .background(Color(0xFFFFF1CF))
             .statusBarsPadding()
     ) {
-        // Тулбар 50dp на жёлтом фоне (макет: стрелка 24 + 8 + заголовок 20/600)
+        Spacer(Modifier.height(27.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp)
-                .padding(start = 20.dp, end = 20.dp),
+                .padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Назад — клик по всей зоне «стрелка + название» (глобальное правило)

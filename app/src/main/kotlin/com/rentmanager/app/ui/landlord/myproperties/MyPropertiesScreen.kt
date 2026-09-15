@@ -200,11 +200,12 @@ fun MyPropertiesScreen(
                 .padding(paddingValues)
                 .background(White)
         ) {
+            Spacer(Modifier.height(27.dp))
             // ---- Тулбар: назад + заголовок + сортировка ----
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 13.dp),
+                    .padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(

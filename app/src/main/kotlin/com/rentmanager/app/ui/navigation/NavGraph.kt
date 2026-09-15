@@ -584,17 +584,22 @@ fun RentManagerNavGraph(
 
         // ========== Subscription ==========
         composable(Screen.Subscription.route) {
-            // Число объектов — из общей VM списка (обновляется на входе
-            // в «Мою недвижимость»); на самом экране тоже освежаем
-            val properties by propertiesViewModel.properties.collectAsState()
-            LaunchedEffect(Unit) { propertiesViewModel.refresh() }
             SubscriptionScreen(
                 onBack = { navController.popBackStack() },
-                propertyCount = properties.size,
                 onAddProperty = {
                     CreateDraftHolder.markEntryRequested()
                     navController.navigate(Screen.ChoosePropertyType.route)
+                },
+                onHistory = {
+                    navController.navigate(Screen.OperationsHistory.route)
                 }
+            )
+        }
+
+        // ========== История операций подписки ==========
+        composable(Screen.OperationsHistory.route) {
+            com.rentmanager.app.ui.finance.OperationsHistoryScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

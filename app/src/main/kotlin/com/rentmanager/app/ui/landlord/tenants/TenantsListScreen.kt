@@ -70,7 +70,7 @@ fun TenantsListScreen(
             modifier = Modifier.fillMaxSize().padding(paddingValues).background(Color.White)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 12.dp, bottom = 12.dp, end = 0.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 27.dp, bottom = 13.dp, end = 0.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {

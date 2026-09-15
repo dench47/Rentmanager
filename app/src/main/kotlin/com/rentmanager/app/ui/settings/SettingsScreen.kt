@@ -266,7 +266,7 @@ fun SettingsScreen(
 
     Scaffold(containerColor = Color.White) { paddingValues ->
         Column(Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
-            Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 12.dp, bottom = 12.dp, end = 0.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 27.dp, bottom = 13.dp, end = 0.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(modifier = Modifier.clickable { onBack() }.padding(end = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Image(painter = painterResource(R.drawable.ic_arrow_left), contentDescription = "Назад", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit)
                     Text("Настройки", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121), letterSpacing = (-0.3).sp)

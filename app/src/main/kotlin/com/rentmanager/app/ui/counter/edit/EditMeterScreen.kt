@@ -491,7 +491,7 @@ private fun EditMeterToolbar(
         modifier = Modifier
             .fillMaxWidth()
             .background(color)
-            .padding(start = 20.dp, end = 20.dp, top = 13.dp, bottom = 13.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 27.dp, bottom = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Назад — клик по всей зоне «стрелка + название» (глобальное правило)

@@ -135,7 +135,7 @@ fun AddCounterScreen(
         // (ручка шита в макете есть, но с opacity 0.4 — визуально невидима),
         // строка заголовка 36dp: стрелка 24 и текст 20/600 прижаты к верху —
         // под ними до белой панели остаётся 12dp фона (как в макете)
-        Spacer(Modifier.height(36.dp))
+        Spacer(Modifier.height(27.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()

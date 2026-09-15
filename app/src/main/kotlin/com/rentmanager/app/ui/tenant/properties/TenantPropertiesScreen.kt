@@ -72,11 +72,12 @@ fun TenantPropertiesScreen(
                 .padding(paddingValues)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Navigation Bar
+                Spacer(Modifier.height(27.dp))
+                // Navigation Bar (шаблон: инсет + 27, поля 20, низ 13)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(

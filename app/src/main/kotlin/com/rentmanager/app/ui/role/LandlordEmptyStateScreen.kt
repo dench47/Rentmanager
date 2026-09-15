@@ -49,7 +49,7 @@ fun LandlordEmptyStateScreen(
             .background(Color.White)
             .statusBarsPadding()
     ) {
-        Spacer(Modifier.height(13.dp))
+        Spacer(Modifier.height(27.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
