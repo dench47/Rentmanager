@@ -584,8 +584,17 @@ fun RentManagerNavGraph(
 
         // ========== Subscription ==========
         composable(Screen.Subscription.route) {
+            // Число объектов — из общей VM списка (обновляется на входе
+            // в «Мою недвижимость»); на самом экране тоже освежаем
+            val properties by propertiesViewModel.properties.collectAsState()
+            LaunchedEffect(Unit) { propertiesViewModel.refresh() }
             SubscriptionScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                propertyCount = properties.size,
+                onAddProperty = {
+                    CreateDraftHolder.markEntryRequested()
+                    navController.navigate(Screen.ChoosePropertyType.route)
+                }
             )
         }
 
