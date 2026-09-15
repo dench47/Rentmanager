@@ -80,13 +80,14 @@ fun SubscriptionScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var promoInput by remember { mutableStateOf("") }
+
+    // Применён — код из поля убираем (скидка видна только в тарифе)
+    LaunchedEffect(state.appliedPromo) {
+        if (state.appliedPromo != null) promoInput = ""
+    }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
 
-    // Уже применённый промокод — заполняем поле и показываем «Применён»
-    LaunchedEffect(state.appliedPromo) {
-        if (state.appliedPromo != null) promoInput = state.appliedPromo!!
-    }
 
     Column(
         modifier = Modifier
@@ -232,6 +233,8 @@ fun SubscriptionScreen(
             }
 
             // ================= Промокод =================
+            // Поле всегда на месте; применённый код в нём не светится —
+            // скидка видна только в карточке баланса
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Промокод", style = SectionTitleStyle)
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -242,7 +245,6 @@ fun SubscriptionScreen(
                     ) {
                         // Поле 196×50: рамка зелёная (успех) / красная (ошибка)
                         val borderModifier = when {
-                            state.appliedPromo != null -> Modifier.border(1.5.dp, GreenOk, RoundedCornerShape(20.dp))
                             state.promoFailed -> Modifier.border(1.5.dp, RedError, RoundedCornerShape(20.dp))
                             else -> Modifier
                         }
@@ -299,11 +301,23 @@ fun SubscriptionScreen(
                             else -> "Применить"
                         }
                         val filled = promoInput.isNotBlank() && !state.promoFailed
-                        if (filled) {
+                        if (state.appliedPromo != null && !state.promoChecking) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .height(55.dp)
+                                    .clip(RoundedCornerShape(100.dp))
+                                    .background(Graphite.copy(alpha = 0.4f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("Применён", style = Headline2MobStyle.copy(color = Color.White))
+                            }
+                        } else if (filled) {
                             BlackCtaButton(
                                 text = btnLabel,
                                 modifier = Modifier.weight(1f),
-                                enabled = state.appliedPromo == null,
+                                enabled = !state.promoChecking,
                                 onClick = { viewModel.applyPromo(promoInput) }
                             )
                         } else {
@@ -318,13 +332,6 @@ fun SubscriptionScreen(
                     }
                     // Подсказка результата
                     when {
-                        state.appliedPromo != null -> Text(
-                            "✓ Промокод применен",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = (-0.4).sp,
-                            color = GreenOk
-                        )
                         state.promoFailed -> Text(
                             "⚠ Промокод не найден. Проверьте написание",
                             fontSize = 13.sp,

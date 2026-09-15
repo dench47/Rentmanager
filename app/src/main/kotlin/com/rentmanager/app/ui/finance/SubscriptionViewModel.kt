@@ -23,7 +23,11 @@ data class SubscriptionUiState(
     /** Промокод проверяется на сервере — кнопка «Проверяем» */
     val promoChecking: Boolean = false,
     /** Сервер не принял промокод — красная рамка и подсказка */
-    val promoFailed: Boolean = false
+    val promoFailed: Boolean = false,
+    /** Промокод применён в ТЕКУЩЕЙ сессии — блок промокода скрыт;
+     *  серверный promo при новом входе тариф пересчитывает, но поле
+     *  не подсвечивает */
+    val promoAppliedThisSession: Boolean = false
 )
 
 /**
@@ -95,7 +99,9 @@ class SubscriptionViewModel @Inject constructor(
                 if (resp.isSuccessful) {
                     // Перечитываем состояние: тариф/списание пересчитает сервер
                     load()
-                    _uiState.update { it.copy(promoChecking = false) }
+                    _uiState.update {
+                        it.copy(promoChecking = false, promoAppliedThisSession = true)
+                    }
                 } else {
                     _uiState.update { it.copy(promoChecking = false, promoFailed = true) }
                 }
