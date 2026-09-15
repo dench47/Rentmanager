@@ -116,7 +116,7 @@ fun LandlordEmptyStateScreen(
             Spacer(Modifier.height(20.dp))
             BlackPillButton(
                 text = "Добавить первый объект",
-                iconRes = R.drawable.ic_cta_plus,
+                iconRes = R.drawable.ic_plus_circle_white,
                 onClick = onAddFirstObject
             )
             Spacer(Modifier.height(12.dp))

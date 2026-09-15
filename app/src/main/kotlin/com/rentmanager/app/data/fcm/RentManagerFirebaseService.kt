@@ -83,7 +83,7 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
             extras.forEach { (k, v) -> putExtra(k, v) }
         }
         val notification = NotificationCompat.Builder(this, "new_login_v2")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(com.rentmanager.app.R.drawable.ic_notification_pin)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

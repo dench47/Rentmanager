@@ -112,7 +112,7 @@ fun RoleScreen(
                             when {
                                 uiState.role != UserRole.LANDLORD -> 119.dp
                                 uiState.hasDeals -> 105.dp
-                                else -> 116.dp // текст 2×18 + зазор 10 + пилюля 55 + низ 14
+                                else -> 118.dp // текст 37 + 12 + пилюля 55 + низ 14 (2533-17798)
                             }
                         )
                 ) {
@@ -221,8 +221,7 @@ private fun CtaButton(
             painter = painterResource(iconRes),
             contentDescription = null,
             modifier = Modifier.size(24.dp),
-            contentScale = ContentScale.Fit,
-            colorFilter = ColorFilter.tint(Color.White)
+            contentScale = ContentScale.Fit
         )
         Spacer(Modifier.width(10.dp))
         Text(
@@ -467,22 +466,23 @@ private fun LandlordNoObjectsCard(onAddFirstObject: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
-            .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(bottom = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            "Ведите аренду, платежи, договоры и показания счётчиков в одном месте.",
+            "Ведите аренду, платежи, договоры и показания\nсчётчиков в одном месте.",
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,
             fontFamily = InterFontFamily,
             color = Color(0xFF212121),
             letterSpacing = (-0.4).sp,
-            lineHeight = 18.sp
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
         CtaButton(
-            iconRes = R.drawable.ic_cta_plus,
+            iconRes = R.drawable.ic_plus_circle_white,
             text = "Добавить первый объект",
             onClick = onAddFirstObject
         )
