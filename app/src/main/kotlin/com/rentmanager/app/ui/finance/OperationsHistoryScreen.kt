@@ -38,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.data.api.SubscriptionOperationDto
 import com.rentmanager.app.ui.landlord.createproperty.GradientCtaButton
+import com.rentmanager.app.ui.landlord.createproperty.OutlineCtaButton
 import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
@@ -63,6 +64,7 @@ private val RuMonthGenitive = DateTimeFormatter.ofPattern("d MMMM", Locale("ru")
 @Composable
 fun OperationsHistoryScreen(
     onBack: () -> Unit,
+    onAddProperty: () -> Unit = {},
     viewModel: OperationsHistoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -116,6 +118,8 @@ fun OperationsHistoryScreen(
             FilterChip("Зачисления", state.filter == 1) { viewModel.setFilter(1) }
             FilterChip("Списания", state.filter == 2) { viewModel.setFilter(2) }
         }
+        // Чипы → список: 20 (замер 2999:43177 низ → «Сентябрь 2026» верх)
+        Spacer(Modifier.height(20.dp))
 
         val filtered = remember(state.operations, state.filter) {
             when (state.filter) {
@@ -128,10 +132,13 @@ fun OperationsHistoryScreen(
         if (filtered.isEmpty()) {
             EmptyOperations(
                 filter = state.filter,
+                objects = state.objects,
+                balance = state.balance,
                 // «Пополнить баланс» — возвращаем к экрану подписки,
                 // «Показать все операции» — сбрасываем фильтр
                 onTopUp = onBack,
-                onShowAll = { viewModel.setFilter(0) }
+                onShowAll = { viewModel.setFilter(0) },
+                onAddProperty = onAddProperty
             )
         } else {
             // ---- Группы по месяцам ----
@@ -202,12 +209,12 @@ private fun OperationRow(op: SubscriptionOperationDto) {
             .padding(start = 10.dp, top = 10.dp, bottom = 10.dp, end = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Иконка чека в квадрате 42×42 r10
+        // Контейнер иконки 42×42 с внутренними отступами 10/4/8/9 (2990:49766):
+        // слева от края пузыря до иконки 10, справа до текста 8+4
         Box(
             modifier = Modifier
                 .size(42.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.White),
+                .padding(start = 10.dp, top = 4.dp, end = 8.dp, bottom = 9.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -224,7 +231,7 @@ private fun OperationRow(op: SubscriptionOperationDto) {
                     op.amount < 0 -> "Ежедневное списание"
                     else -> "Пополнение баланса"
                 },
-                style = Headline2MobStyle
+                style = Headline2MobStyle.copy(lineHeight = 18.2.sp)
             )
             Spacer(Modifier.height(4.dp))
             Text(
@@ -232,18 +239,21 @@ private fun OperationRow(op: SubscriptionOperationDto) {
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = (-0.4).sp,
+                lineHeight = 15.7.sp,
                 color = GreyText
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 runCatching {
-                    java.time.Instant.parse(op.createdAt)
+                    val dt = java.time.Instant.parse(op.createdAt)
                         .atZone(java.time.ZoneId.systemDefault())
-                        .toLocalDate().format(RuMonthGenitive)
+                    dt.toLocalDate().format(RuMonthGenitive) + ", " +
+                        dt.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
                 }.getOrDefault(""),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = (-0.4).sp,
+                lineHeight = 15.7.sp,
                 color = GreyText
             )
         }
@@ -259,7 +269,10 @@ private fun OperationRow(op: SubscriptionOperationDto) {
                 op.amount > 0 -> GreenOk
                 else -> Graphite
             }
-            Text(amountStr, style = Headline2MobStyle.copy(color = amountColor))
+            Text(
+                amountStr,
+                style = Headline2MobStyle.copy(color = amountColor, lineHeight = 18.2.sp)
+            )
             val statusText = when (op.status) {
                 "credited" -> "Зачислено"
                 "failed" -> "Не зачислено"
@@ -273,8 +286,10 @@ private fun OperationRow(op: SubscriptionOperationDto) {
             Text(
                 statusText,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
+                // Статус — 600 (замер 2990:49767: 'Зачислено' w=600)
+                fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.4).sp,
+                lineHeight = 15.7.sp,
                 color = statusColor
             )
         }
@@ -286,9 +301,15 @@ private fun OperationRow(op: SubscriptionOperationDto) {
 @Composable
 private fun EmptyOperations(
     filter: Int,
+    objects: Int,
+    balance: Double,
     onTopUp: () -> Unit,
-    onShowAll: () -> Unit
+    onShowAll: () -> Unit,
+    onAddProperty: () -> Unit
 ) {
+    // «Деньги на балансе есть, объекта ещё нет» (2996:42128): добавляем
+    // CTA «Добавить объект» над «Пополнить баланс»
+    val noObjectState = objects == 0 && balance > 0
     val title = when (filter) {
         1 -> "Зачислений пока нет"
         2 -> "Списаний пока нет"
@@ -338,8 +359,14 @@ private fun EmptyOperations(
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(20.dp))
-            // CTA пустого состояния — градиентная (замер: GRADIENT_LINEAR)
-            if (filter == 2) {
+            // CTA пустого состояния — градиентная (замер: GRADIENT_LINEAR);
+            // редкое «нет объекта» — градиент на «Добавить объект»,
+            // «Пополнить баланс» рядом контурной (2996:42128)
+            if (noObjectState) {
+                GradientCtaButton(text = "Добавить объект", onClick = onAddProperty)
+                Spacer(Modifier.height(6.dp))
+                OutlineCtaButton(text = "Пополнить баланс", borderColor = Graphite, onClick = onTopUp)
+            } else if (filter == 2) {
                 GradientCtaButton(text = "Показать все операции", onClick = onShowAll)
             } else {
                 GradientCtaButton(text = "Пополнить баланс", onClick = onTopUp)

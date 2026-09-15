@@ -599,7 +599,11 @@ fun RentManagerNavGraph(
         // ========== История операций подписки ==========
         composable(Screen.OperationsHistory.route) {
             com.rentmanager.app.ui.finance.OperationsHistoryScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onAddProperty = {
+                    CreateDraftHolder.markEntryRequested()
+                    navController.navigate(Screen.ChoosePropertyType.route)
+                }
             )
         }
 

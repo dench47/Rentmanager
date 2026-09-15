@@ -19,7 +19,11 @@ data class OperationsUiState(
     val operations: List<SubscriptionOperationDto> = emptyList(),
     /** 0 — все, 1 — зачисления, 2 — списания */
     val filter: Int = 0,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    /** Баланс и число объектов подписки — для редкого пустого состояния
+     *  «деньги закинули, объекта ещё нет» (2996:42128) */
+    val balance: Double = 0.0,
+    val objects: Int = 0
 )
 
 /** История операций подписки: сервер отдаёт списком, группируем по месяцам. */
@@ -42,6 +46,11 @@ class OperationsHistoryViewModel @Inject constructor(
                 _uiState.update { it.copy(operations = body, isLoading = false) }
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false) }
+            }
+            runCatching {
+                financeApi.subscriptionState().body()?.let { s ->
+                    _uiState.update { it.copy(balance = s.balance, objects = s.objects) }
+                }
             }
         }
     }
