@@ -42,6 +42,9 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
     lateinit var tenantEvents: TenantEvents
 
     @Inject
+    lateinit var subscriptionEvents: com.rentmanager.app.data.local.SubscriptionEvents
+
+    @Inject
     lateinit var loginApprovalEvents: LoginApprovalEvents
 
     @Inject
@@ -190,6 +193,18 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
                 } else {
                     loginApprovalEvents.emitDevicesChanged()
                 }
+            }
+            // Подписка: баланс/операции изменились (списание/блок/разблок) —
+            // открытые экраны подписки и истории перечитывают данные
+            "subscription_changed" -> {
+                subscriptionEvents.notifyChanged()
+            }
+            // Подписка: долг превысил один транш — объекты сняты с публикации
+            "subscription_blocked" -> {
+                val title = message.data["title"] ?: "Недостаточно средств"
+                val body = message.data["body"]
+                    ?: "Баланс закончился — объекты недоступны. Пополните баланс, чтобы продолжить"
+                showNotification(title, body)
             }
             "tenant_attached", "tenant_detached" -> {
                 val title = message.data["title"] ?: "Обновление доступа к объекту"

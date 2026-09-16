@@ -36,7 +36,8 @@ data class SubscriptionUiState(
  */
 @HiltViewModel
 class SubscriptionViewModel @Inject constructor(
-    private val financeApi: FinanceApi
+    private val financeApi: FinanceApi,
+    private val subscriptionEvents: com.rentmanager.app.data.local.SubscriptionEvents
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SubscriptionUiState())
@@ -44,6 +45,10 @@ class SubscriptionViewModel @Inject constructor(
 
     init {
         load()
+        // Списание в фоне → сервер прислал subscription_changed → перечитываем
+        viewModelScope.launch {
+            subscriptionEvents.refreshTick.collect { if (it > 0) load() }
+        }
     }
 
     fun load() {
@@ -71,15 +76,14 @@ class SubscriptionViewModel @Inject constructor(
         }
     }
 
-    /** Демо-пополнение: сервер зачисляет 30 ₽ и возвращает новый баланс */
+    /** Демо-пополнение: сервер зачисляет 30 ₽; после — перечитываем
+     *  состояние целиком (параллельный тик списания мог уже изменить баланс) */
     fun topUp() {
         viewModelScope.launch {
             try {
-                val body = financeApi.topUp().body()
-                if (body != null) {
-                    _uiState.update { it.copy(balance = body.balance) }
-                }
+                financeApi.topUp()
             } catch (_: Exception) { }
+            load()
         }
     }
 

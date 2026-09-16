@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -68,6 +69,17 @@ fun OperationsHistoryScreen(
     viewModel: OperationsHistoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+
+    // Операции приходят в фоне (списания в полночь) — обновляем на возврате
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.load()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
 
     Column(
         modifier = Modifier
@@ -262,8 +274,15 @@ private fun OperationRow(op: SubscriptionOperationDto) {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val amountStr = (if (op.amount > 0) "+" else "−") +
-                String.format(java.util.Locale.US, "%,.0f ₽", kotlin.math.abs(op.amount)).replace(',', ' ')
+            val amountStr = when {
+                // Неудачное списание: «30 ₽» без знака (макет 3178-51159)
+                op.status == "failed" ->
+                    String.format(java.util.Locale.US, "%,.0f ₽", kotlin.math.abs(op.amount)).replace(',', ' ')
+                op.amount > 0 -> "+" +
+                    String.format(java.util.Locale.US, "%,.0f ₽", kotlin.math.abs(op.amount)).replace(',', ' ')
+                else -> "−" +
+                    String.format(java.util.Locale.US, "%,.0f ₽", kotlin.math.abs(op.amount)).replace(',', ' ')
+            }
             val amountColor = when {
                 op.status == "failed" -> GreyText
                 op.amount > 0 -> GreenOk
@@ -275,7 +294,9 @@ private fun OperationRow(op: SubscriptionOperationDto) {
             )
             val statusText = when (op.status) {
                 "credited" -> "Зачислено"
-                "failed" -> "Не зачислено"
+                // неудачное списание — «Не выполнено» (3178-51159),
+                // неудачное пополнение — «Не зачислено» (макет «Все операции»)
+                "failed" -> if (op.amount > 0) "Не зачислено" else "Не выполнено"
                 else -> if (op.amount > 0) "Начислено" else "Выполнено"
             }
             val statusColor = when (op.status) {

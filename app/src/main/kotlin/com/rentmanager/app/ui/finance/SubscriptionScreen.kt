@@ -81,6 +81,17 @@ fun SubscriptionScreen(
     val state by viewModel.uiState.collectAsState()
     var promoInput by remember { mutableStateOf("") }
 
+    // Списания тикают в фоне — при каждом возврате на экран перечитываем
+    // баланс/тариф, чтобы цифра не устаревала
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.load()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Применён — код из поля убираем (скидка видна только в тарифе)
     LaunchedEffect(state.appliedPromo) {
         if (state.appliedPromo != null) promoInput = ""

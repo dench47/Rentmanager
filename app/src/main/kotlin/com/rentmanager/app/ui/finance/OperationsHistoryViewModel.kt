@@ -29,7 +29,8 @@ data class OperationsUiState(
 /** История операций подписки: сервер отдаёт списком, группируем по месяцам. */
 @HiltViewModel
 class OperationsHistoryViewModel @Inject constructor(
-    private val financeApi: FinanceApi
+    private val financeApi: FinanceApi,
+    private val subscriptionEvents: com.rentmanager.app.data.local.SubscriptionEvents
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OperationsUiState())
@@ -37,6 +38,10 @@ class OperationsHistoryViewModel @Inject constructor(
 
     init {
         load()
+        // Новая операция в фоне → событие → перечитываем без поллинга
+        viewModelScope.launch {
+            subscriptionEvents.refreshTick.collect { if (it > 0) load() }
+        }
     }
 
     fun load() {
