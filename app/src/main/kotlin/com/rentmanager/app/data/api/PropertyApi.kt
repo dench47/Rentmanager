@@ -62,6 +62,10 @@ interface PropertyApi {
     @POST("properties/{id}/attach_tenant")
     suspend fun attachTenant(@Path("id") id: String, @Body request: AttachTenantRequest): Response<MessageResponse>
 
+    /** Открепление арендатора: сервер освобождает объект и шахматку с текущего месяца. */
+    @POST("properties/{id}/detach_tenant")
+    suspend fun detachTenant(@Path("id") id: String): Response<MessageResponse>
+
     @POST("properties/{id}/photos")
     suspend fun addPhoto(@Path("id") id: String, @Body request: AddPhotoRequest): Response<PhotoDto>
 

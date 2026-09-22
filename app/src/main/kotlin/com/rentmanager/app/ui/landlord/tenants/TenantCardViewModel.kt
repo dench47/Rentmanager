@@ -14,6 +14,7 @@ import java.time.LocalDate
 import javax.inject.Inject
 
 data class BookingEntryUi(
+    val propertyId: String = "",
     val startDate: LocalDate,
     val endDate: LocalDate,
     val propertyName: String,
@@ -39,8 +40,14 @@ data class TenantCardUiState(
 @HiltViewModel
 class TenantCardViewModel @Inject constructor(
     private val tenantApi: TenantApi,
+    private val propertyApi: com.rentmanager.app.data.api.PropertyApi,
+    private val tenantEvents: com.rentmanager.app.data.local.TenantEvents,
     savedStateHandle: androidx.lifecycle.SavedStateHandle
 ) : ViewModel() {
+
+    /** Свободные объекты для шита «Прикрепить к объекту» (3005:52495) */
+    private val _freeProperties = kotlinx.coroutines.flow.MutableStateFlow<List<com.rentmanager.app.data.model.PropertyDto>>(emptyList())
+    val freeProperties: kotlinx.coroutines.flow.StateFlow<List<com.rentmanager.app.data.model.PropertyDto>> = _freeProperties.asStateFlow()
 
     private val _uiState = MutableStateFlow(TenantCardUiState())
     val uiState: StateFlow<TenantCardUiState> = _uiState.asStateFlow()
@@ -62,12 +69,18 @@ class TenantCardViewModel @Inject constructor(
             }
         }
         load(tenantId)
+        // FCM tenant_profile_changed (арендатор сменил аву/почту/компанию) —
+        // перезабираем карточку одним запросом и молча обновляем состояние
+        viewModelScope.launch {
+            tenantEvents.refreshTick.collect { if (it > 0) load(tenantId) }
+        }
     }
 
     private fun applyCard(state: TenantCardUiState, dto: TenantDto): TenantCardUiState {
         val entries = dto.bookings.orEmpty().mapNotNull { b ->
             runCatching {
                 BookingEntryUi(
+                    propertyId = b.propertyId.orEmpty(),
                     startDate = LocalDate.parse(b.startDate),
                     endDate = LocalDate.parse(b.endDate),
                     propertyName = b.propertyName?.ifBlank { null } ?: "Без названия",
@@ -93,6 +106,44 @@ class TenantCardViewModel @Inject constructor(
                 TenantCardCache.putCard(dto)
                 _uiState.update { applyCard(it, dto) }
             } ?: _uiState.update { it.copy(isLoading = false) }
+        }
+    }
+
+    fun loadFreeProperties() {
+        viewModelScope.launch {
+            runCatching { propertyApi.getProperties().body().orEmpty().filter { it.status == "free" } }
+                .onSuccess { _freeProperties.value = it }
+        }
+    }
+
+    /** Прикрепление арендатора к свободному объекту (шит 3005:52495) */
+    fun attachToProperty(propertyId: String, onDone: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val ok = runCatching {
+                propertyApi.attachTenant(
+                    propertyId,
+                    com.rentmanager.app.data.api.AttachTenantRequest(tenantId = tenantId)
+                ).isSuccessful
+            }.getOrDefault(false)
+            if (ok) load(tenantId)
+            onDone(ok)
+        }
+    }
+
+    /** Удаление: false = 409 «нельзя, есть активная аренда» (3005:53081) */
+    fun deleteTenant(onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val code = runCatching { tenantApi.deleteTenant(tenantId).code() }.getOrDefault(500)
+            onResult(code == 200)
+        }
+    }
+
+    /** «Отменить удаление» (3014:22433) */
+    fun restoreTenant(onDone: () -> Unit) {
+        viewModelScope.launch {
+            runCatching { tenantApi.restoreTenant(tenantId) }
+            load(tenantId)
+            onDone()
         }
     }
 

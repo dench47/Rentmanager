@@ -103,37 +103,17 @@ class AttachTenantViewModel @Inject constructor(
     }
 
     /**
-     * Открепление (Figma 2936:41556):Tenant удалять нельзя (сносится вся
-     * история) — снимаем связь с объектом: tenant_id/status/tenant_info/phone,
-     * период снимается удалением будущих броней.
+     * Открепление (Figma 2936:41556): Tenant удалять нельзя (сносится вся
+     * история) — связь с объектом снимает серверный detach_tenant: он же
+     * освобождает шахматку с первого числа текущего месяца.
      */
     fun detach(propertyId: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _uiState.update { it.copy(isAttaching = true, failed = false) }
             try {
-                val propResp = propertyApi.getProperties()
-                val current = propResp.body()?.firstOrNull { it.id == propertyId }
-                if (current != null) {
-                    propertyApi.updateProperty(
-                        propertyId,
-                        current.copy(
-                            tenantId = null,
-                            tenantInfo = "",
-                            phone = "",
-                            status = "free"
-                        )
-                    )
-                }
-                // Будущие брони периода — снять (прошедшие остаются историей)
-                val today = LocalDate.now()
-                bookingApi.getBookings(propertyId).body().orEmpty()
-                    .filter { b ->
-                        val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
-                        e != null && !e.isBefore(today)
-                    }
-                    .forEach { b -> b.id?.let { runCatching { bookingApi.deleteBooking(propertyId, it) } } }
-                _uiState.update { it.copy(isAttaching = false) }
-                onSuccess()
+                val resp = propertyApi.detachTenant(propertyId)
+                _uiState.update { it.copy(isAttaching = false, failed = !resp.isSuccessful) }
+                if (resp.isSuccessful) onSuccess()
             } catch (_: Exception) {
                 _uiState.update { it.copy(isAttaching = false, failed = true) }
             }

@@ -144,30 +144,19 @@ class PropertyCardViewModel @Inject constructor(
     }
 
     /**
-     * Открепление арендатора (Figma 2936:41556): снимаем связь с объектом
-     * (tenant_id/status/tenant_info/phone) и будущие брони периода;
-     * затем перезагружаем карточку.
+     * Открепление арендатора (Figma 2936:41556): серверный detach_tenant
+     * освобождает объект (tenant_id/status/tenant_info/phone/срок аренды)
+     * и шахматку с первого числа текущего месяца — иначе карточка уже
+     * «готова к аренде», а месяцы остаются зелёными. Затем перезагружаем карточку.
      */
     fun detachTenant(propertyId: String, onDone: () -> Unit) {
-        val current = _uiState.value.property ?: return
         viewModelScope.launch {
             try {
-                repository.updateProperty(
-                    propertyId,
-                    current.copy(
-                        tenantId = null,
-                        tenantInfo = "",
-                        phone = "",
-                        status = "free"
-                    )
-                )
-                val today = LocalDate.now()
-                bookingApi.getBookings(propertyId).body().orEmpty()
-                    .filter { b ->
-                        val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
-                        e != null && !e.isBefore(today)
-                    }
-                    .forEach { b -> b.id?.let { runCatching { bookingApi.deleteBooking(propertyId, it) } } }
+                val resp = repository.detachTenant(propertyId)
+                if (!resp.isSuccessful) {
+                    _errorEvents.emit("Не удалось открепить арендатора (${resp.code()})")
+                    return@launch
+                }
                 load(propertyId)
                 onDone()
             } catch (_: Exception) {

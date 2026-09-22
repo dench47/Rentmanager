@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -46,6 +47,7 @@ import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.SectionTitleStyle
 
 private val CardGrey = Color(0xFFEFEFEF)
+private val DividerGrey = Color(0xFFDBDBDB)
 
 /** Шапка «Карточка арендатора»: назад + название + вертикальное меню. */
 @Composable
@@ -115,29 +117,33 @@ fun InfoCard(caption: String, value: String) {
     }
 }
 
-/** Строка блока аренды: дата периода с календарём 18 + карточка объекта. */
+/** Строка блока аренды (канвас «14», 3005:51020): БЕЗ фона — календарь 18 + 6 +
+ *  период 13/500, ниже фото 40 r8 + имя 15/600 + адрес 13/400, в самом низу
+ *  тонкая черта #DBDBDB (как в списках). Тап по строке — переход в карточку объекта. */
 @Composable
 fun BookingEntry(
     period: String,
     propertyName: String,
     propertyAddress: String,
-    photoUrl: String?
+    photoUrl: String?,
+    onClick: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardGrey)
-            .padding(10.dp),
+            .clickable { onClick() }
+            .padding(top = 10.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Icon(
                 painter = painterResource(R.drawable.ic_calendar_payment),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp)
             )
-            Spacer(Modifier.width(6.dp))
             Text(
                 period,
                 fontSize = 13.sp,
@@ -165,5 +171,6 @@ fun BookingEntry(
                 Text(propertyAddress, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
             }
         }
+        HorizontalDivider(color = DividerGrey)
     }
 }

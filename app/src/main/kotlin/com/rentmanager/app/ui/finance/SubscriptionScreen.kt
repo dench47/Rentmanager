@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -392,11 +393,12 @@ private fun LinkRow(label: String, onClick: () -> Unit = { }) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(label, style = Headline2MobStyle, modifier = Modifier.weight(1f))
-        Icon(
-            painter = painterResource(R.drawable.ic_chevron_right),
+        Image(
+            painter = painterResource(R.drawable.ic_card_chevron),
             contentDescription = null,
-            modifier = Modifier.size(40.dp),
-            tint = Color.Unspecified
+            modifier = Modifier
+                .size(40.dp)
+                .graphicsLayer { rotationZ = -90f }
         )
     }
 }

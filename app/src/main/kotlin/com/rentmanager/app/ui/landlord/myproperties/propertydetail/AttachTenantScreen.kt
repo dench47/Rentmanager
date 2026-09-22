@@ -153,16 +153,6 @@ object AttachTenantDraftHolder {
 }
 
 /**
- * Предложение добавить вручную введённого арендатора в телефонную книгу:
- * экран прикрепления кладёт сюда контакт при успешном прикреплении, если
- * контакт НЕ был выбран из книги; карточка объекта после возврата
- * показывает диалог «Добавить в контакты?» и очищает предложение.
- */
-object ContactSuggestionHolder {
-    var pending: PhoneContact? = null
-}
-
-/**
  * Экран «Добавить арендатора» (канвас Figma «Добавить арендатора»,
  * файл KyNooQwZuHP9Fz3qShY2Lg): карточка объекта, период аренды
  * (Начало/Окончание — календарные шиты), арендатор (контакты или вручную),
@@ -204,8 +194,6 @@ fun AttachTenantScreen(
     }
     val storedDraft = remember(propertyId) { AttachTenantDraftHolder.get(context, propertyId) }
     var showResumeDialog by remember { mutableStateOf(storedDraft != null) }
-    // Контакт выбран из книги — предложение «добавить в контакты» не нужно
-    var pickedFromBook by remember { mutableStateOf(false) }
     DisposableEffect(propertyId) {
         onDispose {
             if (attached) AttachTenantDraftHolder.clear(context, propertyId) else saveDraft()
@@ -239,12 +227,6 @@ fun AttachTenantScreen(
         // Период включает последний выбранный день (вопрос дизайнера решён так)
         viewModel.attach(propertyId, fullName.trim(), phone, start, end) {
             attached = true
-            // Ручной ввод: предложить добавить контакт в телефонную книгу —
-            // диалог покажет карточка объекта после возврата
-            if (!pickedFromBook) {
-                ContactSuggestionHolder.pending =
-                    PhoneContact(fullName.trim(), formatRuPhone(phone))
-            }
             onAttached()
         }
     }
@@ -405,7 +387,6 @@ fun AttachTenantScreen(
                 phone = contactPhoneValue(it.phone)
                 nameError = false
                 phoneError = null
-                pickedFromBook = true
                 showContactsSheet = false
                 saveDraft()
             },

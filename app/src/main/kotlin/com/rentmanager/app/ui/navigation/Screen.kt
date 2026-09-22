@@ -98,6 +98,9 @@ sealed class Screen(val route: String) {
     data object TenantCard : Screen("landlord/tenants/{tenantId}") {
         fun createRoute(tenantId: String) = "landlord/tenants/$tenantId"
     }
+    data object TenantEdit : Screen("landlord/tenants/{tenantId}/edit") {
+        fun createRoute(tenantId: String) = "landlord/tenants/$tenantId/edit"
+    }
     data object Messages : Screen("landlord/messages")
     data object Chat : Screen("landlord/chat/{chatId}") {
         fun createRoute(chatId: String) = "landlord/chat/$chatId"

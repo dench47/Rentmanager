@@ -213,6 +213,12 @@ class RentManagerFirebaseService : FirebaseMessagingService() {
                 // Сигнал на обновление списка объектов у арендатора
                 tenantEvents.notifyChanged()
             }
+            // Арендатор (зарегистрированный юзер) сменил аву/почту/название
+            // компании — молча обновляем карточку и список у владельца
+            "tenant_profile_changed" -> {
+                Log.d("FCM", "Received tenant_profile_changed")
+                tenantEvents.notifyChanged()
+            }
         }
     }
 }

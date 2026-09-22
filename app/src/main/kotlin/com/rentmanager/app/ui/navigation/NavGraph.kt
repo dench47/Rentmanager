@@ -589,6 +589,22 @@ fun RentManagerNavGraph(
             val tenantId = backStackEntry.arguments?.getString("tenantId") ?: ""
             com.rentmanager.app.ui.landlord.tenants.TenantCardScreen(
                 tenantId = tenantId,
+                onBack = { navController.popBackStack() },
+                onPropertyClick = { propertyId ->
+                    navController.navigate(Screen.PropertyCard.createRoute(propertyId))
+                },
+                onEdit = {
+                    navController.navigate(Screen.TenantEdit.createRoute(tenantId))
+                }
+            )
+        }
+
+        // ========== Редактирование арендатора ==========
+        composable(
+            route = Screen.TenantEdit.route,
+            arguments = listOf(navArgument("tenantId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            com.rentmanager.app.ui.landlord.tenants.TenantEditScreen(
                 onBack = { navController.popBackStack() }
             )
         }

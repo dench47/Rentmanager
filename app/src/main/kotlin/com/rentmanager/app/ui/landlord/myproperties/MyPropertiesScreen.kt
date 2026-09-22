@@ -1,5 +1,6 @@
 package com.rentmanager.app.ui.landlord.myproperties
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -633,11 +635,12 @@ private fun ObjectCard(
                 color = TextGray,
                 modifier = Modifier.weight(1f)
             )
-            Icon(
-                painter = painterResource(R.drawable.ic_chevron_right),
+            Image(
+                painter = painterResource(R.drawable.ic_card_chevron),
                 contentDescription = null,
-                modifier = Modifier.size(40.dp),
-                tint = Color.Unspecified
+                modifier = Modifier
+                    .size(40.dp)
+                    .graphicsLayer { rotationZ = -90f }
             )
         }
     }
