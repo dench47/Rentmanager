@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.data.model.TenantDto
+import com.rentmanager.app.ui.components.EmptyContactsState
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
@@ -66,47 +69,68 @@ fun TenantsListScreen(
     }
 
     Scaffold(containerColor = Color.White) { paddingValues ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).background(Color.White)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 27.dp, bottom = 13.dp, end = 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+        Box(Modifier.fillMaxSize()) {
+            // Паттерн эталонных экранов: Scaffold paddingValues (стабильны с первого кадра;
+            // явный statusBarsPadding на переходе «нырял» вниз) → 27 → строка(20/13)
+            Column(
+                modifier = Modifier.fillMaxSize().padding(paddingValues).background(Color.White)
             ) {
+                Spacer(Modifier.height(27.dp))
                 Row(
-                    modifier = Modifier.clickable { onBack() }.padding(end = 20.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Image(painter = painterResource(R.drawable.ic_arrow_left), contentDescription = "Назад", modifier = Modifier.size(24.dp))
-                    Text("Арендаторы", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
+                    Row(
+                        modifier = Modifier.clickable { onBack() },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Image(painter = painterResource(R.drawable.ic_landlord_back), contentDescription = "Назад", modifier = Modifier.size(24.dp))
+                        Text("Арендаторы", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
+                    }
+                    if (uiState.tenants.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Image(painter = painterResource(R.drawable.ic_search), contentDescription = "Поиск", modifier = Modifier.size(24.dp).clickable { })
+                            Image(painter = painterResource(R.drawable.ic_sort), contentDescription = "Сортировка", modifier = Modifier.size(24.dp).clickable { })
+                        }
+                    }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 4.dp)) {
-                    Box(Modifier.size(44.dp).clickable { }, Alignment.Center) { Image(painter = painterResource(R.drawable.ic_search), contentDescription = "Поиск", modifier = Modifier.size(24.dp)) }
-                    Box(Modifier.size(44.dp).clickable { }, Alignment.Center) { Image(painter = painterResource(R.drawable.ic_sort), contentDescription = "Сортировка", modifier = Modifier.size(24.dp)) }
-                }
-            }
 
-            uiState.errorMessage?.let {
-                Text(it, color = Color(0xFFE53935), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-            }
-
-            if (uiState.isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Загрузка…", fontSize = 14.sp, color = Color(0xFF8E8E93))
+                uiState.errorMessage?.let {
+                    Text(it, color = Color(0xFFE53935), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 }
-            } else {
-                LazyColumn(Modifier.fillMaxSize()) {
+
+                if (uiState.isLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Загрузка…", fontSize = 14.sp, color = Color(0xFF8E8E93))
+                    }
+                } else if (uiState.tenants.isNotEmpty()) {
+                    LazyColumn(Modifier.fillMaxSize()) {
                     items(uiState.tenants, key = { it.id }) { tenant ->
                         TenantCard(
                             tenant = tenant,
-                            onClick = { onTenantClick(tenant.id) },
+                            onClick = {
+                                // Мгновенный рендер карточки: кладём DTO в кеш до навигации
+                                TenantCardCache.put(tenant)
+                                onTenantClick(tenant.id)
+                            },
                             onLongClick = { tenantToDelete = tenant }
                         )
-                        HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+                            HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+                        }
                     }
                 }
+            }
+
+            // Пустое состояние — оверлей на весь экран: центр блока по полной высоте кадра (макет 3108:56847)
+            if (!uiState.isLoading && uiState.tenants.isEmpty()) {
+                EmptyContactsState(
+                    title = "Арендаторов пока нет",
+                    subtitle = "Добавленные арендаторы появятся здесь",
+                    ctaText = "Добавить арендатора",
+                    onCtaClick = { }
+                )
             }
         }
     }
@@ -154,13 +178,24 @@ private fun TenantCard(
                 modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFEFEFEF)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    displayName.take(1).uppercase(),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF8E8E93),
-                    fontFamily = InterFontFamily
-                )
+                // Ава с аккаунта арендатора (если телефон совпал с юзером), иначе инициал
+                val avatarUrl = tenant.avatarUrl
+                if (avatarUrl != null) {
+                    coil.compose.AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp).clip(CircleShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        displayName.take(1).uppercase(),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF8E8E93),
+                        fontFamily = InterFontFamily
+                    )
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(displayName, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.Black, letterSpacing = (-0.3).sp)

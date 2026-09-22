@@ -12,6 +12,10 @@ interface TenantApi {
     @GET("tenants/{id}")
     suspend fun getTenant(@Path("id") id: String): Response<TenantDto>
 
+    /** Карточка арендатора целиком (арендатор + брони с объектами) — один запрос */
+    @GET("tenants/{id}/card")
+    suspend fun getTenantCard(@Path("id") id: String): Response<TenantDto>
+
     @POST("tenants")
     suspend fun createTenant(@Body tenant: TenantDto): Response<TenantDto>
 

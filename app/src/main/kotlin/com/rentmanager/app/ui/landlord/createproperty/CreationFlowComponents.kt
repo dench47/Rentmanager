@@ -198,6 +198,7 @@ fun BlackCtaButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     iconRes: Int? = null,
+    iconSpacing: Dp = 6.dp,
     containerColor: Color = Graphite,
     onClick: () -> Unit
 ) {
@@ -213,7 +214,7 @@ fun BlackCtaButton(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(iconSpacing)
         ) {
             if (iconRes != null) {
                 Image(
@@ -234,7 +235,7 @@ fun OutlineCtaButton(
     modifier: Modifier = Modifier,
     iconRes: Int? = null,
     borderColor: Color = GreyText,
-    iconSpacing: Dp = 10.dp,
+    iconSpacing: Dp = 6.dp,
     enabled: Boolean = true,
     textColor: Color? = null,
     onClick: () -> Unit
@@ -269,12 +270,15 @@ fun OutlineCtaButton(
     }
 }
 
-// Градиентная CTA-кнопка (Figma: 55, радиус 100, градиент 136deg, текст #212121)
+// Градиентная CTA-кнопка (Figma: 55, радиус 100, градиент 136deg, текст #212121;
+// иконка 24 с зазором 6 — эталон канваса «14», 3463:71139)
 @Composable
 fun GradientCtaButton(
     text: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    iconRes: Int? = null,
+    iconSpacing: Dp = 6.dp,
     onClick: () -> Unit
 ) {
     val brush = rememberCtaGradient()
@@ -289,6 +293,18 @@ fun GradientCtaButton(
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(text, style = Headline2MobStyle)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(iconSpacing)
+        ) {
+            iconRes?.let {
+                Image(
+                    painter = painterResource(it),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Text(text, style = Headline2MobStyle)
+        }
     }
 }

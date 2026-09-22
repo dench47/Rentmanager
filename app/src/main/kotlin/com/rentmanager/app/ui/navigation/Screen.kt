@@ -87,9 +87,6 @@ sealed class Screen(val route: String) {
         }
     }
     data object TenantsList : Screen("landlord/tenants")
-    data object TenantDetail : Screen("landlord/tenant_detail/{tenantId}") {
-        fun createRoute(tenantId: String) = "landlord/tenant_detail/$tenantId"
-    }
     data object LandlordsList : Screen("landlord/landlords_list")
     data object OtherProperties : Screen("landlord/other_properties")
     data object OtherPropertyDetail : Screen("landlord/other_property_detail/{propertyId}") {
@@ -98,6 +95,9 @@ sealed class Screen(val route: String) {
     data object Finance : Screen("landlord/finance")
     data object Subscription : Screen("landlord/finance/subscription")
     data object OperationsHistory : Screen("landlord/finance/subscription/history")
+    data object TenantCard : Screen("landlord/tenants/{tenantId}") {
+        fun createRoute(tenantId: String) = "landlord/tenants/$tenantId"
+    }
     data object Messages : Screen("landlord/messages")
     data object Chat : Screen("landlord/chat/{chatId}") {
         fun createRoute(chatId: String) = "landlord/chat/$chatId"

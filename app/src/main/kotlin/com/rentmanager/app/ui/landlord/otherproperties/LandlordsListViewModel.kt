@@ -26,21 +26,26 @@ class LandlordsListViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(LandlordsListUiState())
     val uiState: StateFlow<LandlordsListUiState> = _uiState.asStateFlow()
 
+    /** Загрузка уже проходила — дальше только тихий рефреш, без «Загрузки…» и мигания */
+    private var loadedOnce = false
+
     init {
         load()
     }
 
     fun load() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            _uiState.update { it.copy(isLoading = !loadedOnce, errorMessage = null) }
             try {
                 val resp = tenantApi.getLandlords()
+                loadedOnce = true
                 if (resp.isSuccessful) {
                     _uiState.update { it.copy(isLoading = false, landlords = resp.body() ?: emptyList()) }
                 } else {
                     _uiState.update { it.copy(isLoading = false, errorMessage = "Ошибка загрузки") }
                 }
             } catch (_: Exception) {
+                loadedOnce = true
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Нет связи с сервером") }
             }
         }

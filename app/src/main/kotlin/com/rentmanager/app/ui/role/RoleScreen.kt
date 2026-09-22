@@ -167,14 +167,15 @@ fun RoleScreen(
                 }
 
                 if (uiState.role == UserRole.LANDLORD) {
-                    // Figma «Арендодатель_1» (4005-20627): зазоры до/между кнопками 12dp
+                    // Канвас «14» 2533:17798: нижняя пара НЕ менялась —
+                    // градиент «Управление подпиской» (алмаз) + контурная
+                    // «Разместить объявление о сдаче» (пин); зазоры 12/6, иконка-текст 6
                     Spacer(Modifier.height(12.dp))
                     GradientCtaButton(
                         iconRes = R.drawable.ic_cta_diamond,
                         text = "Управление подпиской",
                         onClick = onNavigateToSubscription
                     )
-                    // Между кнопками 6 (правка дизайнера, файл «8»)
                     Spacer(Modifier.height(6.dp))
                     OutlineCtaButton(
                         iconRes = R.drawable.ic_cta_pin,
@@ -223,7 +224,7 @@ private fun CtaButton(
             modifier = Modifier.size(24.dp),
             contentScale = ContentScale.Fit
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(6.dp))
         Text(
             text,
             fontSize = 15.sp,
@@ -238,7 +239,7 @@ private fun CtaButton(
 }
 
 @Composable
-fun GradientCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
+fun GradientCtaButton(iconRes: Int? = null, text: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -249,13 +250,16 @@ fun GradientCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            modifier = Modifier.size(24.dp),
-            contentScale = ContentScale.Fit
-        )
-        Spacer(Modifier.width(10.dp))
+        iconRes?.let {
+            Image(
+                painter = painterResource(it),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit
+            )
+            // Эталон канваса «14»: иконка 24 + зазор 6
+            Spacer(Modifier.width(6.dp))
+        }
         Text(
             text,
             fontSize = 15.sp,
@@ -291,7 +295,7 @@ private fun OutlineCtaButton(iconRes: Int, text: String, onClick: () -> Unit) {
             modifier = Modifier.size(24.dp),
             contentScale = ContentScale.Fit
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(6.dp))
         Text(
             text,
             fontSize = 15.sp,
@@ -482,7 +486,7 @@ private fun LandlordNoObjectsCard(onAddFirstObject: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         )
         CtaButton(
-            iconRes = R.drawable.ic_plus_circle_white,
+            iconRes = R.drawable.ic_cta_plus_white,
             text = "Добавить первый объект",
             onClick = onAddFirstObject
         )

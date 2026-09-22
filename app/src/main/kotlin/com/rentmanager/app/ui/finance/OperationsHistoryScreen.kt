@@ -31,7 +31,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -317,8 +319,10 @@ private fun OperationRow(op: SubscriptionOperationDto) {
     }
 }
 
-/** Пустое состояние: карточка r30 с иллюстрацией; тексты и кнопка
- *  свои для каждого фильтра (макеты «Все операции»/«Зачисления»/«Списания») */
+/** Пустое состояние (канвас «14», 3463:71139/71157/71175 — звезда Вики):
+ *  блок на белом экране без карточки-контейнера, иллюстрация
+ *  empty-payment-history 140, пара CTA «Добавить объект» (градиент, плюс)
+ *  + «Пополнить баланс» (контур) на всех табах, зазоры иконка-текст 6 */
 @Composable
 private fun EmptyOperations(
     filter: Int,
@@ -328,23 +332,17 @@ private fun EmptyOperations(
     onShowAll: () -> Unit,
     onAddProperty: () -> Unit
 ) {
-    // «Деньги на балансе есть, объекта ещё нет» (2996:42128): добавляем
-    // CTA «Добавить объект» над «Пополнить баланс»
-    val noObjectState = objects == 0 && balance > 0
     val title = when (filter) {
         1 -> "Зачислений пока нет"
         2 -> "Списаний пока нет"
         else -> "Операций пока нет"
     }
-    // Переносы строк как у дизайнера (файл 12, правка Вики): «здесь»
-    // больше не висит одно на второй строке
+    // Переносы строк как у дизайнера: «здесь» не висит одно на второй строке
     val subtitle = when (filter) {
         1 -> "После первого пополнения информация\nпоявится здесь"
         2 -> "После первого списания информация\nпоявится здесь"
         else -> "После первого пополнения или списания\nинформация появится здесь"
     }
-    // Карточка пустого состояния — на всю ширину экрана (412, r30),
-    // контент внутри с полем 20: левый край CTA совпадает с чипами фильтров
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -354,15 +352,15 @@ private fun EmptyOperations(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(30.dp))
-                .background(Color.White)
-                .padding(20.dp),
+                .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val illustration = ImageBitmap.imageResource(R.drawable.ic_empty_operations_history)
             Image(
-                painter = painterResource(R.drawable.ic_empty_operations),
+                bitmap = illustration,
                 contentDescription = null,
-                modifier = Modifier.size(160.dp)
+                modifier = Modifier.size(140.dp),
+                filterQuality = androidx.compose.ui.graphics.FilterQuality.High
             )
             Spacer(Modifier.height(20.dp))
             Text(
@@ -382,18 +380,15 @@ private fun EmptyOperations(
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(20.dp))
-            // CTA пустого состояния — градиентная (замер: GRADIENT_LINEAR);
-            // редкое «нет объекта» — градиент на «Добавить объект»,
-            // «Пополнить баланс» рядом контурной (2996:42128)
-            if (noObjectState) {
-                GradientCtaButton(text = "Добавить объект", onClick = onAddProperty)
-                Spacer(Modifier.height(6.dp))
-                OutlineCtaButton(text = "Пополнить баланс", borderColor = Graphite, onClick = onTopUp)
-            } else if (filter == 2) {
-                GradientCtaButton(text = "Показать все операции", onClick = onShowAll)
-            } else {
-                GradientCtaButton(text = "Пополнить баланс", onClick = onTopUp)
-            }
+            // Единая пара на всех табах (канвас «14»): градиент «Добавить объект»
+            // с плюсом (зазор 6) + контурная «Пополнить баланс», между ними 6
+            GradientCtaButton(
+                text = "Добавить объект",
+                iconRes = R.drawable.ic_plus_circle_graphite,
+                onClick = onAddProperty
+            )
+            Spacer(Modifier.height(6.dp))
+            OutlineCtaButton(text = "Пополнить баланс", borderColor = Graphite, onClick = onTopUp)
         }
     }
 }

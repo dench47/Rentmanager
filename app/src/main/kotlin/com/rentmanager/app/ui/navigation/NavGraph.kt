@@ -522,24 +522,9 @@ fun RentManagerNavGraph(
         composable(Screen.TenantsList.route) {
             com.rentmanager.app.ui.landlord.tenants.TenantsListScreen(
                 onTenantClick = { tenantId ->
-                    navController.navigate(Screen.TenantDetail.createRoute(tenantId))
+                    navController.navigate(Screen.TenantCard.createRoute(tenantId))
                 },
                 onBack = { navController.popBackStack() }
-            )
-        }
-
-        // ========== Tenant Detail ==========
-        composable(
-            route = Screen.TenantDetail.route,
-            arguments = listOf(navArgument("tenantId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val tenantId = backStackEntry.arguments?.getString("tenantId") ?: ""
-            com.rentmanager.app.ui.landlord.tenants.TenantDetailScreen(
-                tenantId = tenantId,
-                onBack = { navController.popBackStack() },
-                onPropertyClick = { propertyId ->
-                    navController.navigate(Screen.PropertyCard.createRoute(propertyId))
-                }
             )
         }
 
@@ -593,6 +578,18 @@ fun RentManagerNavGraph(
                 onHistory = {
                     navController.navigate(Screen.OperationsHistory.route)
                 }
+            )
+        }
+
+        // ========== Карточка арендатора ==========
+        composable(
+            route = Screen.TenantCard.route,
+            arguments = listOf(navArgument("tenantId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val tenantId = backStackEntry.arguments?.getString("tenantId") ?: ""
+            com.rentmanager.app.ui.landlord.tenants.TenantCardScreen(
+                tenantId = tenantId,
+                onBack = { navController.popBackStack() }
             )
         }
 

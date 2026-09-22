@@ -266,11 +266,13 @@ fun SettingsScreen(
     }
 
     Scaffold(containerColor = Color.White) { paddingValues ->
+        // Канон шапки (AppScreenHeader): статус-инсет → 27 → строка(20/13)
         Column(Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
-            Row(modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 27.dp, bottom = 13.dp, end = 0.dp), verticalAlignment = Alignment.CenterVertically) {
-                Row(modifier = Modifier.clickable { onBack() }.padding(end = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Image(painter = painterResource(R.drawable.ic_arrow_left), contentDescription = "Назад", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit)
-                    Text("Настройки", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
+            Spacer(Modifier.height(27.dp))
+            Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.clickable { onBack() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Image(painter = painterResource(R.drawable.ic_landlord_back), contentDescription = "Назад", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit)
+                    Text("Настройки", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = com.rentmanager.app.ui.theme.InterFontFamily, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
                 }
             }
             LazyColumn(Modifier.fillMaxSize()) {

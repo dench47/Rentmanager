@@ -20,6 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -87,11 +90,14 @@ fun LandlordEmptyStateScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // мипмапы вместо билинейной минификации — без лестницы на кривых
+            val emptyIllustration = ImageBitmap.imageResource(R.drawable.ic_empty_add_property)
             Image(
-                painter = painterResource(R.drawable.ic_empty_add_property),
+                bitmap = emptyIllustration,
                 contentDescription = null,
                 modifier = Modifier.size(160.dp),
-                contentScale = ContentScale.Fit
+                contentScale = ContentScale.Fit,
+                filterQuality = FilterQuality.High
             )
             Spacer(Modifier.height(20.dp))
             Text(
