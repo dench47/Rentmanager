@@ -212,30 +212,24 @@ fun TenantCardScreen(
                 }
             }
 
-            // ---- Паспорт: заполнен → 2 поля с маской + документы; пустой → 3428:65920 ----
+            // ---- Паспорт: заполнен → 2 поля с маской; пустой → 3428:65920 ----
             if (passport != null) {
                 // Заголовок «Паспортные данные» — только в режиме редактирования
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        PassportField(
-                            caption = "Серия паспорта",
-                            value = passport.first,
-                            onClick = { viewModel.togglePassport() },
-                            modifier = Modifier.weight(1f)
-                        )
-                        PassportField(
-                            caption = "Номер паспорта",
-                            value = passport.second,
-                            onClick = { viewModel.togglePassport() },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    OutlineCtaButton(
-                        text = "Документы · 2 файла",
-                        iconRes = R.drawable.ic_doc_folder,
-                        iconSpacing = 6.dp,
-                        borderColor = Graphite,
-                        onClick = { }
+                // Кнопка «Документы · N файла» — НЕ здесь: паспортные поля это
+                // цифры, не файлы; кнопка появится, когда «Прикрепить документ»
+                // начнёт реально сохранять файлы
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    PassportField(
+                        caption = "Серия паспорта",
+                        value = passport.first,
+                        onClick = { viewModel.togglePassport() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    PassportField(
+                        caption = "Номер паспорта",
+                        value = passport.second,
+                        onClick = { viewModel.togglePassport() },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             } else {

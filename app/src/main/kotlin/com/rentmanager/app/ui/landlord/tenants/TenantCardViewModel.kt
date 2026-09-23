@@ -152,22 +152,25 @@ class TenantCardViewModel @Inject constructor(
     fun toggleHistory() = _uiState.update { it.copy(historyExpanded = !it.historyExpanded) }
 }
 
-/** Маска паспорта: серия «·· 08», номер «······2545» (первые цифры скрыты). */
+/**
+ * Маска паспорта (глаз закрыт): по 2 последние цифры КАЖДОГО поля —
+ * серия «·· 10», номер «········45». Формат хранения как в редактировании:
+ * первые 4 цифры — серия, остальные — номер.
+ */
 fun passportMasked(passportData: String?): Pair<String, String>? {
     if (passportData.isNullOrBlank()) return null
     val digits = passportData.filter { it.isDigit() }
     if (digits.length < 6) return null
-    val series = "·· " + digits.substring(digits.length - 6, digits.length - 4)
-    val number = "······" + digits.takeLast(4)
+    val series = "·· " + digits.take(4).takeLast(2)
+    val number = "········" + digits.drop(4).takeLast(2)
     return series to number
 }
 
-/** Серия/номер целиком (глаз открыт): «45 08» / «7485912545». */
+/** Серия/номер целиком (глаз открыт): «45 10» / «7485912545». */
 fun passportPlain(passportData: String?): Pair<String, String>? {
     if (passportData.isNullOrBlank()) return null
     val digits = passportData.filter { it.isDigit() }
     if (digits.length < 6) return null
-    val series = digits.substring(digits.length - 6, digits.length - 4)
-    val number = digits.substring(digits.length - 6 + 2).ifBlank { digits.takeLast(4) }
-    return series to number
+    val s = digits.take(4)
+    return "${s.take(2)} ${s.drop(2)}" to digits.drop(4)
 }

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -149,15 +150,18 @@ fun TenantEditScreen(
     val state by viewModel.uiState.collectAsState()
     val tenant = state.tenant
 
-    var fullName by remember(tenant?.id) { mutableStateOf(TextFieldValue(tenant?.fullName.orEmpty())) }
-    var company by remember(tenant?.id) { mutableStateOf(TextFieldValue(tenant?.companyName.orEmpty())) }
-    var email by remember(tenant?.id) { mutableStateOf(TextFieldValue(tenant?.email.orEmpty())) }
-    var phone by remember(tenant?.id) { mutableStateOf(TextFieldValue(tenant?.phone.orEmpty())) }
+    // Поля живут в plain remember: экран создаётся заново на каждую навигацию,
+    // а ключ tenant?.id пересоздавал состояние, когда сеть доезжала позже ввода
+    // (null → id) — введённое стиралось. Первый кадр наполняется из кеша карточки.
+    var fullName by remember { mutableStateOf(TextFieldValue(tenant?.fullName.orEmpty())) }
+    var company by remember { mutableStateOf(TextFieldValue(tenant?.companyName.orEmpty())) }
+    var email by remember { mutableStateOf(TextFieldValue(tenant?.email.orEmpty())) }
+    var phone by remember { mutableStateOf(TextFieldValue(tenant?.phone.orEmpty())) }
     // Серия паспорта — первые 4 цифры passportData, номер — остальные
     val passportDigits = tenant?.passportData.orEmpty().filter { it.isDigit() }
-    var passportSeries by remember(tenant?.id) { mutableStateOf(TextFieldValue(passportDigits.take(4))) }
-    var passportNumber by remember(tenant?.id) { mutableStateOf(TextFieldValue(passportDigits.drop(4))) }
-    var serviceInfo by remember(tenant?.id) { mutableStateOf(TextFieldValue(tenant?.serviceInfo.orEmpty())) }
+    var passportSeries by remember { mutableStateOf(TextFieldValue(passportDigits.take(4))) }
+    var passportNumber by remember { mutableStateOf(TextFieldValue(passportDigits.drop(4))) }
+    var serviceInfo by remember { mutableStateOf(TextFieldValue(tenant?.serviceInfo.orEmpty())) }
     // Паспорт: глаза полей переключают видимость (42233 видимо / 50897 скрыто)
     var passportVisible by remember { mutableStateOf(false) }
     var showAttachDocSheet by remember { mutableStateOf(false) }
@@ -180,28 +184,33 @@ fun TenantEditScreen(
     // Канон: клавиатура не прячет поле ввода. Фокус приходит РАНЬШЕ, чем
     // insets доедут (клавиатура ещё 0) — запоминаем провайдер нижней границы
     // поля и доскролливаем на каждом кадре анимации insets: пересчёт по СВЕЖЕЙ
-    // позиции поля не даёт ни недоскролла на промежуточном кадре, ни перебега
+    // позиции поля не даёт ни недоскролла на промежуточном кадре, ни перебега.
+    // ВАЖНО: insets НЕ читаются в композиции — иначе каждый кадр анимации
+    // клавиатуры перекомпозировал бы весь экран (в debug заметные лаги).
     var pendingReveal by remember { mutableStateOf<(() -> Float)?>(null) }
-    val imeBottomPx = imeInsets.getBottom(density)
-    suspend fun scrollFieldAboveKeyboard(bottom: () -> Float) {
-        if (rootHeightPx <= 0 || imeBottomPx <= 0) return
+    suspend fun scrollFieldAboveKeyboard(imePx: Int, bottom: () -> Float) {
+        if (rootHeightPx <= 0f || imePx <= 0) return
         // 24: всё поле (паспортные 64 / раскрытый баян) — целиком над клавиатурой
         val marginPx = with(density) { 24.dp.toPx() }
-        val keyboardTopPx = rootHeightPx - imeBottomPx
+        val keyboardTopPx = rootHeightPx - imePx
         val need = bottom() - (keyboardTopPx - marginPx)
         if (need > 0) contentScroll.scrollBy(need)
     }
-    androidx.compose.runtime.LaunchedEffect(imeBottomPx) {
-        if (imeBottomPx == 0) {
-            pendingReveal = null
-        } else {
-            pendingReveal?.let { scrollFieldAboveKeyboard(it) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        androidx.compose.runtime.snapshotFlow { imeInsets.getBottom(density) }.collect { imePx ->
+            if (imePx == 0) {
+                pendingReveal = null
+            } else {
+                pendingReveal?.let { scrollFieldAboveKeyboard(imePx, it) }
+            }
         }
     }
     fun revealField(bottom: () -> Float) {
+        // чтение insets в обработчике события — нетрекнутое, композицию не дёргает
+        val imeNow = imeInsets.getBottom(density)
         // клавиатура уже открыта (переключение полей) — скролл сразу
-        if (imeBottomPx > 0 && rootHeightPx > 0) {
-            revealScope.launch { scrollFieldAboveKeyboard(bottom) }
+        if (imeNow > 0 && rootHeightPx > 0) {
+            revealScope.launch { scrollFieldAboveKeyboard(imeNow, bottom) }
         } else {
             pendingReveal = bottom
         }
@@ -219,15 +228,15 @@ fun TenantEditScreen(
         // таббар не двигается)
         // БЕЗ imePadding на контейнере: на MIUI (adjustResize+edge-to-edge)
         // он давал белую полосу над клавиатурой и поднимал таббар. Вместо этого
-        // — нижний padding ВНУТРИ скролла на высоту клавиатуры: запас прокрутки,
-        // без которого последнее поле упирается в max и его нельзя докрутить
-        val imeStockDp = if (imeBottomPx > 0) with(density) { imeBottomPx.toDp() } else 0.dp
+        // — нижний паддинг ВНУТРИ скролла на высоту клавиатуры (модификатор
+        // читает insets отложенно, только layout): запас прокрутки, без
+        // которого последнее поле упирается в max и его нельзя докрутить
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(contentScroll)
                 .padding(horizontal = 20.dp)
-                .padding(bottom = imeStockDp),
+                .windowInsetsPadding(WindowInsets.ime),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(Modifier.height(8.dp))
@@ -315,11 +324,13 @@ fun TenantEditScreen(
                     onFocused = { revealField(it) }
                 )
             }
-            // «Прикрепить документ» — строка с подчёркиванием (2983:42347):
-            // скрепка 20 + 6 + 13/500, снизу черта #DBDBDB; тап — шит источников
+            // «Прикрепить документ» (2983:42346/42347): скрепка 20 + 6 + текст
+            // 13/500 #212121@0.85 С ПОДЧЁРКИВАНИЕМ (по тексту, не на всю ширину),
+            // строка 20; до «Служебной информации» — 20 (spacedBy 12 + 8 здесь)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(bottom = 8.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -334,6 +345,7 @@ fun TenantEditScreen(
                     Icon(
                         painter = painterResource(R.drawable.ic_attach_doc),
                         contentDescription = "Прикрепить документ",
+                        tint = Graphite.copy(alpha = 0.85f),
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(6.dp))
@@ -343,11 +355,10 @@ fun TenantEditScreen(
                         lineHeight = 15.7.sp,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                         letterSpacing = (-0.4).sp,
-                        color = Graphite
+                        color = Graphite.copy(alpha = 0.85f),
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
                     )
                 }
-                Spacer(Modifier.height(2.dp))
-                androidx.compose.material3.HorizontalDivider(color = Color(0xFFDBDBDB))
             }
 
             // ---- Служебная информация: баян, ЗАКРЫТ изначально (наш шеврон) ----
@@ -396,7 +407,8 @@ fun TenantEditScreen(
                         if (!serviceExpanded) {
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "Эта информация будет видна в объявлении",
+                                // Подпись закрытого баяна (2983:42335): 400/13 #727272
+                                "Эта информация видна только вам",
                                 fontSize = 13.sp,
                                 lineHeight = 15.7.sp,
                                 letterSpacing = (-0.4).sp,
@@ -571,13 +583,16 @@ private fun EditField(
             .padding(horizontal = 20.dp)
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    // Тап по всему полю: фокус и курсор в конец — до TextField
-                    focusRequester.requestFocus()
-                    onValue(value.copy(selection = TextRange(value.text.length)))
-                    down.consume()
+                    awaitFirstDown(requireUnconsumed = false)
+                    // Фокус только по факту ТАПА: жест прокрутки уводит палец
+                    // за touch slop — ожидание отменяется, поле не активируется
+                    // и клавиатура не выезжает
                     val up = waitForUpOrCancellation()
-                    up?.consume()
+                    if (up != null) {
+                        focusRequester.requestFocus()
+                        onValue(value.copy(selection = TextRange(value.text.length)))
+                        up.consume()
+                    }
                 }
             },
         verticalAlignment = Alignment.CenterVertically
@@ -593,7 +608,18 @@ private fun EditField(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
-                    .onFocusChanged { if (it.isFocused) onFocused { fieldBottomPx } },
+                    .onFocusChanged { if (it.isFocused) onFocused { fieldBottomPx } }
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            val up = waitForUpOrCancellation()
+                            if (up != null) {
+                                focusRequester.requestFocus()
+                                onValue(value.copy(selection = TextRange(value.text.length)))
+                                up.consume()
+                            }
+                        }
+                    },
                 textStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp),
                 cursorBrush = SolidColor(Graphite),
                 singleLine = true,
@@ -628,11 +654,14 @@ private fun EditNoteField(
     Box(
         modifier = areaModifier.pointerInput(Unit) {
             awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                focusRequester.requestFocus()
-                onValue(value.copy(selection = TextRange(value.text.length)))
-                down.consume()
-                waitForUpOrCancellation()?.consume()
+                awaitFirstDown(requireUnconsumed = false)
+                // Курсор — только по тапу; прокрутка отменит ожидание по slop
+                val up = waitForUpOrCancellation()
+                if (up != null) {
+                    focusRequester.requestFocus()
+                    onValue(value.copy(selection = TextRange(value.text.length)))
+                    up.consume()
+                }
             }
         }
     ) {
@@ -649,11 +678,13 @@ private fun EditNoteField(
                 .onFocusChanged { if (it.isFocused) onFocused { noteBottomPx } }
                 .pointerInput(Unit) {
                     awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        focusRequester.requestFocus()
-                        onValue(value.copy(selection = TextRange(value.text.length)))
-                        down.consume()
-                        waitForUpOrCancellation()?.consume()
+                        awaitFirstDown(requireUnconsumed = false)
+                        val up = waitForUpOrCancellation()
+                        if (up != null) {
+                            focusRequester.requestFocus()
+                            onValue(value.copy(selection = TextRange(value.text.length)))
+                            up.consume()
+                        }
                     }
                 },
         textStyle = Headline2MobStyle.copy(
@@ -669,16 +700,17 @@ private fun EditNoteField(
 }
 
 
-/** Маска серии: «·· 08» (последние 2 цифры), пусто — если не введено. */
+/** Маска серии: «·· 08» — видны последние 2 цифры. */
 private fun maskSeries(raw: String): String {
     val d = raw.filter { it.isDigit() }
     return if (d.length < 2) "" else "·· " + d.takeLast(2)
 }
 
-/** Маска номера: «······2545» (последние 4 цифры). */
+/** Маска номера: «········45» — по требованию видны последние 2 цифры
+ *  (в макете 50897 показаны 4 — делаем как просили: 2). */
 private fun maskNumber(raw: String): String {
     val d = raw.filter { it.isDigit() }
-    return if (d.length < 4) "" else "······" + d.takeLast(4)
+    return if (d.length < 2) "" else "········" + d.takeLast(2)
 }
 
 /**
@@ -743,7 +775,9 @@ private fun PassportEditField(
                 )
             } else {
                 Text(caption, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
-                if (visible || fieldActive) {
+                // Глаз закрыт — ТОЛЬКО маска (последние 2 цифры), даже если поле
+                // уже правилось: тап по маске раскрывает и возвращает редактор
+                if (visible) {
                     BasicTextField(
                         value = value,
                         onValueChange = {
@@ -757,11 +791,14 @@ private fun PassportEditField(
                             .onFocusChanged { if (it.isFocused) onFocused { fieldBottomPx } }
                             .pointerInput(Unit) {
                                 awaitEachGesture {
-                                    val down = awaitFirstDown(requireUnconsumed = false)
-                                    focusRequester.requestFocus()
-                                    onValue(value.copy(selection = TextRange(value.text.length)))
-                                    down.consume()
-                                    waitForUpOrCancellation()?.consume()
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    // фокус/клавиатура — только по тапу, не по скроллу
+                                    val up = waitForUpOrCancellation()
+                                    if (up != null) {
+                                        focusRequester.requestFocus()
+                                        onValue(value.copy(selection = TextRange(value.text.length)))
+                                        up.consume()
+                                    }
                                 }
                             },
                         textStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp),
@@ -774,17 +811,24 @@ private fun PassportEditField(
                         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
                     )
                 } else {
+                    // fillMaxWidth: и пустая маска занимает колонку — тап по любому
+                    // месту поля раскрывает (иначе пустой Text нулевой ширины)
                     Text(
                         maskedValue,
                         style = Headline2MobStyle.copy(lineHeight = 18.2.sp),
-                        modifier = Modifier.pointerInput(Unit) {
-                            awaitEachGesture {
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                onToggleEye()
-                                down.consume()
-                                waitForUpOrCancellation()?.consume()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .pointerInput(Unit) {
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    // раскрытие — только по тапу, не по скроллу
+                                    val up = waitForUpOrCancellation()
+                                    if (up != null) {
+                                        onToggleEye()
+                                        up.consume()
+                                    }
+                                }
                             }
-                        }
                     )
                 }
             }
