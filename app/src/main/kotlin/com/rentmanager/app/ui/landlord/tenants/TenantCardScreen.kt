@@ -89,6 +89,7 @@ fun TenantCardScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
     var showBlockedDialog by remember { mutableStateOf(false) }
+    var showDocumentsSheet by remember { mutableStateOf(false) }
 
     // Загрузка стартует в init ViewModel (вместе с посевом кеша в первый кадр);
     // ON_RESUME-триггер не нужен — экран самодостаточен и не мигает
@@ -212,118 +213,139 @@ fun TenantCardScreen(
                 }
             }
 
-            // ---- Паспорт: заполнен → 2 поля с маской; пустой → 3428:65920 ----
-            if (passport != null) {
-                // Заголовок «Паспортные данные» — только в режиме редактирования
-                // Кнопка «Документы · N файла» — НЕ здесь: паспортные поля это
-                // цифры, не файлы; кнопка появится, когда «Прикрепить документ»
-                // начнёт реально сохранять файлы
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PassportField(
-                        caption = "Серия паспорта",
-                        value = passport.first,
-                        onClick = { viewModel.togglePassport() },
-                        modifier = Modifier.weight(1f)
-                    )
-                    PassportField(
-                        caption = "Номер паспорта",
-                        value = passport.second,
-                        onClick = { viewModel.togglePassport() },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            } else {
-                // Новый арендатор после прикрепления — данных паспорта ещё нет:
-                // пустые поля 15/600 #727272 с глазками; заголовок и
-                // «Прикрепить документ» — только в режиме редактирования
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        EmptyPassportField(caption = "Серия паспорта", modifier = Modifier.weight(1f))
-                        EmptyPassportField(caption = "Номер паспорта", modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-
-            // ---- Служебная информация (канвас «14», 3005:51020/51159): одна серая
-            // карта r20: заголовок 15/600 в строке 40 + шеврон; раскрытая пустая —
-            // просто пустое место, БЕЗ текста-заглушки ----
-            // Якорь на НИЗ карты: при раскрытии низ остаётся на месте,
-            // экран докручивается вверх на высоту прироста
-            val serviceScope = rememberCoroutineScope()
-            var serviceAnchorBottom by remember { mutableStateOf<Float?>(null) }
+            // ---- Группа «паспорт → документы → служебная информация»: в макете
+            // (3005:51020) это один блок с зазором 12: 64 → 12 → 55 → 12 → 210;
+            // CTA документов живёт ВНУТРИ группы ----
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(CardGrey)
-                    // Закрытая карта — ровно 64 БЕЗ внешних отступов (2983:42372);
-                    // раскрытая — 10 сверху/снизу вокруг строки 40 (3005:51159)
-                    .padding(horizontal = 20.dp)
-                    .then(if (state.serviceInfoExpanded) Modifier.padding(vertical = 10.dp) else Modifier)
-                    .onGloballyPositioned { c ->
-                        val bottom = c.positionInRoot().y + c.size.height - contentScroll.value
-                        if (!state.serviceInfoExpanded) {
-                            serviceAnchorBottom = bottom
-                        } else if (serviceAnchorBottom != null) {
-                            val target = c.positionInRoot().y + c.size.height - serviceAnchorBottom!!
-                            serviceAnchorBottom = null
-                            if (target > contentScroll.value) {
-                                val by = target - contentScroll.value
-                                serviceScope.launch { contentScroll.scrollBy(by) }
-                            }
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // ---- Паспорт: заполнен → 2 поля с маской; пустой → 3428:65920 ----
+                if (passport != null) {
+                    // Заголовок «Паспортные данные» — только в режиме редактирования
+                    // Кнопка «Документы · N файла» — НЕ здесь: паспортные поля это
+                    // цифры, не файлы; кнопка появится, когда «Прикрепить документ»
+                    // начнёт реально сохранять файлы
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        PassportField(
+                            caption = "Серия паспорта",
+                            value = passport.first,
+                            onClick = { viewModel.togglePassport() },
+                            modifier = Modifier.weight(1f)
+                        )
+                        PassportField(
+                            caption = "Номер паспорта",
+                            value = passport.second,
+                            onClick = { viewModel.togglePassport() },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                } else {
+                    // Новый арендатор после прикрепления — данных паспорта ещё нет:
+                    // пустые поля 15/600 #727272 с глазками; заголовок и
+                    // «Прикрепить документ» — только в режиме редактирования
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            EmptyPassportField(caption = "Серия паспорта", modifier = Modifier.weight(1f))
+                            EmptyPassportField(caption = "Номер паспорта", modifier = Modifier.weight(1f))
                         }
                     }
-            ) {
-                val serviceInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                // Закрытый баян — 64: заголовок 15/600 + подпись 13/400 серым
-                // (3005-50901); раскрытый — заголовок в строке 40 (3005:51159)
-                Row(
+                }
+
+                // ---- CTA «Документы · N файлов» (3005:51340): контурная 55 r100,
+                // иконка 24 (две страницы) + зазор 6, текст 15/600; показывается только
+                // когда документы есть; тап — шит «Документы» (2983:44896) ----
+                val documents = tenant?.documents.orEmpty()
+                if (documents.isNotEmpty()) {
+                    OutlineCtaButton(
+                        text = "Документы · " + pluralFiles(documents.size),
+                        iconRes = R.drawable.ic_documents_cta,
+                        borderColor = Graphite,
+                        onClick = { showDocumentsSheet = true }
+                    )
+                }
+
+                // ---- Служебная информация (канвас «14», 3005:51020/51159): одна серая
+                // карта r20: заголовок 15/600 в строке 40 + шеврон; раскрытая пустая —
+                // просто пустое место, БЕЗ текста-заглушки ----
+                // Якорь на НИЗ карты: при раскрытии низ остаётся на месте,
+                // экран докручивается вверх на высоту прироста
+                val serviceScope = rememberCoroutineScope()
+                var serviceAnchorBottom by remember { mutableStateOf<Float?>(null) }
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(if (state.serviceInfoExpanded) Modifier.height(40.dp) else Modifier.height(64.dp))
-                        .clickable(
-                            interactionSource = serviceInteraction,
-                            indication = null
-                        ) { viewModel.toggleServiceInfo() },
-                    verticalAlignment = Alignment.CenterVertically
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CardGrey)
+                        // Закрытая карта — ровно 64 БЕЗ внешних отступов (2983:42372);
+                        // раскрытая — 10 сверху/снизу вокруг строки 40 (3005:51159)
+                        .padding(horizontal = 20.dp)
+                        .then(if (state.serviceInfoExpanded) Modifier.padding(vertical = 10.dp) else Modifier)
+                        .onGloballyPositioned { c ->
+                            val bottom = c.positionInRoot().y + c.size.height - contentScroll.value
+                            if (!state.serviceInfoExpanded) {
+                                serviceAnchorBottom = bottom
+                            } else if (serviceAnchorBottom != null) {
+                                val target = c.positionInRoot().y + c.size.height - serviceAnchorBottom!!
+                                serviceAnchorBottom = null
+                                if (target > contentScroll.value) {
+                                    val by = target - contentScroll.value
+                                    serviceScope.launch { contentScroll.scrollBy(by) }
+                                }
+                            }
+                        }
                 ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "Служебная информация",
-                            style = Headline2MobStyle.copy(lineHeight = 18.2.sp)
-                        )
-                        if (!state.serviceInfoExpanded) {
-                            Spacer(Modifier.height(4.dp))
+                    val serviceInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    // Закрытый баян — 64: заголовок 15/600 + подпись 13/400 серым
+                    // (3005-50901); раскрытый — заголовок в строке 40 (3005:51159)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (state.serviceInfoExpanded) Modifier.height(40.dp) else Modifier.height(64.dp))
+                            .clickable(
+                                interactionSource = serviceInteraction,
+                                indication = null
+                            ) { viewModel.toggleServiceInfo() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
                             Text(
-                                "Эта информация видна только вам",
+                                "Служебная информация",
+                                style = Headline2MobStyle.copy(lineHeight = 18.2.sp)
+                            )
+                            if (!state.serviceInfoExpanded) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Эта информация видна только вам",
+                                    fontSize = 13.sp,
+                                    lineHeight = 15.7.sp,
+                                    letterSpacing = (-0.4).sp,
+                                    color = GreyText
+                                )
+                            }
+                        }
+                        Image(
+                            painter = painterResource(R.drawable.ic_card_chevron),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .graphicsLayer { rotationZ = if (state.serviceInfoExpanded) 180f else 0f }
+                        )
+                    }
+                    if (state.serviceInfoExpanded) {
+                        val note = tenant?.serviceInfo?.takeIf { it.isNotBlank() }
+                        if (note != null) {
+                            Text(
+                                note,
                                 fontSize = 13.sp,
                                 lineHeight = 15.7.sp,
                                 letterSpacing = (-0.4).sp,
-                                color = GreyText
+                                color = Graphite
                             )
+                        } else {
+                            // Раскрытая без заметок — пустое место (3005:51159)
+                            Spacer(Modifier.height(144.dp))
                         }
-                    }
-                    Image(
-                        painter = painterResource(R.drawable.ic_card_chevron),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .graphicsLayer { rotationZ = if (state.serviceInfoExpanded) 180f else 0f }
-                    )
-                }
-                if (state.serviceInfoExpanded) {
-                    val note = tenant?.serviceInfo?.takeIf { it.isNotBlank() }
-                    if (note != null) {
-                        Text(
-                            note,
-                            fontSize = 13.sp,
-                            lineHeight = 15.7.sp,
-                            letterSpacing = (-0.4).sp,
-                            color = Graphite
-                        )
-                    } else {
-                        // Раскрытая без заметок — пустое место (3005:51159)
-                        Spacer(Modifier.height(144.dp))
                     }
                 }
             }
@@ -439,6 +461,18 @@ fun TenantCardScreen(
                 }
             )
         }
+    }
+
+    // ---- Шит «Документы» (2983:44896): список файлов; тап — открыть файл ----
+    if (showDocumentsSheet) {
+        val docScope = rememberCoroutineScope()
+        TenantDocumentsSheet(
+            documents = tenant?.documents.orEmpty(),
+            onOpen = { doc ->
+                docScope.launch { openDocumentFromUrl(context, doc.url, doc.name) }
+            },
+            onDismiss = { showDocumentsSheet = false }
+        )
     }
 
     // ---- Диалог «Удалить карточку арендатора?» (3005:52537) ----
@@ -668,12 +702,13 @@ private fun AttachPropertySheet(
  * на меньших — уменьшенная копия с ТОЧНО теми же переносами строк.
  */
 @Composable
-private fun TenantDialog(
+fun TenantDialog(
     onDismiss: () -> Unit,
     title: String,
     text: String? = null,
     icon: Int? = null,
-    buttons: @Composable () -> Unit
+    // buttons = null — подтверждение без кнопок (2983:42825: 20+50+10+24+20 = 124)
+    buttons: (@Composable () -> Unit)? = null
 ) {
     val scale = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp / 412f
     fun s(v: Float) = (v * scale).dp
@@ -720,7 +755,7 @@ private fun TenantDialog(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(s(12f)))
+                if (buttons != null) Spacer(Modifier.height(s(12f)))
             } else {
                 Text(
                     title,
@@ -741,11 +776,13 @@ private fun TenantDialog(
                         color = GreyText
                     )
                 }
-                Spacer(Modifier.height(s(20f)))
+                if (buttons != null) Spacer(Modifier.height(s(20f)))
             }
             // Блок кнопок макета «btm»: 55 через 6 (3005:52537)
-            Column(verticalArrangement = Arrangement.spacedBy(s(6f))) {
-                buttons()
+            if (buttons != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(s(6f))) {
+                    buttons()
+                }
             }
             }
         }
@@ -754,7 +791,7 @@ private fun TenantDialog(
 
 /** Кнопка 55 в диалогах: заливка или контур #212121/1 (3005:52537). */
 @Composable
-private fun TenantDialogButton(
+fun TenantDialogButton(
     text: String,
     container: Color? = null,
     stroke: Color? = null,

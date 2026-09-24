@@ -17,6 +17,9 @@ import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Результат загрузки документа: ссылка в хранилище и размер файла. */
+data class UploadedDocument(val url: String, val size: Long)
+
 /**
  * Общая логика загрузки фотографий в S3 (папка "photos").
  * Используется при создании объекта и при добавлении фото в детальной карточке.
@@ -44,6 +47,36 @@ class PhotoUploader @Inject constructor(
         if (!resp.isSuccessful) throw Exception("Ошибка загрузки фото")
         resp.body()!!.url
     }
+
+    /**
+     * Загрузка документа карточки арендатора (канвас «14», 2983:42232) в папку
+     * documents: фото (камера/галерея) идёт существующим путём сжатия, прочие
+     * файлы (PDF и т.п.) — как есть, с реальным именем и mime.
+     */
+    suspend fun uploadDocument(uri: Uri, fileName: String, mimeType: String?): UploadedDocument =
+        withContext(Dispatchers.IO) {
+            val resolver = context.contentResolver
+            val type = mimeType ?: resolver.getType(uri) ?: "application/octet-stream"
+            val isImage = type.startsWith("image/")
+            val bytes: ByteArray
+            val outMime: String
+            if (isImage) {
+                val (b, m) = readUploadBytes(uri)
+                bytes = b
+                outMime = m
+            } else {
+                bytes = readOriginal(uri)
+                outMime = type
+            }
+            val part = MultipartBody.Part.createFormData(
+                "file",
+                fileName,
+                bytes.toRequestBody(outMime.toMediaTypeOrNull())
+            )
+            val resp = retryOnNetworkError { authApi.uploadPhoto(part, folder = "documents") }
+            if (!resp.isSuccessful) throw Exception("Ошибка загрузки документа")
+            UploadedDocument(url = resp.body()!!.url, size = bytes.size.toLong())
+        }
 
     /** Байты для отправки: сжатый JPEG либо оригинал (мелкие/нечитаемые файлы). */
     private fun readUploadBytes(uri: Uri): Pair<ByteArray, String> {

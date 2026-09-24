@@ -15,7 +15,20 @@ data class TenantDto(
     /** Аватарка живьём с аккаунта арендатора (если телефон совпал с юзером) */
     @SerializedName("avatar_url") val avatarUrl: String? = null,
     /** Брони с объектами — приходит из GET /tenants/{id}/card (один запрос на весь экран) */
-    @SerializedName("bookings") val bookings: List<TenantBookingDto>? = null
+    @SerializedName("bookings") val bookings: List<TenantBookingDto>? = null,
+    /** Документы карточки — тем же запросом /card (канвас «14», 2983:42232) */
+    @SerializedName("documents") val documents: List<TenantDocumentDto>? = null
+)
+
+/** Документ карточки арендатора: имя, тип (JPG/PDF…), ссылка в хранилище, размер. */
+data class TenantDocumentDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("file_type") val fileType: String? = null,
+    @SerializedName("url") val url: String,
+    @SerializedName("size") val size: Long = 0,
+    /** ISO-дата добавления (CreatedAt на сервере) → «добавлен DD.MM.YYYY» */
+    @SerializedName("created_at") val createdAt: String? = null
 )
 
 data class TenantBookingDto(
