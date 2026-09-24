@@ -101,6 +101,11 @@ sealed class Screen(val route: String) {
     data object TenantEdit : Screen("landlord/tenants/{tenantId}/edit") {
         fun createRoute(tenantId: String) = "landlord/tenants/$tenantId/edit"
     }
+    // Экран «Новый арендатор» (канвас «15», 3695:33307): CTA «Добавить арендатора»
+    // на списке арендаторов. Отдельный префикс — не пересекается с {tenantId}.
+    data object NewTenant : Screen("landlord/new_tenant") {
+        fun createRoute() = "landlord/new_tenant"
+    }
     data object Messages : Screen("landlord/messages")
     data object Chat : Screen("landlord/chat/{chatId}") {
         fun createRoute(chatId: String) = "landlord/chat/$chatId"

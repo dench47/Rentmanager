@@ -524,6 +524,14 @@ fun RentManagerNavGraph(
                 onTenantClick = { tenantId ->
                     navController.navigate(Screen.TenantCard.createRoute(tenantId))
                 },
+                onBack = { navController.popBackStack() },
+                onAddTenant = { navController.navigate(Screen.NewTenant.createRoute()) }
+            )
+        }
+
+        // ========== Новый арендатор (канвас «15», 3695:33307) ==========
+        composable(Screen.NewTenant.route) {
+            com.rentmanager.app.ui.landlord.tenants.NewTenantScreen(
                 onBack = { navController.popBackStack() }
             )
         }

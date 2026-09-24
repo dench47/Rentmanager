@@ -836,10 +836,10 @@ private fun EditField(
  * Многострочная заметка «Служебная информация» (та же механика курсора).
  * areaModifier задаётся на обёртке, растянутой на всю область баяна:
  * тап в ЛЮБОЕ место области (не только по строкам текста) ставит фокус
- * и курсор в конец.
+ * и курсор в конец. Переиспользуется экраном «Новый арендатор».
  */
 @Composable
-private fun EditNoteField(
+fun EditNoteField(
     value: TextFieldValue,
     onValue: (TextFieldValue) -> Unit,
     onFocused: (() -> Float) -> Unit = {},
@@ -902,9 +902,10 @@ private fun EditNoteField(
  * заголовок 20/600 (24) + 6 + подпись 15/600 (18) + 20 до строк;
  * строка = 9 + [иконка 18 + 8 + текст 15/600 (19)] + 9 + черта #DBDBDB + 12
  * до следующей. Три РАБОЧИЕ ссылки: камера / галерея / файл.
+ * Переиспользуется экраном «Новый арендатор».
  */
 @Composable
-private fun AttachDocumentSourceSheet(
+fun AttachDocumentSourceSheet(
     onCamera: () -> Unit,
     onGallery: () -> Unit,
     onFile: () -> Unit
