@@ -18,6 +18,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <!-- Журнал звонков: источник «Из недавних звонков» (3429:66563);
+         запрашивается в рантайме перед открытием пикера -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <!-- CAMERA не объявляем: приложение само камеру не использует, а с
          объявленным (но не выданным) разрешением MIUI отказывает в запуске
          ACTION_IMAGE_CAPTURE — «Сфотографировать» молча не открывало камеру -->

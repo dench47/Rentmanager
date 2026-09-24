@@ -20,7 +20,8 @@ data class TenantsListUiState(
 
 @HiltViewModel
 class TenantsListViewModel @Inject constructor(
-    private val tenantApi: TenantApi
+    private val tenantApi: TenantApi,
+    private val listCache: com.rentmanager.app.data.local.TenantsListCache
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TenantsListUiState())
@@ -30,6 +31,13 @@ class TenantsListViewModel @Inject constructor(
     private var loadedOnce = false
 
     init {
+        // Канон «отображение сразу»: после перезапуска список рендерится из
+        // кэша в первый кадр, сеть подтверждает молча (loadedOnce уже true)
+        val cached = listCache.get()
+        if (cached != null) {
+            loadedOnce = true
+            _uiState.value = TenantsListUiState(isLoading = false, tenants = cached)
+        }
         load()
     }
 
@@ -41,7 +49,9 @@ class TenantsListViewModel @Inject constructor(
                 val resp = tenantApi.getTenants()
                 loadedOnce = true
                 if (resp.isSuccessful) {
-                    _uiState.update { it.copy(isLoading = false, tenants = resp.body() ?: emptyList()) }
+                    val tenants = resp.body() ?: emptyList()
+                    listCache.put(tenants)
+                    _uiState.update { it.copy(isLoading = false, tenants = tenants) }
                 } else {
                     _uiState.update { it.copy(isLoading = false, errorMessage = "Ошибка загрузки") }
                 }

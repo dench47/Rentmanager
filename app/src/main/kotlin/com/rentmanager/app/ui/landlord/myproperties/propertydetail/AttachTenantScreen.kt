@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -60,6 +61,8 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rentmanager.app.data.model.TenantDto
+import com.rentmanager.app.ui.landlord.tenants.TenantActionModalSheet
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -210,6 +213,13 @@ fun AttachTenantScreen(
     var showStartSheet by remember { mutableStateOf(false) }
     var showEndSheet by remember { mutableStateOf(false) }
     var showContactsSheet by remember { mutableStateOf(false) }
+    // Источники (правка Вики 2026-09-25, 3429:66563): список арендаторов / книга / звонки
+    var showSourceSheet by remember { mutableStateOf(false) }
+    var showTenantsSheet by remember { mutableStateOf(false) }
+    var showCallLogSheet by remember { mutableStateOf(false) }
+    val callLogPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) showCallLogSheet = true }
 
     fun tryAttach() {
         startError = startDate == null
@@ -301,12 +311,13 @@ fun AttachTenantScreen(
                 Text("Арендатор", style = SectionTitleStyle)
                 Spacer(Modifier.height(12.dp))
                 OutlineCtaButton(
-                    text = "Выбрать из контактов",
+                    // Правка Вики 2026-09-25 (3428:66459): «Выбрать контакт» + иконка-человек,
+                    // зазор 6; открывает шит источников (3429:66563)
+                    text = "Выбрать контакт",
                     iconRes = R.drawable.ic_user_outline,
-                    // Figma «10» 2935-37006: иконка и текст через 6 (не дефолтные 10)
                     iconSpacing = 6.dp,
                     borderColor = Graphite,
-                    onClick = { showContactsSheet = true }
+                    onClick = { showSourceSheet = true }
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
@@ -378,6 +389,75 @@ fun AttachTenantScreen(
                 saveDraft()
             },
             onDismiss = { showEndSheet = false }
+        )
+    }
+    // ---- Шит источников «Выбрать контакт» (3429:66563) ----
+    if (showSourceSheet) {
+        ContactSourceSheet(
+            onTenants = {
+                showSourceSheet = false
+                viewModel.loadTenants()
+                showTenantsSheet = true
+            },
+            onPhonebook = {
+                showSourceSheet = false
+                showContactsSheet = true
+            },
+            onCalls = {
+                showSourceSheet = false
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.READ_CALL_LOG
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) showCallLogSheet = true
+                else callLogPermissionLauncher.launch(Manifest.permission.READ_CALL_LOG)
+            },
+            onDismiss = { showSourceSheet = false }
+        )
+    }
+    if (showTenantsSheet) {
+        val tenants by viewModel.tenants.collectAsState()
+        PickerListSheet(
+            entries = tenants.map {
+                PickerEntry(
+                    id = it.id,
+                    title = it.fullName,
+                    subtitle = formatContactPhone(it.phone)
+                )
+            },
+            onPick = { entry ->
+                val picked = tenants.firstOrNull { it.id == entry.id }
+                showTenantsSheet = false
+                val start = startDate
+                val end = endDate
+                if (picked != null) {
+                    if (start == null || end == null) {
+                        // Даты обязательны — подсвечиваем незаполненные
+                        startError = start == null
+                        endError = end == null
+                    } else {
+                        viewModel.attachExisting(propertyId, picked, start, end) {
+                            attached = true
+                            onAttached()
+                        }
+                    }
+                }
+            },
+            onDismiss = { showTenantsSheet = false }
+        )
+    }
+    if (showCallLogSheet) {
+        PickerListSheet(
+            entries = androidx.compose.runtime.remember { readCallLog(context) },
+            onPick = { entry ->
+                // Имени в журнале может не быть — тогда подставляем только номер
+                fullName = if (entry.title == entry.subtitle) "" else entry.title
+                phone = contactPhoneValue(entry.id)
+                nameError = false
+                phoneError = null
+                showCallLogSheet = false
+                saveDraft()
+            },
+            onDismiss = { showCallLogSheet = false }
         )
     }
     if (showContactsSheet) {
@@ -1043,6 +1123,243 @@ private fun readPhoneContacts(context: Context): List<PhoneContact> = try {
         }
     }
     list.distinctBy { it.name to it.phone }
+} catch (_: Exception) {
+    emptyList()
+}
+
+
+/** Запись списка выбора в шите-пикере (арендатор или номер из журнала звонков). */
+data class PickerEntry(val id: String, val title: String, val subtitle: String)
+
+/**
+ * Шит источников «Выбрать контакт» (правка Вики 2026-09-25, 3429:66563): 412×332 —
+ * ручка 32×4 r100 сплошной #212121, заголовок «Выбрать контакт» 20/600 lh 24.2 → 20 →
+ * три строки по 72 (10 + строка 40 + 12 + дивайдер #DBDBDB): иконка 40 + 8 + имя
+ * 15/600 + 4 + подпись 13/400 #727272 + 10 + шеврон (−90°).
+ */
+@Composable
+private fun ContactSourceSheet(
+    onTenants: () -> Unit,
+    onPhonebook: () -> Unit,
+    onCalls: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    TenantActionModalSheet(
+        onDismiss = onDismiss,
+        // В этом макете ручка сплошная #212121 (без 40% прозрачности)
+        handleColor = Graphite
+    ) {
+        Text(
+            "Выбрать контакт",
+            style = Headline2MobStyle.copy(fontSize = 20.sp, lineHeight = 24.sp)
+        )
+        Spacer(Modifier.height(20.dp))
+        SourceRow(R.drawable.ic_source_tenants, "Из списка арендаторов", "Ранее добавленные в приложение", onTenants)
+        SourceRow(R.drawable.ic_source_phonebook, "Из телефонной книги", "Выбрать номер из контактов", onPhonebook)
+        SourceRow(R.drawable.ic_source_calls, "Из недавних звонков", "Выбрать номер из журнала звонков", onCalls)
+    }
+}
+
+/** Строка источника 72 (3429:66563): иконка 40 + 8 + имя/подпись + 10 + шеврон −90°. */
+@Composable
+private fun SourceRow(iconRes: Int, title: String, subtitle: String, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(40.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = Headline2MobStyle.copy(lineHeight = 18.2.sp))
+                Spacer(Modifier.height(4.dp))
+                Text(subtitle, style = CardSubtitleStyle.copy(lineHeight = 15.7.sp))
+            }
+            Spacer(Modifier.width(10.dp))
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_card_chevron),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(40.dp)
+                    .graphicsLayer { rotationZ = -90f }
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color(0xFFDBDBDB))
+        )
+    }
+}
+
+/**
+ * Шит-пикер (канон файла «10», 2935:36528 — как в телефонной книге): ручка 36 →
+ * заголовок «Выбрать контакт» 20/600 + крестик → 20 → поиск 55 r20 → 20 → строки
+ * (аватар-плейсхолдер 40 + имя 15/600 + подпись 13/400 + дивайдер #DBDBDB) через 12.
+ * Используется источниками «Из списка арендаторов» и «Из недавних звонков».
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PickerListSheet(
+    entries: List<PickerEntry>,
+    onPick: (PickerEntry) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(query, entries) {
+        val q = query.trim()
+        if (q.isEmpty()) {
+            entries
+        } else {
+            val digits = q.filter(Char::isDigit)
+            entries.filter { e ->
+                val n = e.title.trim()
+                n.startsWith(q, ignoreCase = true) ||
+                    n.split(' ', ' ').any { it.isNotBlank() && it.startsWith(q, ignoreCase = true) } ||
+                    (digits.isNotEmpty() && e.subtitle.filter(Char::isDigit).contains(digits))
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White,
+        dragHandle = null
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(632.dp)
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+        ) {
+            com.rentmanager.app.ui.components.SheetDragHandle()
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text("Выбрать контакт", style = Headline2MobStyle.copy(fontSize = 20.sp))
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_close_graphite),
+                    contentDescription = "Закрыть",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(24.dp)
+                        .clickable { onDismiss() }
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFFEFEFEF))
+                    .padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_search_lens),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.weight(1f),
+                    textStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp),
+                    cursorBrush = SolidColor(Graphite),
+                    singleLine = true,
+                    decorationBox = { inner ->
+                        if (query.isEmpty()) {
+                            Text("Имя или телефон", style = CardSubtitleStyle)
+                        }
+                        inner()
+                    }
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            LazyColumn(Modifier.fillMaxWidth()) {
+                items(filtered, key = { it.id + it.subtitle + it.title }) { e ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(e) }
+                    ) {
+                        Spacer(Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(100.dp))
+                                    .background(Color(0xFFEFEFEF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_avatar_placeholder),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(width = 28.dp, height = 26.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(e.title, style = Headline2MobStyle)
+                                Spacer(Modifier.height(4.dp))
+                                Text(e.subtitle, style = CardSubtitleStyle)
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Color(0xFFDBDBDB))
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Журнал звонков: до 100 записей, дедуп по номеру, свежие сверху. */
+private fun readCallLog(context: Context): List<PickerEntry> = try {
+    val seen = mutableSetOf<String>()
+    val out = mutableListOf<PickerEntry>()
+    context.contentResolver.query(
+        android.provider.CallLog.Calls.CONTENT_URI,
+        arrayOf(
+            android.provider.CallLog.Calls.CACHED_NAME,
+            android.provider.CallLog.Calls.NUMBER,
+            android.provider.CallLog.Calls.DATE
+        ),
+        null,
+        null,
+        android.provider.CallLog.Calls.DATE + " DESC"
+    )?.use { c ->
+        while (out.size < 100 && c.moveToNext()) {
+            val number = c.getString(1) ?: continue
+            val digits = number.filter { it.isDigit() }
+            if (digits.length < 5 || !seen.add(digits)) continue
+            val name = c.getString(0).orEmpty()
+            val shown = formatContactPhone(number)
+            out.add(PickerEntry(id = number, title = name.ifBlank { shown }, subtitle = shown))
+        }
+    }
+    out
 } catch (_: Exception) {
     emptyList()
 }

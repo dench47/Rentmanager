@@ -107,8 +107,32 @@ fun TenantsListScreen(
                 }
 
                 if (uiState.isLoading) {
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text("Загрузка…", fontSize = 14.sp, color = Color(0xFF8E8E93))
+                    // Первый запуск без кэша: глобус + объяснение по центру.
+                    // fillMaxWidth обязателен: вес даёт только высоту, без него
+                    // Box схлопывается по ширине и текст уезжает влево
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_globe_warning_vec),
+                                contentDescription = null,
+                                modifier = Modifier.size(50.dp)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Загружаем арендаторов…",
+                                fontSize = 15.sp,
+                                lineHeight = 18.2.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = InterFontFamily,
+                                letterSpacing = (-0.4).sp,
+                                color = Color(0xFF212121)
+                            )
+                        }
                     }
                 } else if (uiState.tenants.isNotEmpty()) {
                     LazyColumn(Modifier.weight(1f)) {

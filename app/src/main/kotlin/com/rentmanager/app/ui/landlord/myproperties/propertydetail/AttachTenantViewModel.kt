@@ -49,6 +49,57 @@ class AttachTenantViewModel @Inject constructor(
         _uiState.update { it.copy(failed = false) }
     }
 
+    /** Уже добавленные арендаторы — источник «Из списка арендаторов» (3429:66563) */
+    private val _tenants = MutableStateFlow<List<TenantDto>>(emptyList())
+    val tenants: StateFlow<List<TenantDto>> = _tenants.asStateFlow()
+
+    fun loadTenants() {
+        viewModelScope.launch {
+            runCatching { tenantApi.getTenants().body().orEmpty() }
+                .onSuccess { list -> _tenants.value = list }
+        }
+    }
+
+    /**
+     * Прикрепление УЖЕ СУЩЕСТВУЮЩЕГО арендатора (источник «Из списка арендаторов»):
+     * новый Tenant НЕ создаём — привязываем выбранного к объекту, пишем его ФИО/
+     * телефон в карточку объекта и закрываем период бронью (как в ручном флоу).
+     */
+    fun attachExisting(
+        propertyId: String,
+        tenant: TenantDto,
+        start: LocalDate,
+        end: LocalDate,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isAttaching = true, failed = false) }
+            try {
+                val attachResp = propertyApi.attachTenant(
+                    propertyId, AttachTenantRequest(tenantId = tenant.id)
+                )
+                if (!attachResp.isSuccessful) {
+                    _uiState.update { it.copy(isAttaching = false, failed = true) }
+                    return@launch
+                }
+                val current = propertyApi.getProperties().body()?.firstOrNull { it.id == propertyId }
+                if (current != null) {
+                    propertyApi.updateProperty(
+                        propertyId,
+                        current.copy(tenantInfo = tenant.fullName, phone = tenant.phone)
+                    )
+                }
+                bookingApi.createBooking(
+                    propertyId, CreateBookingRequest(start.toString(), end.toString())
+                )
+                _uiState.update { it.copy(isAttaching = false) }
+                onSuccess()
+            } catch (_: Exception) {
+                _uiState.update { it.copy(isAttaching = false, failed = true) }
+            }
+        }
+    }
+
     /**
      * Прикрепление вручную (канвас «Добавить арендатора»): создать Tenant,
      * привязать к объекту, записать ФИО/телефон в карточку (блок «Арендатор
