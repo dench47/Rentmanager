@@ -29,8 +29,6 @@ data class TenantCardUiState(
     val currentBooking: BookingEntryUi? = null,
     /** Прошлые аренды, новые сверху */
     val pastBookings: List<BookingEntryUi> = emptyList(),
-    /** Паспорт раскрыт (глаз). По умолчанию — замаскирован */
-    val passportVisible: Boolean = false,
     /** Служебная информация развёрнута (аккордеон) */
     val serviceInfoExpanded: Boolean = false,
     /** История аренды развёрнута (аккордеон) */
@@ -147,30 +145,20 @@ class TenantCardViewModel @Inject constructor(
         }
     }
 
-    fun togglePassport() = _uiState.update { it.copy(passportVisible = !it.passportVisible) }
     fun toggleServiceInfo() = _uiState.update { it.copy(serviceInfoExpanded = !it.serviceInfoExpanded) }
     fun toggleHistory() = _uiState.update { it.copy(historyExpanded = !it.historyExpanded) }
 }
 
 /**
- * Маска паспорта (глаз закрыт): по 2 последние цифры КАЖДОГО поля —
- * серия «·· 10», номер «········45». Формат хранения как в редактировании:
- * первые 4 цифры — серия, остальные — номер.
+ * Значение поля «Номер документа» (правка Вики 2026-09-24, 3677:31337):
+ * серия 2+2 через пробел, затем номер — «45 08 7485912545».
+ * Хранение не меняется: цифры, первые 4 — серия, остальные — номер.
+ * Глаз/маска в новом макете убраны. null — данных нет (показываем «—»).
  */
-fun passportMasked(passportData: String?): Pair<String, String>? {
+fun passportDisplay(passportData: String?): String? {
     if (passportData.isNullOrBlank()) return null
     val digits = passportData.filter { it.isDigit() }
     if (digits.length < 6) return null
-    val series = "·· " + digits.take(4).takeLast(2)
-    val number = "········" + digits.drop(4).takeLast(2)
-    return series to number
-}
-
-/** Серия/номер целиком (глаз открыт): «45 10» / «7485912545». */
-fun passportPlain(passportData: String?): Pair<String, String>? {
-    if (passportData.isNullOrBlank()) return null
-    val digits = passportData.filter { it.isDigit() }
-    if (digits.length < 6) return null
-    val s = digits.take(4)
-    return "${s.take(2)} ${s.drop(2)}" to digits.drop(4)
+    val series = digits.take(4)
+    return series.take(2) + " " + series.drop(2) + " " + digits.drop(4)
 }

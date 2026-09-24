@@ -219,13 +219,10 @@ fun TenantEditScreen(
     var company by remember { mutableStateOf(TextFieldValue(tenant?.companyName.orEmpty())) }
     var email by remember { mutableStateOf(TextFieldValue(tenant?.email.orEmpty())) }
     var phone by remember { mutableStateOf(TextFieldValue(tenant?.phone.orEmpty())) }
-    // Серия паспорта — первые 4 цифры passportData, номер — остальные
+    // Номер документа (правка Вики 2026-09-24, 3677:31337): серия и номер — ОДНО поле
     val passportDigits = tenant?.passportData.orEmpty().filter { it.isDigit() }
-    var passportSeries by remember { mutableStateOf(TextFieldValue(passportDigits.take(4))) }
-    var passportNumber by remember { mutableStateOf(TextFieldValue(passportDigits.drop(4))) }
+    var passportValue by remember { mutableStateOf(TextFieldValue(passportDigits)) }
     var serviceInfo by remember { mutableStateOf(TextFieldValue(tenant?.serviceInfo.orEmpty())) }
-    // Паспорт: глаза полей переключают видимость (42233 видимо / 50897 скрыто)
-    var passportVisible by remember { mutableStateOf(false) }
     var showAttachDocSheet by remember { mutableStateOf(false) }
 
     // Несохранённые изменения ПОЛЕЙ (документы учитываются ниже: стейдж + пометки)
@@ -234,8 +231,7 @@ fun TenantEditScreen(
             company.text != tenant.companyName.orEmpty() ||
             email.text != tenant.email.orEmpty() ||
             phone.text != tenant.phone ||
-            passportSeries.text != passportDigits.take(4) ||
-            passportNumber.text != passportDigits.drop(4) ||
+            passportValue.text.filter { it.isDigit() } != passportDigits ||
             serviceInfo.text != tenant.serviceInfo.orEmpty()
         )
     // Нижние CTA активны при ЛЮБОМ изменении, включая добавленные/помеченные документы
@@ -419,32 +415,14 @@ fun TenantEditScreen(
                 onFocused = { revealField(it) }
             )
 
-            // ---- Паспортные данные (только в редактировании, 2983:42340) ----
-            Text("Паспортные данные", style = SectionTitleStyle)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PassportEditField(
-                    caption = "Серия паспорта",
-                    empty = passportSeries.text.isBlank() && passportNumber.text.isBlank(),
-                    visible = passportVisible,
-                    maskedValue = maskSeries(passportSeries.text),
-                    value = passportSeries,
-                    onValue = { passportSeries = it },
-                    onToggleEye = { passportVisible = !passportVisible },
-                    modifier = Modifier.weight(1f),
-                    onFocused = { revealField(it) }
-                )
-                PassportEditField(
-                    caption = "Номер паспорта",
-                    empty = passportSeries.text.isBlank() && passportNumber.text.isBlank(),
-                    visible = passportVisible,
-                    maskedValue = maskNumber(passportNumber.text),
-                    value = passportNumber,
-                    onValue = { passportNumber = it },
-                    onToggleEye = { passportVisible = !passportVisible },
-                    modifier = Modifier.weight(1f),
-                    onFocused = { revealField(it) }
-                )
-            }
+            // ---- Паспорт / ID (правка Вики 2026-09-24, 3677:31337): серия и номер
+            // объединены в ОДНО поле «Номер документа», глаза и маски убраны ----
+            Text("Паспорт / ID", style = SectionTitleStyle)
+            PassportNumberField(
+                value = passportValue,
+                onValue = { passportValue = it },
+                onFocused = { revealField(it) }
+            )
             // ---- Документы (2983:42232): строка 40 + 12 + дивайдер #DBDBDB,
             // между строками 12. Показываем прикреплённые (кроме помеченных на
             // удаление) и добавленные в этой сессии. Корзина: прикреплённый —
@@ -658,7 +636,7 @@ fun TenantEditScreen(
                             companyName = company.text.trim(),
                             email = email.text.trim(),
                             phone = phone.text.trim().ifBlank { t.phone },
-                            passportData = (passportSeries.text.trim() + passportNumber.text.trim()).ifBlank { null },
+                            passportData = passportValue.text.filter { it.isDigit() }.ifBlank { null },
                             serviceInfo = serviceInfo.text
                         )
                     ) { ok ->
@@ -919,153 +897,6 @@ private fun EditNoteField(
 }
 
 
-/** Маска серии: «·· 08» — видны последние 2 цифры. */
-private fun maskSeries(raw: String): String {
-    val d = raw.filter { it.isDigit() }
-    return if (d.length < 2) "" else "·· " + d.takeLast(2)
-}
-
-/** Маска номера: «········45» — по требованию видны последние 2 цифры
- *  (в макете 50897 показаны 4 — делаем как просили: 2). */
-private fun maskNumber(raw: String): String {
-    val d = raw.filter { it.isDigit() }
-    return if (d.length < 2) "" else "········" + d.takeLast(2)
-}
-
-/**
- * Поле паспорта в редактировании — три состояния (канвас «14»):
- *  • пустое (42340): подпись 15/600 #727272 в две строки (ширина 110), глаз-слэш;
- *  • заполнено видимо (42233): подпись 13/400 + значение 15/600, глаз;
- *  • заполнено скрыто (50897): подпись 13/400 + маска, глаз-слэш.
- * Тап по полю: скрытое — раскрыть и править; видимое — курсор в конец.
- */
-@Composable
-private fun PassportEditField(
-    caption: String,
-    empty: Boolean,
-    visible: Boolean,
-    maskedValue: String,
-    value: TextFieldValue,
-    onValue: (TextFieldValue) -> Unit,
-    onToggleEye: () -> Unit,
-    modifier: Modifier = Modifier,
-    onFocused: (() -> Float) -> Unit = {}
-) {
-    val focusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
-    // Поле активируется первым тапом/вводом — до этого выглядит как заглушка 42340
-    var fieldActive by remember { mutableStateOf(false) }
-    var fieldBottomPx by remember { mutableStateOf(0f) }
-    androidx.compose.runtime.LaunchedEffect(fieldActive) {
-        if (fieldActive) runCatching { focusRequester.requestFocus() }
-    }
-    Row(
-        modifier = modifier
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(EditCardGrey)
-            .onGloballyPositioned { fieldBottomPx = it.positionInRoot().y + it.size.height }
-            .padding(start = 20.dp, end = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            if (empty && !fieldActive) {
-                // Пустое поле до первого тапа: подпись 15/600 серым в две
-                // строки (42340); поле ввода спрятано ПОД ней — тап активирует
-                Text(
-                    caption,
-                    fontSize = 15.sp,
-                    lineHeight = 18.2.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                    letterSpacing = (-0.4).sp,
-                    color = GreyText,
-                    modifier = Modifier
-                        .width(110.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            fieldActive = true
-                            if (!visible) onToggleEye()
-                            onFocused { fieldBottomPx }
-                            // фокус — ПОСЛЕ рекомпозиции (поле ещё не в дереве,
-                            // мгновенный requestFocus падал FocusRequester is not initialized)
-                        }
-                )
-            } else {
-                Text(caption, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
-                // Глаз закрыт — ТОЛЬКО маска (последние 2 цифры), даже если поле
-                // уже правилось: тап по маске раскрывает и возвращает редактор
-                if (visible) {
-                    BasicTextField(
-                        value = value,
-                        onValueChange = {
-                            fieldActive = true
-                            onValue(it)
-                            onFocused { fieldBottomPx }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focusRequester)
-                            .onFocusChanged { if (it.isFocused) onFocused { fieldBottomPx } }
-                            .pointerInput(Unit) {
-                                awaitEachGesture {
-                                    awaitFirstDown(requireUnconsumed = false)
-                                    // фокус/клавиатура — только по тапу, не по скроллу
-                                    val up = waitForUpOrCancellation()
-                                    if (up != null) {
-                                        focusRequester.requestFocus()
-                                        onValue(value.copy(selection = TextRange(value.text.length)))
-                                        up.consume()
-                                    }
-                                }
-                            },
-                        textStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp),
-                        cursorBrush = SolidColor(Graphite),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
-                    )
-                } else {
-                    // fillMaxWidth: и пустая маска занимает колонку — тап по любому
-                    // месту поля раскрывает (иначе пустой Text нулевой ширины)
-                    Text(
-                        maskedValue,
-                        style = Headline2MobStyle.copy(lineHeight = 18.2.sp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .pointerInput(Unit) {
-                                awaitEachGesture {
-                                    awaitFirstDown(requireUnconsumed = false)
-                                    // раскрытие — только по тапу, не по скроллу
-                                    val up = waitForUpOrCancellation()
-                                    if (up != null) {
-                                        onToggleEye()
-                                        up.consume()
-                                    }
-                                }
-                            }
-                    )
-                }
-            }
-        }
-        Icon(
-            painter = painterResource(if (visible && !empty) R.drawable.ic_eye else R.drawable.ic_eye_slash),
-            contentDescription = if (visible) "Скрыть паспорт" else "Показать паспорт",
-            modifier = Modifier
-                .size(24.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onToggleEye() }
-        )
-    }
-}
-
-
 /**
  * Шит источников документа (2983:46741, отступы по замерам):
  * заголовок 20/600 (24) + 6 + подпись 15/600 (18) + 20 до строк;
@@ -1129,5 +960,123 @@ private fun AttachDocumentSourceSheet(
                 androidx.compose.material3.HorizontalDivider(color = Color(0xFFDBDBDB))
             }
         }
+    }
+}
+
+/**
+ * Поле «Номер документа» в редактировании (правка Вики 2026-09-24, 3677:31337):
+ * пустое — подпись 15/600 #727272 одной строкой; заполненное — подпись 13/400 +
+ * значение 15/600 в формате «45 08 7485912545». Глаза и маски в макете нет.
+ * Тап по полю — курсор в конец (канон инлайн-редактирования), ввод цифрами.
+ */
+@Composable
+private fun PassportNumberField(
+    value: TextFieldValue,
+    onValue: (TextFieldValue) -> Unit,
+    modifier: Modifier = Modifier,
+    onFocused: (() -> Float) -> Unit = {}
+) {
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    var fieldActive by remember { mutableStateOf(value.text.isNotBlank()) }
+    var fieldBottomPx by remember { mutableStateOf(0f) }
+    androidx.compose.runtime.LaunchedEffect(fieldActive) {
+        if (fieldActive) runCatching { focusRequester.requestFocus() }
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(EditCardGrey)
+            .onGloballyPositioned { fieldBottomPx = it.positionInRoot().y + it.size.height }
+            .padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            if (!fieldActive) {
+                Text(
+                    "Номер документа",
+                    fontSize = 15.sp,
+                    lineHeight = 18.2.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    letterSpacing = (-0.4).sp,
+                    color = GreyText,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            fieldActive = true
+                            onFocused { fieldBottomPx }
+                        }
+                )
+            } else {
+                Text("Номер документа", fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
+                BasicTextField(
+                    value = value,
+                    onValueChange = {
+                        fieldActive = true
+                        onValue(it)
+                        onFocused { fieldBottomPx }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { if (it.isFocused) onFocused { fieldBottomPx } }
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                val up = waitForUpOrCancellation()
+                                if (up != null) {
+                                    focusRequester.requestFocus()
+                                    onValue(value.copy(selection = TextRange(value.text.length)))
+                                    up.consume()
+                                }
+                            }
+                        },
+                    textStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp),
+                    cursorBrush = SolidColor(Graphite),
+                    singleLine = true,
+                    visualTransformation = PassportNumberMask,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
+                )
+            }
+        }
+    }
+}
+
+/** Отображение номера документа: серия «45 08» (2+2), затем номер — как в макете. */
+private object PassportNumberMask : androidx.compose.ui.text.input.VisualTransformation {
+    override fun filter(
+        text: androidx.compose.ui.text.AnnotatedString
+    ): androidx.compose.ui.text.input.TransformedText {
+        val digits = text.text.filter { it.isDigit() }
+        val out = when {
+            digits.length <= 2 -> digits
+            digits.length <= 4 -> digits.take(2) + " " + digits.drop(2)
+            else -> digits.take(2) + " " + digits.drop(2).take(2) + " " + digits.drop(4)
+        }
+        val mapping = object : androidx.compose.ui.text.input.OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int = when {
+                offset <= 2 -> offset
+                offset <= 4 -> offset + 1
+                else -> offset + 2
+            }
+            override fun transformedToOriginal(offset: Int): Int = when {
+                offset <= 2 -> offset
+                offset <= 5 -> offset - 1
+                else -> offset - 2
+            }
+        }
+        return androidx.compose.ui.text.input.TransformedText(
+            androidx.compose.ui.text.AnnotatedString(out),
+            mapping
+        )
     }
 }

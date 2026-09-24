@@ -95,8 +95,6 @@ fun TenantCardScreen(
     // ON_RESUME-триггер не нужен — экран самодостаточен и не мигает
 
     val tenant = state.tenant
-    val passport = if (state.passportVisible) passportPlain(tenant?.passportData)
-    else passportMasked(tenant?.passportData)
 
     Column(
         modifier = Modifier
@@ -158,21 +156,6 @@ fun TenantCardScreen(
                     style = SectionTitleStyle,
                     modifier = Modifier.weight(1f)
                 )
-                Spacer(Modifier.width(17.dp))
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(30.dp))
-                        .background(CardGrey)
-                        .clickable { onEdit() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_pencil_circle),
-                        contentDescription = "Редактировать",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
             }
 
             // ---- Инфо-карточки + Позвонить/Написать (sp6 между карточками и кнопками) ----
@@ -220,37 +203,13 @@ fun TenantCardScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // ---- Паспорт: заполнен → 2 поля с маской; пустой → 3428:65920 ----
-                if (passport != null) {
-                    // Заголовок «Паспортные данные» — только в режиме редактирования
-                    // Кнопка «Документы · N файла» — НЕ здесь: паспортные поля это
-                    // цифры, не файлы; кнопка появится, когда «Прикрепить документ»
-                    // начнёт реально сохранять файлы
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        PassportField(
-                            caption = "Серия паспорта",
-                            value = passport.first,
-                            onClick = { viewModel.togglePassport() },
-                            modifier = Modifier.weight(1f)
-                        )
-                        PassportField(
-                            caption = "Номер паспорта",
-                            value = passport.second,
-                            onClick = { viewModel.togglePassport() },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                } else {
-                    // Новый арендатор после прикрепления — данных паспорта ещё нет:
-                    // пустые поля 15/600 #727272 с глазками; заголовок и
-                    // «Прикрепить документ» — только в режиме редактирования
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            EmptyPassportField(caption = "Серия паспорта", modifier = Modifier.weight(1f))
-                            EmptyPassportField(caption = "Номер паспорта", modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
+                // ---- Паспорт: ОДНО поле «Номер документа» (правка Вики 2026-09-24,
+                // 3677:31337): карточка 372×64 r20 «Номер документа» + «45 08 7485912545».
+                // Глаза и маски в новом макете нет — номер показывается целиком ----
+                InfoCard(
+                    caption = "Номер документа",
+                    value = passportDisplay(tenant?.passportData) ?: "—"
+                )
 
                 // ---- CTA «Документы · N файлов» (3005:51340): контурная 55 r100,
                 // иконка 24 (две страницы) + зазор 6, текст 15/600; показывается только
@@ -355,6 +314,39 @@ fun TenantCardScreen(
             val currentBooking = state.currentBooking
             if (currentBooking != null || state.pastBookings.isNotEmpty() || true) {
                 Column {
+                    if (currentBooking == null) {
+                        // ---- «Нет активной аренды» (правка Вики 2026-09-24, 3677:31762):
+                        // «Арендует» 22 → 12 → блок 55 (15/600 + 4 + 13/400 #727272)
+                        // → 12 → контурная CTA 55 «Прикрепить к объекту» ----
+                        Text("Арендует", style = SectionTitleStyle)
+                        Spacer(Modifier.height(12.dp))
+                        Column(
+                            modifier = Modifier.height(55.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "Нет активной аренды",
+                                style = Headline2MobStyle.copy(lineHeight = 18.2.sp)
+                            )
+                            Text(
+                                "Арендатора можно прикрепить к свободному объекту",
+                                fontSize = 13.sp,
+                                lineHeight = 15.7.sp,
+                                letterSpacing = (-0.4).sp,
+                                color = GreyText
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        OutlineCtaButton(
+                            text = "Прикрепить к объекту",
+                            iconRes = R.drawable.ic_person_plus,
+                            borderColor = Graphite,
+                            onClick = {
+                                viewModel.loadFreeProperties()
+                                showAttachSheet = true
+                            }
+                        )
+                    }
                     if (currentBooking != null) {
                         Text("Арендует", style = SectionTitleStyle)
                         Spacer(Modifier.height(6.dp))
@@ -430,14 +422,13 @@ fun TenantCardScreen(
 
     // ---- Шит «Действия с арендатором» (канвас «14», 3005:51850) ----
     if (showActionsSheet) {
-        TenantActionModalSheet(onDismiss = { showActionsSheet = false }) {
+        TenantActionModalSheet(
+            onDismiss = { showActionsSheet = false },
+            // В шите «Управление карточкой» ручка серая #79747E (3676:31314)
+            handleColor = Color(0xFF79747E)
+        ) {
             TenantActionsSheet(
                 onEdit = { showActionsSheet = false; onEdit() },
-                onAttach = {
-                    showActionsSheet = false
-                    viewModel.loadFreeProperties()
-                    showAttachSheet = true
-                },
                 onDelete = {
                     showActionsSheet = false
                     showDeleteDialog = true
@@ -521,12 +512,12 @@ fun TenantCardScreen(
         }
     }
 
-    // ---- Диалог «Нельзя удалить карточку» (3005:53081) ----
+    // ---- Диалог «Есть активные аренды» (правка Вики 2026-09-24, 3696:34110) ----
     if (showBlockedDialog) {
         TenantDialog(
             onDismiss = { showBlockedDialog = false },
-            title = "Нельзя удалить карточку",
-            text = "У арендатора есть активная аренда. Сначала\nnзавершите ее или открепите арендатора от\nnобъекта"
+            title = "Есть активные аренды",
+            text = "Чтобы удалить карточку, завершите аренды\nили открепите арендатора от объектов"
         ) {
             TenantDialogButton(
                 text = "Посмотреть аренды",
@@ -555,6 +546,8 @@ fun TenantCardScreen(
 @Composable
 fun TenantActionModalSheet(
     onDismiss: () -> Unit,
+    /** Ручка: канон #212121@40%, в шите «Управление карточкой» — #79747E (3676:31314) */
+    handleColor: Color = Graphite.copy(alpha = 0.4f),
     content: @Composable () -> Unit
 ) {
     ModalBottomSheet(
@@ -575,7 +568,7 @@ fun TenantActionModalSheet(
                         .padding(top = 16.dp, bottom = 16.dp)
                         .size(width = 32.dp, height = 4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(Graphite.copy(alpha = 0.4f))
+                        .background(handleColor)
                 )
             }
             content()
@@ -583,37 +576,32 @@ fun TenantActionModalSheet(
     }
 }
 
-/** Шит «Действия с арендатором» (3005:51850) — строго по макету. */
+/** Шит «Управление карточкой» (правка Вики 2026-09-24, 3676:31314) — 412×232:
+ *  заголовок 20/600 → 20 → чёрная «Редактировать карточку» (карандаш 24, зазор 6)
+ *  + 6 + контурная красная «Удалить карточку арендатора» (корзина 24).
+ *  «Прикрепить к объекту» из шита убрано — кнопка живёт в блоке «Нет активной
+ *  аренды» в самой карточке (3677:31762). */
 @Composable
 private fun TenantActionsSheet(
     onEdit: () -> Unit,
-    onAttach: () -> Unit,
     onDelete: () -> Unit
 ) {
     Column {
         Text(
-            "Действия с арендатором",
+            "Управление карточкой",
             fontSize = 20.sp,
             lineHeight = 24.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = (-0.3).sp,
-            color = Graphite,
-            modifier = Modifier.padding(bottom = 12.dp)
+            color = Graphite
         )
-        OutlineCtaButton(
+        Spacer(Modifier.height(20.dp))
+        com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton(
             text = "Редактировать карточку",
             iconRes = R.drawable.ic_action_edit,
-            borderColor = Graphite,
             onClick = onEdit
         )
         Spacer(Modifier.height(6.dp))
-        com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton(
-            text = "Прикрепить к объекту",
-            onClick = onAttach
-        )
-        Spacer(Modifier.height(12.dp))
-        androidx.compose.material3.HorizontalDivider(color = Color(0xFFDBDBDB))
-        Spacer(Modifier.height(12.dp))
         OutlineCtaButton(
             text = "Удалить карточку арендатора",
             iconRes = R.drawable.ic_trash_red,
@@ -823,36 +811,6 @@ fun TenantDialogButton(
     }
 }
 
-/** Поле паспорта 64: подпись + значение + иконка глаза 24 в зоне 40. */
-@Composable
-private fun PassportField(
-    caption: String,
-    value: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardGrey)
-            .clickable { onClick() }
-            .padding(start = 20.dp, end = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(caption, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
-            Spacer(Modifier.height(4.dp))
-            Text(value, style = Headline2MobStyle.copy(lineHeight = 18.2.sp))
-        }
-        Icon(
-            painter = painterResource(R.drawable.ic_eye_slash),
-            contentDescription = "Показать паспорт",
-            modifier = Modifier.size(24.dp)
-        )
-    }
-}
-
 /** Телефон из DTO (+7900…/8900…) → отображение +7-900-000-00-03. */
 private fun formatTenantPhone(raw: String?): String {
     var digits = raw?.filter { it.isDigit() } ?: return "—"
@@ -865,79 +823,5 @@ private fun formatTenantPhone(raw: String?): String {
         append("-").append(d.substring(4, 7))
         append("-").append(d.substring(7, 9))
         append("-").append(d.substring(9, 11))
-    }
-}
-
-/** Пустое поле паспорта (нет данных, 3428:65920): подпись 15/600 #727272 + глаз. */
-@Composable
-private fun EmptyPassportField(caption: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .height(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(CardGrey)
-            .padding(start = 20.dp, end = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            caption,
-            fontSize = 15.sp,
-            lineHeight = 18.2.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.4).sp,
-            color = GreyText,
-            modifier = Modifier.weight(1f)
-        )
-        Icon(
-            painter = painterResource(R.drawable.ic_eye_slash),
-            contentDescription = null,
-            modifier = Modifier.size(24.dp)
-        )
-    }
-}
-
-/** Шит «Действия с арендатором»: редактировать / прикрепить / удалить. */
-@Composable
-private fun TenantActionsSheet(
-    onEdit: () -> Unit,
-    onAttach: () -> Unit,
-    onDelete: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 36.dp)
-    ) {
-        Text(
-            "Действия с арендатором",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.3).sp,
-            color = Graphite,
-            modifier = Modifier.padding(bottom = 20.dp)
-        )
-        OutlineCtaButton(
-            text = "Редактировать карточку",
-            iconRes = R.drawable.ic_action_edit,
-            borderColor = Color(0xD9212121),
-            onClick = onEdit
-        )
-        Spacer(Modifier.height(6.dp))
-        OutlineCtaButton(
-            text = "Прикрепить к объекту",
-            iconRes = R.drawable.ic_user_outline,
-            borderColor = Color(0xD9212121),
-            onClick = onAttach
-        )
-        Spacer(Modifier.height(6.dp))
-        OutlineCtaButton(
-            text = "Удалить карточку арендатора",
-            iconRes = R.drawable.ic_action_delete,
-            borderColor = com.rentmanager.app.ui.theme.ErrorRed,
-            textColor = com.rentmanager.app.ui.theme.ErrorRed,
-            onClick = onDelete
-        )
     }
 }
