@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -62,6 +63,8 @@ import java.util.Locale
 
 private val CardGrey = Color(0xFFEFEFEF)
 private val DividerGrey = Color(0xFFDBDBDB)
+// Тапбар (3681:32808): #EDEDED@90%, верхние углы r30 — канон редактора
+private val TabBarGrey = Color(0xFFEDEDED).copy(alpha = 0.9f)
 private val RuDate = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale("ru"))
 
 /**
@@ -96,6 +99,13 @@ fun TenantCardScreen(
 
     val tenant = state.tenant
 
+    val contentScroll = rememberScrollState()
+    val cardScrollScope = rememberCoroutineScope()
+    // Верх блока «Арендует» в координатах контента: из диалога «Есть активные
+    // аренды» кнопка «Посмотреть аренды» прокручивает карточку сюда
+    // (аннотация к 3696:34110)
+    var rentBlockTop by remember { mutableStateOf(0) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -103,10 +113,9 @@ fun TenantCardScreen(
     ) {
         TenantCardToolbar(onBack = onBack, onMenu = { showActionsSheet = true })
 
-        val contentScroll = rememberScrollState()
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
                 .verticalScroll(contentScroll)
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -313,7 +322,11 @@ fun TenantCardScreen(
             // без фонов, тонкая черта под каждой записью, объекты — ссылки ----
             val currentBooking = state.currentBooking
             if (currentBooking != null || state.pastBookings.isNotEmpty() || true) {
-                Column {
+                Column(
+                    modifier = Modifier.onGloballyPositioned { c ->
+                        rentBlockTop = (c.positionInRoot().y + contentScroll.value).toInt()
+                    }
+                ) {
                     if (currentBooking == null) {
                         // ---- «Нет активной аренды» (правка Вики 2026-09-24, 3677:31762):
                         // «Арендует» 22 → 12 → блок 55 (15/600 + 4 + 13/400 #727272)
@@ -336,16 +349,6 @@ fun TenantCardScreen(
                                 color = GreyText
                             )
                         }
-                        Spacer(Modifier.height(12.dp))
-                        OutlineCtaButton(
-                            text = "Прикрепить к объекту",
-                            iconRes = R.drawable.ic_person_plus,
-                            borderColor = Graphite,
-                            onClick = {
-                                viewModel.loadFreeProperties()
-                                showAttachSheet = true
-                            }
-                        )
                     }
                     if (currentBooking != null) {
                         Text("Арендует", style = SectionTitleStyle)
@@ -417,6 +420,29 @@ fun TenantCardScreen(
                 }
 
             Spacer(Modifier.height(20.dp))
+        }
+
+        // ---- Тапбар карточки (3681:32808/32809): панель #EDEDED@90%, верхние углы
+        // r30, поля 10/20 (высота 75) — канон тапбара редактора; кнопка ЧЁРНАЯ
+        // «Прикрепить к объекту» БЕЗ иконки, текст по центру. Видна ВСЕГДА,
+        // независимо от наличия аренды и объектов. От контента до тапбара — 20
+        // (3681:32765: «История аренды» → 20 → тапбар), поэтому «История аренды»
+        // не уезжает под системную навигацию ----
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .background(TabBarGrey)
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+                .navigationBarsPadding()
+        ) {
+            com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton(
+                text = "Прикрепить к объекту",
+                onClick = {
+                    viewModel.loadFreeProperties()
+                    showAttachSheet = true
+                }
+            )
         }
     }
 
@@ -524,8 +550,10 @@ fun TenantCardScreen(
                 container = Graphite,
                 textColor = Color.White,
                 onClick = {
+                    // Аннотация к 3696:34110: «Посмотреть аренды» закрывает окно
+                    // и прокручивает карточку к блоку «Арендует»
                     showBlockedDialog = false
-                    viewModel.toggleHistory()
+                    cardScrollScope.launch { contentScroll.animateScrollTo(rentBlockTop) }
                 }
             )
             TenantDialogButton(

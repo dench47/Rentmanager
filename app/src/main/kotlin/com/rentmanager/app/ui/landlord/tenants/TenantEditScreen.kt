@@ -978,10 +978,12 @@ private fun PassportNumberField(
 ) {
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
-    var fieldActive by remember { mutableStateOf(value.text.isNotBlank()) }
+    // Фокус — ТОЛЬКО по тапу: при открытии экрана курсор нигде не мигает.
+    // Наличие данных влияет лишь на отображение (подпись+значение либо заглушка)
+    var tapped by remember { mutableStateOf(false) }
     var fieldBottomPx by remember { mutableStateOf(0f) }
-    androidx.compose.runtime.LaunchedEffect(fieldActive) {
-        if (fieldActive) runCatching { focusRequester.requestFocus() }
+    androidx.compose.runtime.LaunchedEffect(tapped) {
+        if (tapped) runCatching { focusRequester.requestFocus() }
     }
     Row(
         modifier = modifier
@@ -994,7 +996,7 @@ private fun PassportNumberField(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            if (!fieldActive) {
+            if (!tapped && value.text.isBlank()) {
                 Text(
                     "Номер документа",
                     fontSize = 15.sp,
@@ -1008,7 +1010,7 @@ private fun PassportNumberField(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
-                            fieldActive = true
+                            tapped = true
                             onFocused { fieldBottomPx }
                         }
                 )
@@ -1017,7 +1019,7 @@ private fun PassportNumberField(
                 BasicTextField(
                     value = value,
                     onValueChange = {
-                        fieldActive = true
+                        tapped = true
                         onValue(it)
                         onFocused { fieldBottomPx }
                     },
