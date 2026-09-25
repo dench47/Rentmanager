@@ -95,29 +95,104 @@ private fun mimeForName(name: String): String = when (name.substringAfterLast('.
 }
 
 /**
+ * Запуск ACTION_VIEW по правилу Дениса: ФОТО (тип image, из «Сфотографировать»
+ * и «Выбрать из галереи») открывается штатным просмотрщиком СРАЗУ, без выбора:
+ * ищем системный дефолт, затем известные галереи (MIUI Gallery, Google Photos,
+ * AOSP). ДОКУМЕНТЫ (pdf, word, прочие форматы) — системный выбор «чем открыть».
+ */
+private fun startView(context: Context, intent: Intent) {
+    val pm = context.packageManager
+    val mime = intent.type.orEmpty()
+    if (mime.startsWith("image/")) {
+        // 1) системный просмотрщик по умолчанию
+        val resolved = runCatching { pm.resolveActivity(intent, 0) }.getOrNull()
+        if (resolved?.activityInfo?.packageName != null &&
+            resolved.activityInfo.packageName != "android"
+        ) {
+            runCatching { context.startActivity(intent) }
+            return
+        }
+        // 2) известные штатные галереи (на MIUI — com.miui.gallery)
+        for (pkg in listOf(
+            "com.miui.gallery",
+            "com.google.android.apps.photos",
+            "com.android.gallery3d"
+        )) {
+            val probe = Intent(intent).setPackage(pkg)
+            if (runCatching { pm.resolveActivity(probe, 0) }.getOrNull() != null) {
+                runCatching { context.startActivity(probe) }
+                return
+            }
+        }
+    }
+    // документы (pdf, word, …) и фото без просмотрщика — системный выбор
+    val chooser = Intent.createChooser(intent, null)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(chooser) }
+}
+
+/** Расширение для кэш-файла по mime (имя «Фото от 26.09» без расширения). */
+private fun extForMime(mime: String): String = when (mime) {
+    "image/jpeg" -> "jpg"
+    "image/png" -> "png"
+    "image/webp" -> "webp"
+    "image/heic" -> "heic"
+    "application/pdf" -> "pdf"
+    else -> ""
+}
+
+/**
+ * MIME документа по всем источникам: полный mime из подсказки (пикер/камера),
+ * расширение имени, метка fileType («JPG»), расширение из URL хранилища
+ * (documents/uuid.jpg — у «Фото от 26.09» расширения в имени нет).
+ */
+private fun mimeForDoc(fileHint: String?, fileName: String, url: String): String {
+    if (fileHint != null && fileHint.contains('/')) return fileHint
+    mimeForName(fileName).let { if (it != "*/*") return it }
+    if (!fileHint.isNullOrBlank()) {
+        mimeForName("x." + fileHint.lowercase()).let { if (it != "*/*") return it }
+    }
+    val fromUrl = url.substringBefore('?').substringAfterLast('/')
+    mimeForName(fromUrl).let { if (it != "*/*") return it }
+    return "*/*"
+}
+
+/**
  * Открытие документа системным просмотрщиком (аннотация Вики 2983:44932):
  * ссылку S3 напрямую не открыть — файл скачивается в кэш, затем ACTION_VIEW
  * с content:// через FileProvider (cache-path в file_paths.xml уже расшарен).
+ * Фото открывается штатной галереей сразу, документы — системным выбором.
  */
-suspend fun openDocumentFromUrl(context: Context, url: String, fileName: String): Boolean =
+suspend fun openDocumentFromUrl(
+    context: Context,
+    url: String,
+    fileName: String,
+    fileHint: String? = null
+): Boolean =
     withContext(Dispatchers.IO) {
         runCatching {
+            val mime = mimeForDoc(fileHint, fileName, url)
             // Стейдж (ещё не прикреплённый файл): content:// из пикера или
             // FileProvider-ссылка камеры — открываем напрямую, без скачивания
             if (url.startsWith("content://") || url.startsWith("file://")) {
                 val local = Uri.parse(url)
                 val localIntent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(local, mimeForName(fileName))
+                    setDataAndType(local, mime)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                context.startActivity(localIntent)
+                startView(context, localIntent)
                 return@runCatching true
             }
             val dir = File(context.cacheDir, "docs").apply { mkdirs() }
-            val safe = fileName
+            var safe = fileName
                 .map { ch -> if (ch.isLetterOrDigit() || ch in "._- ") ch else '_' }
                 .joinToString("")
                 .ifBlank { "document" }
+            // Имя без расширения («Фото от 26.09») — дописываем по mime,
+            // иначе просмотрщик получит нетипизированный файл
+            if (!safe.contains('.') && mime != "*/*") {
+                safe += "." + extForMime(mime)
+            }
             val file = File(dir, safe)
             if (!file.exists() || file.length() == 0L) {
                 java.net.URL(url).openStream().use { input ->
@@ -128,10 +203,10 @@ suspend fun openDocumentFromUrl(context: Context, url: String, fileName: String)
                 context, context.packageName + ".fileprovider", file
             )
             val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, mimeForName(safe))
+                setDataAndType(uri, mime)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(intent)
+            startView(context, intent)
             true
         }.getOrDefault(false)
     }

@@ -324,11 +324,11 @@ fun NewTenantScreen(
                     onFocused = { revealField(it) }
                 )
                 Text("Паспорт / ID", fontSize = 18.sp, lineHeight = 21.8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, color = Graphite)
+                // Без числовой клавиатуры: серия документа бывает буквенной
                 NewTenantField(
                     caption = "Номер документа",
                     value = document,
                     onValue = { document = it },
-                    keyboardType = KeyboardType.Number,
                     onFocused = { revealField(it) }
                 )
 
@@ -468,7 +468,7 @@ fun NewTenantScreen(
                                 phone = PhoneUtils.normalize(phone.text) ?: phone.text.trim(),
                                 companyName = company.text.trim().ifBlank { null },
                                 email = email.text.trim().ifBlank { null },
-                                passportData = document.text.filter { it.isDigit() }.ifBlank { null },
+                                passportData = document.text.trim().ifBlank { null },
                                 serviceInfo = serviceInfo.text.ifBlank { null }
                             )
                         ) { ok ->

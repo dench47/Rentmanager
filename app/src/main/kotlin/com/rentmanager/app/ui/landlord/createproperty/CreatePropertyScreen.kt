@@ -831,26 +831,24 @@ private fun SaveBeforeExitDialog(
     onExitWithoutSaving: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-        // Канонический диалог без закрытия по клику вне (несохранённые данные)
-        com.rentmanager.app.ui.components.CanonicalDialog(
-            onDismiss = onDismiss,
-            title = "Сохранить изменения?",
-            text = "Внесённые изменения ещё не сохранены. Если выйти сейчас, они будут потеряны."
-        ) {
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Сохранить и выйти",
-                container = Color(0xFF212121),
-                textColor = Color.White,
-                onClick = onSaveAndExit
-            )
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Выйти без сохранения",
-                stroke = Color(0xFF212121),
-                textColor = Color(0xFF212121),
-                onClick = onExitWithoutSaving
-            )
-        }
+    // CanonicalDialog сам рисует полноэкранный скрим + карточку — без обёрток
+    com.rentmanager.app.ui.components.CanonicalDialog(
+        onDismiss = onDismiss,
+        title = "Сохранить изменения?",
+        text = "Внесённые изменения ещё не сохранены. Если выйти сейчас, они будут потеряны."
+    ) {
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Сохранить и выйти",
+            container = Color(0xFF212121),
+            textColor = Color.White,
+            onClick = onSaveAndExit
+        )
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Выйти без сохранения",
+            stroke = Color(0xFF212121),
+            textColor = Color(0xFF212121),
+            onClick = onExitWithoutSaving
+        )
     }
 }
 

@@ -156,9 +156,7 @@ class TenantCardViewModel @Inject constructor(
  * Глаз/маска в новом макете убраны. null — данных нет (показываем «—»).
  */
 fun passportDisplay(passportData: String?): String? {
-    if (passportData.isNullOrBlank()) return null
-    val digits = passportData.filter { it.isDigit() }
-    if (digits.length < 6) return null
-    val series = digits.take(4)
-    return series.take(2) + " " + series.drop(2) + " " + digits.drop(4)
+    // Номер документа — свободный текст (серия бывает буквенной):
+    // показываем как есть, без разбиения на серию/номер и без фильтра цифр
+    return passportData?.trim()?.takeIf { it.isNotEmpty() }
 }

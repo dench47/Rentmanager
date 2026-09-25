@@ -170,9 +170,16 @@ fun TenantCardScreen(
 
             // ---- Инфо-карточки + Позвонить/Написать (sp6 между карточками и кнопками) ----
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // ПРАВИЛО: * — обязательные (телефон), остальные опциональны:
+                // пустые необязательные поля в карточке НЕ отображаются
+                // (3681:32765 — карточка арендатора только с обязательными)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    InfoCard("Название компании", tenant?.companyName ?: "—")
-                    InfoCard("Электронная почта", tenant?.email ?: "—")
+                    if (!tenant?.companyName.isNullOrBlank()) {
+                        InfoCard("Название компании", tenant!!.companyName)
+                    }
+                    if (!tenant?.email.isNullOrBlank()) {
+                        InfoCard("Электронная почта", tenant!!.email)
+                    }
                     InfoCard("Номер телефона", formatTenantPhone(tenant?.phone))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -216,10 +223,11 @@ fun TenantCardScreen(
                 // ---- Паспорт: ОДНО поле «Номер документа» (правка Вики 2026-09-24,
                 // 3677:31337): карточка 372×64 r20 «Номер документа» + «45 08 7485912545».
                 // Глаза и маски в новом макете нет — номер показывается целиком ----
-                InfoCard(
-                    caption = "Номер документа",
-                    value = passportDisplay(tenant?.passportData) ?: "—"
-                )
+                // Необязательное поле: пустое — не отображаем (правило *)
+                val documentNumber = passportDisplay(tenant?.passportData)
+                if (documentNumber != null) {
+                    InfoCard(caption = "Номер документа", value = documentNumber)
+                }
 
                 // ---- CTA «Документы · N файлов» (3005:51340): контурная 55 r100,
                 // иконка 24 (две страницы) + зазор 6, текст 15/600; показывается только
@@ -487,7 +495,7 @@ fun TenantCardScreen(
         TenantDocumentsSheet(
             documents = tenant?.documents.orEmpty(),
             onOpen = { doc ->
-                docScope.launch { openDocumentFromUrl(context, doc.url, doc.name) }
+                docScope.launch { openDocumentFromUrl(context, doc.url, doc.name, doc.fileType) }
             },
             onDismiss = { showDocumentsSheet = false }
         )

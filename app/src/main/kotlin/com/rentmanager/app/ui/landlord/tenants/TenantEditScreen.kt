@@ -220,8 +220,9 @@ fun TenantEditScreen(
     var email by remember { mutableStateOf(TextFieldValue(tenant?.email.orEmpty())) }
     var phone by remember { mutableStateOf(TextFieldValue(tenant?.phone.orEmpty())) }
     // Номер документа (правка Вики 2026-09-24, 3677:31337): серия и номер — ОДНО поле
-    val passportDigits = tenant?.passportData.orEmpty().filter { it.isDigit() }
-    var passportValue by remember { mutableStateOf(TextFieldValue(passportDigits)) }
+    // Номер документа — СВОБОДНЫЙ текст: серия может быть буквенной (не-РФ)
+    val passportStored = tenant?.passportData.orEmpty()
+    var passportValue by remember { mutableStateOf(TextFieldValue(passportStored)) }
     var serviceInfo by remember { mutableStateOf(TextFieldValue(tenant?.serviceInfo.orEmpty())) }
     var showAttachDocSheet by remember { mutableStateOf(false) }
 
@@ -231,7 +232,7 @@ fun TenantEditScreen(
             company.text != tenant.companyName.orEmpty() ||
             email.text != tenant.email.orEmpty() ||
             phone.text != tenant.phone ||
-            passportValue.text.filter { it.isDigit() } != passportDigits ||
+            passportValue.text.trim() != passportStored ||
             serviceInfo.text != tenant.serviceInfo.orEmpty()
         )
     // Нижние CTA активны при ЛЮБОМ изменении, включая добавленные/помеченные документы
@@ -332,6 +333,10 @@ fun TenantEditScreen(
         }
     }
 
+    // Корень — Box: экран-фон + канонические диалоги-оверлеи ПОВЕРХ него.
+    // CanonicalDialog — оверлей в окне экрана (Box+скрим), ребёнком колонки
+    // он забирал высоту раскладки и ломал экран
+    Box(Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -434,7 +439,7 @@ fun TenantEditScreen(
                     DocumentRow(
                         doc = doc,
                         onOpen = {
-                            docScope.launch { openDocumentFromUrl(docContext, doc.url, doc.name) }
+                            docScope.launch { openDocumentFromUrl(docContext, doc.url, doc.name, doc.fileType) }
                         },
                         onDelete = { viewModel.markDocumentForDeletion(doc.id) }
                     )
@@ -448,7 +453,7 @@ fun TenantEditScreen(
                         url = staged.uri.toString()
                     ),
                     onOpen = {
-                        docScope.launch { openDocumentFromUrl(docContext, staged.uri.toString(), staged.name) }
+                        docScope.launch { openDocumentFromUrl(docContext, staged.uri.toString(), staged.name, staged.mimeType) }
                     },
                     onDelete = { viewModel.unstageDocument(staged.uri) }
                 )
@@ -636,7 +641,7 @@ fun TenantEditScreen(
                             companyName = company.text.trim(),
                             email = email.text.trim(),
                             phone = phone.text.trim().ifBlank { t.phone },
-                            passportData = passportValue.text.filter { it.isDigit() }.ifBlank { null },
+                            passportData = passportValue.text.trim().ifBlank { null },
                             serviceInfo = serviceInfo.text
                         )
                     ) { ok ->
@@ -655,6 +660,7 @@ fun TenantEditScreen(
                 onClick = { attemptExit() }
             )
         }
+    } // конец экрана-фона; ниже — оверлеи поверх Box
 
         // ---- Окно с глобусом: сбой загрузки/прикрепления/сохранения ----
         errorText?.let { msg ->
@@ -967,8 +973,9 @@ fun AttachDocumentSourceSheet(
 /**
  * Поле «Номер документа» в редактировании (правка Вики 2026-09-24, 3677:31337):
  * пустое — подпись 15/600 #727272 одной строкой; заполненное — подпись 13/400 +
- * значение 15/600 в формате «45 08 7485912545». Глаза и маски в макете нет.
- * Тап по полю — курсор в конец (канон инлайн-редактирования), ввод цифрами.
+ * значение 15/600. ПОЛЕ БЕЗ МАСКИ И БЕЗ ЧИСЛОВОЙ КЛАВИАТУРЫ: серия бывает
+ * буквенной (арендаторы не только из РФ) — это просто текст.
+ * Тап по полю — курсор в конец (канон инлайн-редактирования).
  */
 @Composable
 private fun PassportNumberField(
@@ -1042,44 +1049,10 @@ private fun PassportNumberField(
                     textStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp),
                     cursorBrush = SolidColor(Graphite),
                     singleLine = true,
-                    visualTransformation = PassportNumberMask,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done
-                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
                 )
             }
         }
-    }
-}
-
-/** Отображение номера документа: серия «45 08» (2+2), затем номер — как в макете. */
-private object PassportNumberMask : androidx.compose.ui.text.input.VisualTransformation {
-    override fun filter(
-        text: androidx.compose.ui.text.AnnotatedString
-    ): androidx.compose.ui.text.input.TransformedText {
-        val digits = text.text.filter { it.isDigit() }
-        val out = when {
-            digits.length <= 2 -> digits
-            digits.length <= 4 -> digits.take(2) + " " + digits.drop(2)
-            else -> digits.take(2) + " " + digits.drop(2).take(2) + " " + digits.drop(4)
-        }
-        val mapping = object : androidx.compose.ui.text.input.OffsetMapping {
-            override fun originalToTransformed(offset: Int): Int = when {
-                offset <= 2 -> offset
-                offset <= 4 -> offset + 1
-                else -> offset + 2
-            }
-            override fun transformedToOriginal(offset: Int): Int = when {
-                offset <= 2 -> offset
-                offset <= 5 -> offset - 1
-                else -> offset - 2
-            }
-        }
-        return androidx.compose.ui.text.input.TransformedText(
-            androidx.compose.ui.text.AnnotatedString(out),
-            mapping
-        )
     }
 }
