@@ -544,7 +544,7 @@ fun TenantCardScreen(
         TenantDialog(
             onDismiss = { showBlockedDialog = false },
             title = "Есть активные аренды",
-            text = "Чтобы удалить карточку, завершите аренды\nили открепите арендатора от объектов"
+            text = "Чтобы удалить карточку, завершите аренды или открепите арендатора от объектов"
         ) {
             TenantDialogButton(
                 text = "Посмотреть аренды",
@@ -781,24 +781,28 @@ fun TenantDialog(
                 )
                 if (buttons != null) Spacer(Modifier.height(12.dp))
             } else {
-                Text(
-                    title,
-                    fontSize = 20.sp,
-                    lineHeight = 24.2.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = -0.3.sp,
-                    color = Graphite
-                )
-                if (text != null) {
-                    Spacer(Modifier.height(6.dp))
+                // Тексты — 20 от края карточки (3696:34110: x20, ширина 332);
+                // кнопки при этом на 10 (352)
+                Column(Modifier.padding(horizontal = 10.dp)) {
                     Text(
-                        text,
-                        fontSize = 15.sp,
-                        lineHeight = 18.2.sp,
+                        title,
+                        fontSize = 20.sp,
+                        lineHeight = 24.2.sp,
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = -0.4.sp,
-                        color = GreyText
+                        letterSpacing = -0.3.sp,
+                        color = Graphite
                     )
+                    if (text != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text,
+                            fontSize = 15.sp,
+                            lineHeight = 18.2.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = -0.4.sp,
+                            color = GreyText
+                        )
+                    }
                 }
                 if (buttons != null) Spacer(Modifier.height(20.dp))
             }
@@ -821,11 +825,12 @@ fun TenantDialogButton(
     textColor: Color,
     onClick: () -> Unit
 ) {
-    val scale = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp / 412f
+    // Без масштабирования: raw dp как во всех экранах (масштаб сжимал кнопку
+    // 55 -> 48 и текст в ней)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height((55f * scale).dp)
+            .height(55.dp)
             .clip(RoundedCornerShape(100.dp))
             .background(container ?: Color.White)
             .then(
@@ -837,11 +842,10 @@ fun TenantDialogButton(
     ) {
         Text(
             text,
-            fontSize = (15f * scale).sp,
-            lineHeight = (18.2f * scale).sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.4f * scale).sp,
-            color = textColor
+            style = com.rentmanager.app.ui.theme.Headline2MobStyle.copy(
+                color = textColor,
+                lineHeight = 18.2.sp
+            )
         )
     }
 }
