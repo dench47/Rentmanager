@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.graphics.graphicsLayer
@@ -709,7 +710,9 @@ private fun AttachPropertySheet(
 }
 
 /**
- * Центрированный диалог (3005:52537/3014:22433/3005:53081).
+ * Центрированный диалог — единый паттерн Вики (25.09, новая звезда):
+ * 20dp от краёв экрана (тянется), внутри 10dp, текст→кнопка 20dp,
+ * тень как у боттомшита (elevation 8), белый r20.
  * Макет авторится на референсном экране 412: карточка 380, поля 20,
  * текстовая колонка 340 — она и задаёт переносы строк («Личные данные
  * и прикрепленные документы / будут удалены»). На узком экране колонка 340
@@ -726,80 +729,84 @@ fun TenantDialog(
     // buttons = null — подтверждение без кнопок (2983:42825: 20+50+10+24+20 = 124)
     buttons: (@Composable () -> Unit)? = null
 ) {
-    val scale = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp / 412f
-    fun s(v: Float) = (v * scale).dp
-    fun st(v: Float) = (v * scale).sp
+    // БЕЗ масштабирования: в окне диалога LocalConfiguration врёт (нативные 360dp
+    // вместо проектных 412) и сжимал карточку до 87% — кнопки 55 превращались в 48.
+    // dp внутри диалога уже проектные (density-override приложения), как во всех экранах.
 
-    // Окно диалога на всю ширину экрана (иначе платформа режет ~80%),
-    // поля 16×scale за пределами карточки — как (412−380)/2 в макете
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    // Диалог рисуем В ОКНЕ ЭКРАНА (не платформенное окно диалога — MIUI
+    // инсетит его ~46px от краёв, из-за чего карточка не дотягивала до
+    // «20 от экрана»). Скрим и Back — свои, ширина гарантирована окном экрана.
+    androidx.activity.compose.BackHandler(onBack = onDismiss)
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        val dialogWindow = (androidx.compose.ui.platform.LocalView.current as? androidx.compose.ui.window.DialogWindowProvider)?.window
-        androidx.compose.runtime.SideEffect {
-            dialogWindow?.setLayout(
-                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        }
-        Box(Modifier.fillMaxWidth().padding(horizontal = s(16f))) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(s(20f)))
-                    .background(Color.White)
-                    .padding(s(20f))
-            ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .shadow(8.dp, RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                // Паттерн 25.09 (2698:22247): бока 10, верх/низ 20
+                .padding(horizontal = 10.dp, vertical = 20.dp)
+                .clickable(enabled = false) {} // не пропускать тап скрима внутрь
+        ) {
             if (icon != null) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Icon(
                         painter = painterResource(icon),
                         contentDescription = null,
-                        modifier = Modifier.size(s(50f)),
+                        modifier = Modifier.size(50.dp),
                         tint = Color.Unspecified
                     )
                 }
-                Spacer(Modifier.height(s(10f)))
+                Spacer(Modifier.height(10.dp))
                 Text(
                     title,
-                    fontSize = st(20f),
-                    lineHeight = st(24.2f),
+                    fontSize = 20.sp,
+                    lineHeight = 24.2.sp,
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = st(-0.3f),
+                    letterSpacing = -0.3.sp,
                     color = Graphite,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (buttons != null) Spacer(Modifier.height(s(12f)))
+                if (buttons != null) Spacer(Modifier.height(12.dp))
             } else {
                 Text(
                     title,
-                    fontSize = st(20f),
-                    lineHeight = st(24.2f),
+                    fontSize = 20.sp,
+                    lineHeight = 24.2.sp,
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = st(-0.3f),
+                    letterSpacing = -0.3.sp,
                     color = Graphite
                 )
                 if (text != null) {
-                    Spacer(Modifier.height(s(6f)))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text,
-                        fontSize = st(15f),
-                        lineHeight = st(18.2f),
+                        fontSize = 15.sp,
+                        lineHeight = 18.2.sp,
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = st(-0.4f),
+                        letterSpacing = -0.4.sp,
                         color = GreyText
                     )
                 }
-                if (buttons != null) Spacer(Modifier.height(s(20f)))
+                if (buttons != null) Spacer(Modifier.height(20.dp))
             }
-            // Блок кнопок макета «btm»: 55 через 6 (3005:52537)
+            // Кнопки во всю ширину контента (352), 55 через 6 (2698:22247)
             if (buttons != null) {
-                Column(verticalArrangement = Arrangement.spacedBy(s(6f))) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     buttons()
                 }
-            }
             }
         }
     }

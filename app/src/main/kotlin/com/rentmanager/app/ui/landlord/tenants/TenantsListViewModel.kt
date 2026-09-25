@@ -62,6 +62,11 @@ class TenantsListViewModel @Inject constructor(
         }
     }
 
+    /** Закрытие окна «Нет связи» тапом вне (канон остальных экранов) */
+    fun clearError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
     fun deleteTenant(id: String) {
         viewModelScope.launch {
             try {

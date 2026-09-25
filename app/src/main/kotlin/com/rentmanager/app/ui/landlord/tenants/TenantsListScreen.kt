@@ -102,10 +102,6 @@ fun TenantsListScreen(
                     }
                 }
 
-                uiState.errorMessage?.let {
-                    Text(it, color = Color(0xFFE53935), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                }
-
                 if (uiState.isLoading) {
                     // Первый запуск без кэша: глобус + объяснение по центру.
                     // fillMaxWidth обязателен: вес даёт только высоту, без него
@@ -147,6 +143,45 @@ fun TenantsListScreen(
                             onLongClick = { tenantToDelete = tenant }
                         )
                             HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+                        }
+                    }
+                } else if (uiState.errorMessage != null) {
+                    // Сети нет и данных нет: не показываем «Арендаторов пока нет»
+                    // (это враньё) — глобус с объяснением, тап повторяет загрузку
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { viewModel.load() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_globe_warning_vec),
+                                contentDescription = null,
+                                modifier = Modifier.size(50.dp)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Нет связи с сервером",
+                                fontSize = 15.sp,
+                                lineHeight = 18.2.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = InterFontFamily,
+                                letterSpacing = (-0.4).sp,
+                                color = Color(0xFF212121)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Проверьте подключение и попробуйте ещё раз",
+                                fontSize = 13.sp,
+                                lineHeight = 15.7.sp,
+                                letterSpacing = (-0.4).sp,
+                                color = Color(0xFF727272)
+                            )
                         }
                     }
                 }
@@ -191,16 +226,29 @@ fun TenantsListScreen(
                 }
             }
 
-            // Пустое состояние — оверлей на весь экран: центр блока по полной высоте кадра (макет 3108:56847)
-            if (!uiState.isLoading && uiState.tenants.isEmpty()) {
+            // Пустое состояние — оверлей на весь экран: центр блока по полной
+            // высоте кадра (макет 3108:56847). Только БЕЗ ошибки: при обрыве
+            // сети «Арендаторов пока нет» — ложь, там свой глобус выше
+            if (!uiState.isLoading && uiState.errorMessage == null && uiState.tenants.isEmpty()) {
                 EmptyContactsState(
                     title = "Арендаторов пока нет",
                     subtitle = "Добавленные арендаторы появятся здесь",
                     ctaText = "Добавить арендатора",
-                    onCtaClick = { }
+                    onCtaClick = onAddTenant
                 )
             }
         }
+    }
+
+    // Список есть (из кэша), но тихий рефреш упал — канонный диалог с глобусом
+    // (как в «Моя недвижимость»); при пустом списке диалог не дублируем —
+    // там инлайн-состояние с объяснением
+    uiState.errorMessage?.takeIf { uiState.tenants.isNotEmpty() }?.let { msg ->
+        com.rentmanager.app.ui.components.IconNotificationDialog(
+            iconRes = R.drawable.ic_globe_warning_vec,
+            text = msg,
+            onDismiss = { viewModel.clearError() }
+        )
     }
 
     tenantToDelete?.let { tenant ->
