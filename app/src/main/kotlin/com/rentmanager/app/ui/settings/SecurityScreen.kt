@@ -236,107 +236,95 @@ fun SecurityScreen(
     }
 
     if (showInfoDialog) {
-        AlertDialog(
-            onDismissRequest = { showInfoDialog = false },
-            title = { Text("Двухфакторная аутентификация", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)) },
-            text = { Text("Дополнительный способ подтверждения, что аккаунт принадлежит вам. При входе с нового устройства мы отправим код на выбранный канал: электронную почту, Telegram или Макс. Это защищает аккаунт от входа посторонних.", fontSize = 15.sp, color = Color(0x993C3C43)) },
-            confirmButton = { TextButton(onClick = { showInfoDialog = false }) { Text("Понятно", color = Color(0xFF007AFF), fontWeight = FontWeight.Bold) } },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp)
-        )
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { showInfoDialog = false },
+            title = "Двухфакторная аутентификация",
+            text = "Дополнительный способ подтверждения, что аккаунт принадлежит вам. При входе с нового устройства мы отправим код на выбранный канал: электронную почту, Telegram или Макс. Это защищает аккаунт от входа посторонних."
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Понятно",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = { showInfoDialog = false }
+            )
+        }
     }
 
     // ===== Email: диалог активации (шаг 0 — почта, шаг 1 — код) =====
     if (showEmailDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!emailLoading) showEmailDialog = false },
-            title = {
-                Text(
-                    if (emailStep == 0) "Привязка Email" else "Код подтверждения",
-                    fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF212121)
+        com.rentmanager.app.ui.components.CanonicalContentDialog(
+            onDismiss = { if (!emailLoading) showEmailDialog = false },
+            title = if (emailStep == 0) "Привязка Email" else "Код подтверждения"
+        ) {
+            if (emailStep == 0) {
+                OutlinedTextField(
+                    value = emailInput,
+                    onValueChange = { emailInput = it.trim() },
+                    label = { Text("Email") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth()
                 )
-            },
-            text = {
-                Column {
+            } else {
+                OutlinedTextField(
+                    value = emailCode,
+                    onValueChange = { raw -> emailCode = raw.filter { it.isDigit() }.take(6) },
+                    label = { Text("Код из письма") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Если письмо не пришло — проверьте папку «Спам»", fontSize = 12.sp, color = Color(0x993C3C43))
+            }
+            if (emailError != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(emailError!!, color = Color(0xFFE53935), fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(20.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = if (emailStep == 0) "Отправить код" else "Подтвердить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = {
                     if (emailStep == 0) {
-                        OutlinedTextField(
-                            value = emailInput,
-                            onValueChange = { emailInput = it.trim() },
-                            label = { Text("Email") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        OutlinedTextField(
-                            value = emailCode,
-                            onValueChange = { raw -> emailCode = raw.filter { it.isDigit() }.take(6) },
-                            label = { Text("Код из письма") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text("Если письмо не пришло — проверьте папку «Спам»", fontSize = 12.sp, color = Color(0x993C3C43))
-                    }
-                    if (emailError != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(emailError!!, color = Color(0xFFE53935), fontSize = 13.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !emailLoading,
-                    onClick = {
-                        if (emailStep == 0) {
-                            val e = emailInput
-                            if (!e.contains("@") || !e.contains(".")) {
-                                emailError = "Введите корректный email"
-                            } else {
-                                emailLoading = true
-                                emailError = null
-                                viewModel.setEmail(e) {
-                                    viewModel.onEmailSendCode { ok, err ->
-                                        emailLoading = false
-                                        if (ok) { emailStep = 1; emailCode = "" }
-                                        else emailError = err
-                                    }
-                                }
-                            }
+                        val e = emailInput
+                        if (!e.contains("@") || !e.contains(".")) {
+                            emailError = "Введите корректный email"
                         } else {
-                            if (emailCode.length != 6) {
-                                emailError = "Введите 6 цифр кода"
-                            } else {
-                                emailLoading = true
-                                emailError = null
-                                viewModel.onEmailVerify(emailCode) { ok, err ->
+                            emailLoading = true
+                            emailError = null
+                            viewModel.setEmail(e) {
+                                viewModel.onEmailSendCode { ok, err ->
                                     emailLoading = false
-                                    if (ok) showEmailDialog = false
+                                    if (ok) { emailStep = 1; emailCode = "" }
                                     else emailError = err
                                 }
                             }
                         }
+                    } else {
+                        if (emailCode.length != 6) {
+                            emailError = "Введите 6 цифр кода"
+                        } else {
+                            emailLoading = true
+                            emailError = null
+                            viewModel.onEmailVerify(emailCode) { ok, err ->
+                                emailLoading = false
+                                if (ok) showEmailDialog = false
+                                else emailError = err
+                            }
+                        }
                     }
-                ) {
-                    Text(
-                        if (emailStep == 0) "Отправить код" else "Подтвердить",
-                        color = Color(0xFF007AFF), fontWeight = FontWeight.Bold
-                    )
                 }
-            },
-            dismissButton = {
-                TextButton(
-                    enabled = !emailLoading,
-                    onClick = {
-                        if (emailStep == 1) { emailStep = 0; emailError = null }
-                        else showEmailDialog = false
-                    }
-                ) { Text(if (emailStep == 0) "Отмена" else "Назад", color = Color(0x993C3C43)) }
-            },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp)
-        )
+            )
+            Spacer(Modifier.height(6.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = if (emailStep == 0) "Отмена" else "Назад",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { if (emailStep == 1) { emailStep = 0; emailError = null } else showEmailDialog = false }
+            )
+        }
     }
 }
 

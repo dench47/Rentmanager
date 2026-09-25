@@ -487,41 +487,33 @@ fun AttachTenantScreen(
     // (Figma 2935:40049): карточка 380 r20 pad20, заголовок 20/600 + 6 +
     // тело 15/600 серым, +20 → чёрная CTA + 6 + контурная
     if (showResumeDialog && storedDraft != null) {
-        DesignWidthDialog(onDismissRequest = { showResumeDialog = false }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Добавить арендатора", style = ToolbarTitleStyle)
-                    Text(
-                        "Вы начали добавлять арендатора. Хотите продолжить?",
-                        style = Headline2MobStyle.copy(color = GreyText)
-                    )
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { showResumeDialog = false },
+            title = "Добавить арендатора",
+            text = "Вы начали добавлять арендатора. Хотите продолжить?"
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Продолжить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = {
+                    startDate = storedDraft.startDate
+                    endDate = storedDraft.endDate
+                    fullName = storedDraft.fullName
+                    // Старые черновики могли хранить маску «+7-…» — приводим к цифрам
+                    phone = contactPhoneValue(storedDraft.phone)
+                    showResumeDialog = false
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    BlackCtaButton(text = "Продолжить") {
-                        startDate = storedDraft.startDate
-                        endDate = storedDraft.endDate
-                        fullName = storedDraft.fullName
-                        // Старые черновики могли хранить маску «+7-…» — приводим к цифрам
-                        phone = contactPhoneValue(storedDraft.phone)
-                        showResumeDialog = false
-                    }
-                    OutlineCtaButton(
-                        text = "Начать заново",
-                        borderColor = Graphite,
-                        onClick = {
-                            AttachTenantDraftHolder.clear(context, propertyId)
-                            showResumeDialog = false
-                        }
-                    )
+            )
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Начать заново",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = {
+                    AttachTenantDraftHolder.clear(context, propertyId)
+                    showResumeDialog = false
                 }
-            }
+            )
         }
     }
 }

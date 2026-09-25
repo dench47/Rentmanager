@@ -252,20 +252,27 @@ fun TenantsListScreen(
     }
 
     tenantToDelete?.let { tenant ->
-        AlertDialog(
-            onDismissRequest = { tenantToDelete = null },
-            title = { Text("Удалить арендатора?") },
-            text = { Text(tenant.fullName) },
-            confirmButton = {
-                TextButton(onClick = {
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { tenantToDelete = null },
+            title = "Удалить карточку арендатора?",
+            text = "Личные данные и прикрепленные документы будут удалены"
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Удалить карточку",
+                container = Color(0xFFFF4249),
+                textColor = Color.White,
+                onClick = {
                     tenantToDelete = null
                     viewModel.deleteTenant(tenant.id)
-                }) { Text("Удалить", color = Color(0xFFE53935)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { tenantToDelete = null }) { Text("Отмена") }
-            }
-        )
+                }
+            )
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Отменить",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { tenantToDelete = null }
+            )
+        }
     }
 }
 

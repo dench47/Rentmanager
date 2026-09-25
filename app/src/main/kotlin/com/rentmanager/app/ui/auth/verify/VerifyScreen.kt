@@ -514,31 +514,18 @@ fun VerifyScreen(
                             append(".")
                         }
 
-                        AlertDialog(
-                            onDismissRequest = { showCallInfoDialog = false },
-                            title = {
-                                Text(
-                                    "О звонке",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 18.sp,
-                                    color = Color(0xFF151515)
-                                )
-                            },
-                            text = {
-                                Text(
-                                    text = infoText,
-                                    style = TextStyle(
-                                        fontSize = 14.sp,
-                                        color = Color(0x993C3C43),
-                                        lineHeight = 20.sp
-                                    )
-                                )
-                            },
-                            confirmButton = { },
-                            dismissButton = { },
-                            containerColor = Color.White,
-                            shape = RoundedCornerShape(20.dp)
-                        )
+                        com.rentmanager.app.ui.components.CanonicalDialog(
+                            onDismiss = { showCallInfoDialog = false },
+                            title = "О звонке",
+                            text = infoText.text
+                        ) {
+                            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                                text = "Понятно",
+                                container = Color(0xFF212121),
+                                textColor = Color.White,
+                                onClick = { showCallInfoDialog = false }
+                            )
+                        }
                     }
 
                     Text(

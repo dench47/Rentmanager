@@ -668,7 +668,7 @@ fun TenantEditScreen(
 
         // ---- «Изменения сохранены» (2983:42825): короткое подтверждение → карточка ----
         if (showSavedDialog) {
-            TenantDialog(
+            com.rentmanager.app.ui.components.CanonicalDialog(
                 onDismiss = {
                     if (showSavedDialog) {
                         showSavedDialog = false
@@ -691,18 +691,18 @@ fun TenantEditScreen(
         // После «Отменить и выйти»: ранее сохранённые данные восстанавливаются,
         // добавленные файлы НЕ прикрепляются, помеченные на удаление сохраняются
         if (showCancelDialog) {
-            TenantDialog(
+            com.rentmanager.app.ui.components.CanonicalDialog(
                 onDismiss = { showCancelDialog = false },
                 title = "Отменить изменения?",
                 text = "Внесенные изменения не сохранятся. Вы вернетесь к сохраненной карточке арендатора"
             ) {
-                TenantDialogButton(
+                com.rentmanager.app.ui.components.CanonicalDialogButton(
                     text = "Продолжить редактирование",
                     container = Graphite,
                     textColor = Color.White,
                     onClick = { showCancelDialog = false }
                 )
-                TenantDialogButton(
+                com.rentmanager.app.ui.components.CanonicalDialogButton(
                     text = "Отменить и выйти",
                     stroke = Graphite,
                     textColor = Graphite,

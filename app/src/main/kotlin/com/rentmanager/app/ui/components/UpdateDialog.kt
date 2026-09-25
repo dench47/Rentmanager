@@ -20,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,26 +39,39 @@ fun UpdateDialog(
     onLater: () -> Unit,
     onRetry: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = { /* реагируем только на кнопки — тап вне окна не закрывает */ },
-        title = {
-            Text(
-                if (isDownloading) "Загрузка обновления..." else "Доступно обновление v${info.versionName}",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF212121),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        text = {
-            Column(
-                Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
+    // Канонический диалог: тап вне не закрывает — реагируем только на кнопки
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { /* только кнопки */ }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .shadow(8.dp, RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(horizontal = 10.dp, vertical = 20.dp)
+                .clickable(enabled = false) {}
+        ) {
+            Column(Modifier.padding(horizontal = 10.dp)) {
+                Text(
+                    if (isDownloading) "Загрузка обновления..." else "Доступно обновление v${info.versionName}",
+                    fontSize = 20.sp,
+                    lineHeight = 24.2.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.3).sp,
+                    color = Color(0xFF212121)
+                )
+                Spacer(Modifier.height(6.dp))
                 if (isDownloading) {
-                    Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth().height(8.dp),
@@ -74,13 +89,12 @@ fun UpdateDialog(
                     Text(
                         errorMessage,
                         fontSize = 15.sp,
-                        color = Color(0xFFFF4249),
-                        textAlign = TextAlign.Center
+                        color = Color(0xFFFF4249)
                     )
                 } else {
                     Text(
                         "Новая версия доступна для скачивания.",
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         color = Color(0x993C3C43)
                     )
                     if (info.releaseNotes.isNotBlank()) {
@@ -93,28 +107,26 @@ fun UpdateDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
             if (!isDownloading) {
-                TextButton(onClick = if (errorMessage != null) onRetry else onDownload) {
-                    Text(
-                        if (errorMessage != null) "Повторить" else "Обновить",
-                        color = Color(0xFF007AFF),
-                        fontWeight = FontWeight.Bold
+                Spacer(Modifier.height(20.dp))
+                CanonicalDialogButton(
+                    text = if (errorMessage != null) "Повторить" else "Обновить",
+                    container = Color(0xFF212121),
+                    textColor = Color.White,
+                    onClick = if (errorMessage != null) onRetry else onDownload
+                )
+                if (errorMessage == null) {
+                    Spacer(Modifier.height(6.dp))
+                    CanonicalDialogButton(
+                        text = "Позже",
+                        stroke = Color(0xFF212121),
+                        textColor = Color(0xFF212121),
+                        onClick = onLater
                     )
                 }
             }
-        },
-        dismissButton = {
-            if (!isDownloading && errorMessage == null) {
-                TextButton(onClick = onLater) {
-                    Text("Позже", color = Color(0x993C3C43))
-                }
-            }
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(20.dp)
-    )
+        }
+    }
 }
 
 @Composable

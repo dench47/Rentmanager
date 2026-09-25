@@ -41,52 +41,47 @@ fun ScheduleDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    DesignWidthDialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = CardShape,
-            color = Color.White,
-            border = borderColor?.let { BorderStroke(1.dp, it) }
+    if (iconRes != null) {
+        CanonicalDialog(
+            onDismiss = onDismiss,
+            icon = iconRes,
+            title = title,
+            text = body
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                iconRes?.let {
-                    Image(
-                        painter = painterResource(it),
-                        contentDescription = null,
-                        modifier = Modifier.size(50.dp)
-                    )
-                    Spacer(Modifier.height(16.dp))
-                }
-                Text(
-                    title,
-                    style = Headline2MobStyle,
-                    textAlign = TextAlign.Center
+            CanonicalDialogButton(
+                text = confirmText,
+                container = confirmColor,
+                textColor = Color.White,
+                onClick = onConfirm
+            )
+            if (showBack) {
+                CanonicalDialogButton(
+                    text = backText,
+                    stroke = Graphite,
+                    textColor = Graphite,
+                    onClick = { onBackAction?.invoke() ?: onDismiss() }
                 )
-                body?.let {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        it,
-                        style = Headline2MobStyle.copy(color = GreyText),
-                        textAlign = TextAlign.Center
-                    )
-                }
-                Spacer(Modifier.height(20.dp))
-                BlackCtaButton(
-                    text = confirmText,
-                    containerColor = confirmColor,
-                    onClick = onConfirm
+            }
+        }
+    } else {
+        CanonicalDialog(
+            onDismiss = onDismiss,
+            title = title,
+            text = body
+        ) {
+            CanonicalDialogButton(
+                text = confirmText,
+                container = confirmColor,
+                textColor = Color.White,
+                onClick = onConfirm
+            )
+            if (showBack) {
+                CanonicalDialogButton(
+                    text = backText,
+                    stroke = Graphite,
+                    textColor = Graphite,
+                    onClick = { onBackAction?.invoke() ?: onDismiss() }
                 )
-                if (showBack) {
-                    Spacer(Modifier.height(6.dp))
-                    OutlineCtaButton(
-                        text = backText,
-                        borderColor = Graphite,
-                        onClick = { onBackAction?.invoke() ?: onDismiss() }
-                    )
-                }
             }
         }
     }

@@ -326,18 +326,18 @@ class MainActivity : FragmentActivity() {
                     loginApprovalEvents.devicesChanged.collect { loginApprovalEvents.clearPending() }
                 }
                 pendingLoginRequest?.let { req ->
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { },
-                        title = { Text("Подтвердите вход") },
-                        text = {
-                            Text(
-                                "Попытка входа с устройства " +
-                                    (req.deviceName?.takeIf { it.isNotBlank() } ?: "неизвестного устройства") +
-                                    ". Это вы?"
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(onClick = {
+                    com.rentmanager.app.ui.components.CanonicalDialog(
+                        onDismiss = { },
+                        title = "Подтвердите вход",
+                        text = "Попытка входа с устройства " +
+                            (req.deviceName?.takeIf { it.isNotBlank() } ?: "неизвестного устройства") +
+                            ". Это вы?"
+                    ) {
+                        com.rentmanager.app.ui.components.CanonicalDialogButton(
+                            text = "Подтвердить",
+                            container = Color(0xFF212121),
+                            textColor = Color.White,
+                            onClick = {
                                 scope.launch {
                                     try {
                                         if (authApi.approveLogin(ApproveLoginRequest(req.requestId)).isSuccessful) {
@@ -347,19 +347,22 @@ class MainActivity : FragmentActivity() {
                                     } catch (_: Exception) {}
                                 }
                                 loginApprovalEvents.clearPending()
-                            }) { Text("Подтвердить", color = Color(0xFF007AFF)) }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = {
+                            }
+                        )
+                        com.rentmanager.app.ui.components.CanonicalDialogButton(
+                            text = "Отклонить",
+                            container = Color(0xFFFF4249),
+                            textColor = Color.White,
+                            onClick = {
                                 scope.launch {
                                     try { authApi.denyLogin(ApproveLoginRequest(req.requestId)) } catch (_: Exception) {}
                                     // Отклонённая попытка тоже меняет состояние — синхронизируем UI
                                     loginApprovalEvents.emitDevicesChanged()
                                 }
                                 loginApprovalEvents.clearPending()
-                            }) { Text("Отклонить", color = Color(0xFFE53935)) }
-                        }
-                    )
+                            }
+                        )
+                    }
                 }
 
                 if (updateInfo != null) {

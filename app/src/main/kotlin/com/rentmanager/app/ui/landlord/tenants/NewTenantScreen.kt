@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -212,31 +213,33 @@ fun NewTenantScreen(
         }
     }
 
-    Scaffold(containerColor = Color.White) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color.White)
-                .onGloballyPositioned { rootHeightPx = it.size.height.toFloat() }
-        ) {
+    // Архитектура 1:1 с экраном редактирования: БЕЗ Scaffold — корень на всё
+    // окно (rootHeightPx честный для докрутки), статус-инсет на шапке, нижний
+    // инсет только на тапбаре (один раз, без двойного)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .onGloballyPositioned { rootHeightPx = it.size.height.toFloat() }
+    ) {
+        Column(Modifier.statusBarsPadding()) {
             Spacer(Modifier.height(27.dp))
-            // ---- Шапка: стрелка + «Новый арендатор» (канон: заголовок = назад) ----
+            // ---- Шапка: КАНОН — заголовок всегда нажимаем = назад (стрелка
+            // и текст в одной кликабельной строке, как в редактировании) ----
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
+                    .padding(start = 20.dp, end = 20.dp, bottom = 13.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onBack() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 androidx.compose.foundation.Image(
                     painter = painterResource(R.drawable.ic_landlord_back),
                     contentDescription = "Назад",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onBack() }
+                    modifier = Modifier.size(24.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -248,6 +251,7 @@ fun NewTenantScreen(
                     letterSpacing = (-0.3).sp
                 )
             }
+        }
 
             // ---- Контент ----
             Column(
@@ -299,16 +303,16 @@ fun NewTenantScreen(
                 )
 
                 NewTenantField(caption = "ФИО*", value = fullName, onValue = { fullName = it }, onFocused = { revealField(it) })
+                // 20 до заголовка секции: bottom 8 на поле + spacedBy 12
+                // (Spacer между детьми дал бы 12+8+12=32)
                 NewTenantField(
                     caption = "Номер телефона*",
                     value = phone,
                     onValue = { phone = it },
                     keyboardType = KeyboardType.Phone,
+                    modifier = Modifier.padding(bottom = 8.dp),
                     onFocused = { revealField(it) }
                 )
-
-                // 20 до следующей секции (spacedBy 12 + 8)
-                Spacer(Modifier.height(8.dp))
                 Text("Дополнительные данные", fontSize = 18.sp, lineHeight = 21.8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, color = Graphite)
                 NewTenantField(caption = "Название компании", value = company, onValue = { company = it }, onFocused = { revealField(it) })
                 NewTenantField(
@@ -316,10 +320,9 @@ fun NewTenantScreen(
                     value = email,
                     onValue = { email = it },
                     keyboardType = KeyboardType.Email,
+                    modifier = Modifier.padding(bottom = 8.dp),
                     onFocused = { revealField(it) }
                 )
-
-                Spacer(Modifier.height(8.dp))
                 Text("Паспорт / ID", fontSize = 18.sp, lineHeight = 21.8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, color = Graphite)
                 NewTenantField(
                     caption = "Номер документа",
@@ -367,17 +370,35 @@ fun NewTenantScreen(
 
                 // ---- Служебная информация: баян, закрыт изначально ----
                 var serviceExpanded by remember { mutableStateOf(false) }
+                // Якорь на НИЗ формы (правило редактирования): при раскрытии
+                // низ остаётся на месте, экран докручивается на высоту прироста
                 val serviceScope = rememberCoroutineScope()
                 var serviceBottomPx by remember { mutableStateOf(0f) }
+                var serviceAnchorBottom by remember { mutableStateOf<Float?>(null) }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        // Зазор 20 до тапбара (3695:33337 → 3695:33309) при
+                        // максимально прокрученном списке — ДО clip/background,
+                        // иначе серая карточка съедает зазор (белым его не видно)
+                        .padding(bottom = 20.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(NewCardGrey)
                         .padding(horizontal = 20.dp)
                         .then(if (serviceExpanded) Modifier.padding(vertical = 10.dp) else Modifier)
                         .onGloballyPositioned { c ->
                             serviceBottomPx = c.positionInRoot().y + c.size.height
+                            val bottom = c.positionInRoot().y + c.size.height - contentScroll.value
+                            if (!serviceExpanded) {
+                                serviceAnchorBottom = bottom
+                            } else if (serviceAnchorBottom != null) {
+                                val target = c.positionInRoot().y + c.size.height - serviceAnchorBottom!!
+                                serviceAnchorBottom = null
+                                if (target > contentScroll.value) {
+                                    val by = target - contentScroll.value
+                                    serviceScope.launch { contentScroll.scrollBy(by) }
+                                }
+                            }
                         }
                 ) {
                     Row(
@@ -423,10 +444,11 @@ fun NewTenantScreen(
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
             }
 
-            // ---- Тапбар (как в редактировании): Сохранить + Отменить ----
+            // ---- Тапбар: Сохранить + Отменить. Как в редактировании: корень
+            // без Scaffold, нижний инсет ОДИН раз здесь — тапбар упирается
+            // прямо в системную панель (3695:33309) ----
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -462,7 +484,6 @@ fun NewTenantScreen(
                     onClick = onBack
                 )
             }
-        }
     }
 
     // ---- Шит источников документа (общий с редактированием) ----

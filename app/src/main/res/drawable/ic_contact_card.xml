@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- «Выбрать контакт» (канвас «16», UI Icons / 52): карточка с вертикальной
+     чертой, три строки слева, человек справа. Пути 1:1 из Figma (#212121/1.4). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -8,33 +10,41 @@
         android:pathData="M17.3182 4.79999H7.2385C6.19853 4.79999 5.35547 5.78487 5.35547 6.99979V16.446C5.35547 17.6609 6.19853 18.6458 7.2385 18.6458H17.3182C18.3582 18.6458 19.2013 17.6609 19.2013 16.446V6.99979C19.2013 5.78487 18.3582 4.79999 17.3182 4.79999Z"
         android:fillColor="#00000000"
         android:strokeColor="#212121"
-        android:strokeWidth="1.4"
-    />
+        android:strokeWidth="1.4" />
     <path
-        android:pathData="M9.1 7.95C8.0784 7.95 7.25 8.7784 7.25 9.8C7.25 10.8216 8.0784 11.65 9.1 11.65C10.1216 11.65 10.95 10.8216 10.95 9.8C10.95 8.7784 10.1216 7.95 9.1 7.95Z"
+        android:pathData="M8.21484 5.0589V18.3857"
         android:fillColor="#00000000"
         android:strokeColor="#212121"
         android:strokeWidth="1.4"
-    />
+        android:strokeLineCap="round" />
     <path
-        android:pathData="M6.7 15.5C6.7 13.4 7.8 12.3 9.1 12.3C10.4 12.3 11.5 13.4 11.5 15.5"
+        android:pathData="M4.19922 7.77606H6.65789"
+        android:fillColor="#00000000"
+        android:strokeColor="#212121"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M4.19922 11.0103H6.65789"
+        android:fillColor="#00000000"
+        android:strokeColor="#212121"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M4.19922 14.2452H6.65789"
+        android:fillColor="#00000000"
+        android:strokeColor="#212121"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M13.6476 12.0228C14.6481 12.0228 15.4592 11.2118 15.4592 10.2114C15.4592 9.21102 14.6481 8.40002 13.6476 8.40002C12.647 8.40002 11.8359 9.21102 11.8359 10.2114C11.8359 11.2118 12.647 12.0228 13.6476 12.0228Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#212121"
+        android:strokeWidth="1.4" />
+    <path
+        android:pathData="M10.8008 15.904C10.8008 14.1831 12.0689 12.9281 13.6477 12.9281C15.2264 12.9281 16.4945 14.1831 16.4945 15.904"
         android:fillColor="#00000000"
         android:strokeColor="#212121"
         android:strokeWidth="1.4"
         android:strokeLineCap="round"
-    />
-    <path
-        android:pathData="M13.4 9.1H17.1"
-        android:fillColor="#00000000"
-        android:strokeColor="#212121"
-        android:strokeWidth="1.4"
-        android:strokeLineCap="round"
-    />
-    <path
-        android:pathData="M13.4 12.6H17.1"
-        android:fillColor="#00000000"
-        android:strokeColor="#212121"
-        android:strokeWidth="1.4"
-        android:strokeLineCap="round"
-    />
+        android:strokeLineJoin="round" />
 </vector>

@@ -75,48 +75,27 @@ fun HomeScreen(
 
     // ===== Безопасный вход: предложение настроить 2FA =====
     if (uiState.showTelegramPrompt) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissTelegramPrompt() },
-            title = {
-                Text(
-                    "Безопасный вход",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF212121),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            text = {
-                Text(
-                    "Настройте подтверждение входа в аккаунт удобным способом: по электронной почте, в Telegram или через Макс. Это подтвердит, что аккаунт принадлежит вам, и защитит от входа посторонних.",
-                    fontSize = 15.sp,
-                    color = Color(0x993C3C43),
-                    textAlign = TextAlign.Center
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.dismissTelegramPrompt()
-                        onNavigateToSecurity()
-                    }
-                ) {
-                    Text(
-                        "Настроить",
-                        color = Color(0xFF007AFF),
-                        fontWeight = FontWeight.Bold
-                    )
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { viewModel.dismissTelegramPrompt() },
+            title = "Безопасный вход",
+            text = "Настройте подтверждение входа в аккаунт удобным способом: по электронной почте, в Telegram или через Макс. Это подтвердит, что аккаунт принадлежит вам, и защитит от входа посторонних."
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Настроить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = {
+                    viewModel.dismissTelegramPrompt()
+                    onNavigateToSecurity()
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissTelegramPrompt() }) {
-                    Text("Позже", color = Color(0x993C3C43))
-                }
-            },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp)
-        )
+            )
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Позже",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { viewModel.dismissTelegramPrompt() }
+            )
+        }
     }
 
     // Refresh profile when returning to this screen

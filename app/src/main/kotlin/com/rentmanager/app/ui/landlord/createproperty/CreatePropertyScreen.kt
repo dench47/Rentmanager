@@ -831,31 +831,25 @@ private fun SaveBeforeExitDialog(
     onExitWithoutSaving: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    DesignWidthDialog(
-        onDismissRequest = onDismiss,
-        dismissOnClickOutside = false
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        // Канонический диалог без закрытия по клику вне (несохранённые данные)
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = onDismiss,
+            title = "Сохранить изменения?",
+            text = "Внесённые изменения ещё не сохранены. Если выйти сейчас, они будут потеряны."
         ) {
-            Text("Сохранить изменения?", style = ToolbarTitleStyle)
-            Text(
-                "Внесённые изменения ещё не сохранены. Если выйти сейчас, они будут потеряны.",
-                style = Headline2MobStyle.copy(color = GreyText)
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Сохранить и выйти",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = onSaveAndExit
             )
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                BlackCtaButton(text = "Сохранить и выйти", onClick = onSaveAndExit)
-                OutlineCtaButton(
-                    text = "Выйти без сохранения",
-                    borderColor = Graphite,
-                    onClick = onExitWithoutSaving
-                )
-            }
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Выйти без сохранения",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = onExitWithoutSaving
+            )
         }
     }
 }
@@ -869,28 +863,23 @@ private fun ResetChangesDialog(
     onReset: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    DesignWidthDialog(
-        onDismissRequest = onDismiss,
-        dismissOnClickOutside = false
+    com.rentmanager.app.ui.components.CanonicalDialog(
+        onDismiss = onDismiss,
+        title = "Сбросить изменения?",
+        text = "Все несохранённые изменения будут отменены, данные объекта вернутся к последней сохранённой версии."
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            Text("Сбросить изменения?", style = ToolbarTitleStyle)
-            Text(
-                "Все несохранённые изменения будут отменены, данные объекта вернутся к последней сохранённой версии.",
-                style = Headline2MobStyle.copy(color = GreyText)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlineCtaButton(text = "Отмена", borderColor = Graphite, onClick = onCancel)
-                BlackCtaButton(text = "Сбросить изменения", onClick = onReset)
-            }
-        }
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Отмена",
+            stroke = Color(0xFF212121),
+            textColor = Color(0xFF212121),
+            onClick = onCancel
+        )
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Сбросить изменения",
+            container = Color(0xFF212121),
+            textColor = Color.White,
+            onClick = onReset
+        )
     }
 }
 

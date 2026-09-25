@@ -1449,40 +1449,33 @@ private fun PublishBlockerDialog(
     onEdit: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    DesignWidthDialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Заполните обязательные поля", style = ToolbarTitleStyle)
-                // Перечисление без пропусков собирается грамматически корректно
-                // для любого количества: «A», «A и B», «A, B и C»
-                val enumeration = when (missingItems.size) {
-                    0 -> ""
-                    1 -> missingItems[0]
-                    2 -> missingItems.joinToString(" и ")
-                    else -> missingItems.dropLast(1).joinToString(", ") + " и " + missingItems.last()
-                }
-                Text(
-                    "Чтобы опубликовать объявление, укажите\u00A0$enumeration" +
-                        " — без них объявление не будет видно арендаторам",
-                    style = Headline2MobStyle.copy(color = GreyText)
-                )
+    com.rentmanager.app.ui.components.CanonicalDialog(
+        onDismiss = onDismiss,
+        title = "Заполните обязательные поля",
+        text = run {
+            // Перечисление без пропусков собирается грамматически корректно
+            // для любого количества: «A», «A и B», «A, B и C»
+            val enumeration = when (missingItems.size) {
+                0 -> ""
+                1 -> missingItems[0]
+                2 -> missingItems.joinToString(" и ")
+                else -> missingItems.dropLast(1).joinToString(", ") + " и " + missingItems.last()
             }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                BlackCtaButton(text = "Перейти к редактированию", onClick = onEdit)
-                OutlineCtaButton(
-                    text = "Позже",
-                    borderColor = Graphite85,
-                    onClick = onDismiss
-                )
-            }
+            "Чтобы опубликовать объявление, укажите\u00A0$enumeration — без них объявление не будет видно арендаторам"
         }
+    ) {
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Перейти к редактированию",
+            container = Graphite,
+            textColor = Color.White,
+            onClick = onEdit
+        )
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Позже",
+            stroke = Graphite,
+            textColor = Graphite,
+            onClick = onDismiss
+        )
     }
 }
 
@@ -1494,36 +1487,22 @@ private fun DeletePropertyDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    DesignWidthDialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            // Заголовок и текст вплотную, зазор 6 (Figma 2698-22247: txt itemSpacing 6);
-            // \u00A0 — неразрывные пробелы из макета, задают переносы как в дизайне
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Удалить объект?", style = ToolbarTitleStyle)
-                Text(
-                    "Будут удалены данные объекта, договор, история платежей и\u00A0показания счетчиков. Это\u00A0действие нельзя отменить",
-                    style = Headline2MobStyle.copy(color = GreyText)
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                BlackCtaButton(
-                    text = "Удалить объект",
-                    containerColor = ErrorRed,
-                    onClick = onConfirm
-                )
-                OutlineCtaButton(
-                    text = "Отменить",
-                    borderColor = Graphite85,
-                    onClick = onDismiss
-                )
-            }
-        }
+    com.rentmanager.app.ui.components.CanonicalDialog(
+        onDismiss = onDismiss,
+        title = "Удалить объект?",
+        text = "Будут удалены данные объекта, договор, история платежей и\u00A0показания счетчиков. Это\u00A0действие нельзя отменить"
+    ) {
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Удалить объект",
+            container = Color(0xFFFF4249),
+            textColor = Color.White,
+            onClick = onConfirm
+        )
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Отменить",
+            stroke = Graphite,
+            textColor = Graphite,
+            onClick = onDismiss
+        )
     }
 }

@@ -86,14 +86,18 @@ fun ChoosePropertyTypeScreen(
     }
 
     if (showStubAlert) {
-        AlertDialog(
-            onDismissRequest = { showStubAlert = false },
-            title = { Text("Экран еще не готов") },
-            text = { Text("Пока реализован путь для квартиры") },
-            confirmButton = {
-                TextButton(onClick = { showStubAlert = false }) { Text("ОК") }
-            }
-        )
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { showStubAlert = false },
+            title = "Экран еще не готов",
+            text = "Пока реализован путь для квартиры"
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Понятно",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = { showStubAlert = false }
+            )
+        }
     }
 
     if (showContinueDialog) {
@@ -119,41 +123,24 @@ private fun ContinueDraftDialog(
     onStartOver: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    DesignWidthDialog(
-        onDismissRequest = onDismiss,
-        dismissOnClickOutside = false,
-        dismissOnBackPress = false
+    com.rentmanager.app.ui.components.CanonicalDialog(
+        onDismiss = onDismiss,
+        title = "Добавление объекта",
+        text = "Вы начали добавлять объект. Хотите продолжить?"
     ) {
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Шапка: заголовок + подзаголовок
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Добавление объекта", style = ToolbarTitleStyle)
-                    Text(
-                        "Вы начали добавлять объект. Хотите продолжить?",
-                        style = Headline2MobStyle.copy(color = GreyText)
-                    )
-                }
-
-                // Кнопки (Figma 2698-22344): красная «Продолжить» + контурная «Начать заново»
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    BlackCtaButton(text = "Продолжить", containerColor = ErrorRed) { onContinue() }
-                    OutlineCtaButton(text = "Начать заново", borderColor = Color(0xD9212121)) {
-                        onStartOver()
-                    }
-                }
-            }
-        }
+        // Кнопки (Figma 2698-22344): «Продолжить» + контурная «Начать заново»
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Продолжить",
+            container = Color(0xFFFF4249),
+            textColor = Color.White,
+            onClick = { onContinue() }
+        )
+        com.rentmanager.app.ui.components.CanonicalDialogButton(
+            text = "Начать заново",
+            stroke = Color(0xFF212121),
+            textColor = Color(0xFF212121),
+            onClick = { onStartOver() }
+        )
     }
 }
 

@@ -32,28 +32,9 @@ fun IconNotificationDialog(
     iconGap: Dp = 12.dp,
     onDismiss: () -> Unit
 ) {
-    DesignWidthDialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = CardShape,
-            color = Color.White
-        ) {
-            Column(
-                modifier = Modifier.padding(vertical = 21.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Image(
-                    painter = painterResource(iconRes),
-                    contentDescription = null,
-                    modifier = Modifier.size(50.dp)
-                )
-                Spacer(Modifier.height(iconGap))
-                Text(
-                    text,
-                    style = Headline2MobStyle.copy(lineHeight = 18.sp),
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
+    CanonicalDialog(
+        onDismiss = onDismiss,
+        icon = iconRes,
+        title = text
+    )
 }
