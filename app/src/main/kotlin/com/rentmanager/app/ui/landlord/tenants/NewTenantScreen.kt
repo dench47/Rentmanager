@@ -92,6 +92,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 private val NewCardGrey = Color(0xFFEFEFEF)
+// Дубликат телефона (правка Вики 2026-09-26, 3735:68262): бледно-жёлтый фон поля
+private val DuplicateYellow = Color(0xFFFFF1CF)
 private val NewTabBarGrey = Color(0xFFEDEDED).copy(alpha = 0.9f)
 
 @HiltViewModel
@@ -102,6 +104,30 @@ class NewTenantViewModel @Inject constructor(
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving = _isSaving.asStateFlow()
+
+    /**
+     * Нормализованные номера УЖЕ СУЩЕСТВУЮЩИХ карточек — состояние «дубликат»
+     * (правка Вики 2026-09-26, 3735:68262). Сравнение идёт по каноническому виду
+     * PhoneUtils.normalize («+7XXXXXXXXXX»), поэтому +7/8/без разделителей совпадают.
+     */
+    private val _existingPhones = MutableStateFlow<Set<String>>(emptySet())
+    val existingPhones = _existingPhones.asStateFlow()
+
+    init {
+        loadExistingPhones()
+    }
+
+    fun loadExistingPhones() {
+        viewModelScope.launch {
+            runCatching { tenantApi.getTenants().body().orEmpty() }
+                .onSuccess { list ->
+                    _existingPhones.value = list
+                        .mapNotNull { PhoneUtils.normalize(it.phone) }
+                        .filter { it.isNotEmpty() }
+                        .toSet()
+                }
+        }
+    }
 
     fun save(tenant: TenantDto, onDone: (Boolean) -> Unit) {
         if (_isSaving.value) return
@@ -130,6 +156,7 @@ fun NewTenantScreen(
 ) {
     val context = LocalContext.current
     val isSaving by viewModel.isSaving.collectAsState()
+    val existingPhones by viewModel.existingPhones.collectAsState()
 
     var fullName by remember { mutableStateOf(TextFieldValue()) }
     var phone by remember { mutableStateOf(TextFieldValue()) }
@@ -157,6 +184,12 @@ fun NewTenantScreen(
     // Невалидный номер (2935:39793): normalize не смог распознать формат
     val phoneInvalid = phone.text.isNotBlank() && PhoneUtils.normalize(phone.text) == null
     val phoneError = showPhoneError && phoneInvalid
+    // Дубликат телефона (3735:68262): поле жёлтое + пояснение; «Сохранить» молчит.
+    // Снимается автоматически, как только номер станет другим.
+    val phoneDuplicate = remember(phone.text, existingPhones) {
+        val normalized = PhoneUtils.normalize(phone.text)
+        normalized != null && normalized in existingPhones
+    }
     // Кнопка: 40% только на девственно пустом экране; дальше клик с пустыми
     // обязательными показывает состояние ошибки вместо сохранения
     val canSave = !isSaving && (
@@ -309,6 +342,7 @@ fun NewTenantScreen(
                     },
                     keyboardType = KeyboardType.Phone,
                     error = (requiredError && phone.text.isBlank()) || phoneError,
+                    duplicate = phoneDuplicate,
                     modifier = Modifier.padding(bottom = 8.dp),
                     onFocused = { revealField(it) }
                 )
@@ -466,6 +500,9 @@ fun NewTenantScreen(
                     text = if (isSaving) "Сохранение…" else "Сохранить",
                     enabled = canSave,
                     onClick = {
+                        // Дубликат (3735:68262): кнопка остаётся активной по виду,
+                        // но нажатие ничего не даёт — ни ошибок, ни сохранения
+                        if (phoneDuplicate) return@BlackCtaButton
                         if (fullName.text.isBlank() || phone.text.isBlank()) {
                             showRequiredError = true
                             return@BlackCtaButton
@@ -708,6 +745,8 @@ private fun NewTenantField(
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
     error: Boolean = false,
+    /** Номер уже есть в карточках (3735:68262): фон #FFF1CF + серая подпись под полем */
+    duplicate: Boolean = false,
     onFocused: (() -> Float) -> Unit = {}
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -717,12 +756,14 @@ private fun NewTenantField(
     LaunchedEffect(fieldActive) {
         if (fieldActive) runCatching { focusRequester.requestFocus() }
     }
+    Column(modifier = modifier.fillMaxWidth()) {
     Row(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(NewCardGrey)
+            // Дубликат номера (3735:68262): фон #FFF1CF вместо серого
+            .background(if (duplicate) DuplicateYellow else NewCardGrey)
             // Пустое обязательное поле при сохранении: рамка #FF4249 (3695:33355)
             .then(if (error) Modifier.border(1.dp, Color(0xFFFF4249), RoundedCornerShape(20.dp)) else Modifier)
             .onGloballyPositioned { fieldBottomPx = it.positionInRoot().y + it.size.height }
@@ -787,6 +828,20 @@ private fun NewTenantField(
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
                 )
             }
+        }
+    }
+        // Пояснение дубликата (3735:68262): через 4, серая 9.5/400 lh 11.5, отступ 20
+        if (duplicate) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Карточка с таким номером уже есть",
+                fontSize = 9.5.sp,
+                lineHeight = 11.5.sp,
+                letterSpacing = (-0.2).sp,
+                fontWeight = FontWeight.Normal,
+                color = GreyText,
+                modifier = Modifier.padding(start = 20.dp)
+            )
         }
     }
 }
