@@ -25,6 +25,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -171,6 +181,7 @@ fun AttachTenantScreen(
     // выбранная в шахматке дата автоматически подставляется здесь)
     presetStart: LocalDate? = null,
     presetEnd: LocalDate? = null,
+    presetTenantId: String? = null,
     viewModel: AttachTenantViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -182,6 +193,19 @@ fun AttachTenantScreen(
     var endDate by remember { mutableStateOf<LocalDate?>(presetEnd) }
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+
+    // Вход из карточки арендатора: ФИО и телефон уже заполнены — останется
+    // проставить даты; сохранение прикрепляет ЭТОГО арендатора
+    val presetTenant by viewModel.presetTenant.collectAsState()
+    LaunchedEffect(presetTenantId) {
+        presetTenantId?.let { viewModel.loadPresetTenant(it) }
+    }
+    LaunchedEffect(presetTenant) {
+        val t = presetTenant ?: return@LaunchedEffect
+        if (fullName.isBlank()) fullName = t.fullName
+        // В маску поля: +7/8 → 10 цифр без семёрки (иностранного — как записан)
+        if (phone.isBlank()) phone = contactPhoneValue(t.phone)
+    }
 
     // Черновик прошлого незавершённого ввода: на входе предлагаем продолжить
     // (Figma 2935:40049); после успешного прикрепления черновик не нужен.
@@ -235,6 +259,16 @@ fun AttachTenantScreen(
         val end = endDate ?: return
         val start = startDate ?: return
         // Период включает последний выбранный день (вопрос дизайнера решён так)
+        // Пресет-арендатор с неизменёнными полями — прикрепляем ЕГО, нового
+        // не создаём; поля отредактированы — создаём нового (как в ручном флоу)
+        val t = presetTenant
+        if (t != null && fullName.trim() == t.fullName && phone == contactPhoneValue(t.phone)) {
+            viewModel.attachExisting(propertyId, t, start, end) {
+                attached = true
+                onAttached()
+            }
+            return
+        }
         viewModel.attach(propertyId, fullName.trim(), phone, start, end) {
             attached = true
             onAttached()
@@ -242,17 +276,52 @@ fun AttachTenantScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        // Канон: клавиатура не прячет поле ввода (как в редактировании
+        // арендатора) — insets не читаем в композиции, доскролл в snapshotFlow
+        val contentScroll = rememberScrollState()
+        val revealScope = rememberCoroutineScope()
+        val density = LocalDensity.current
+        val imeInsets = WindowInsets.ime
+        var rootHeightPx by remember { mutableStateOf(0f) }
+        var pendingReveal by remember { mutableStateOf<(() -> Float)?>(null) }
+        suspend fun scrollFieldAboveKeyboard(imePx: Int, bottom: () -> Float) {
+            if (rootHeightPx <= 0f || imePx <= 0) return
+            val marginPx = with(density) { 24.dp.toPx() }
+            val keyboardTopPx = rootHeightPx - imePx
+            val need = bottom() - (keyboardTopPx - marginPx)
+            if (need > 0) contentScroll.scrollBy(need)
+        }
+        LaunchedEffect(Unit) {
+            snapshotFlow { imeInsets.getBottom(density) }.collect { imePx ->
+                if (imePx == 0) {
+                    pendingReveal = null
+                } else {
+                    pendingReveal?.let { scrollFieldAboveKeyboard(imePx, it) }
+                }
+            }
+        }
+        fun revealField(bottom: () -> Float) {
+            val imeNow = imeInsets.getBottom(density)
+            if (imeNow > 0 && rootHeightPx > 0) {
+                revealScope.launch { scrollFieldAboveKeyboard(imeNow, bottom) }
+            } else {
+                pendingReveal = bottom
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .onGloballyPositioned { rootHeightPx = it.size.height.toFloat() }
         ) {
             ScreenToolbar(title = "Добавить арендатора", onBack = onDismiss)
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(contentScroll)
                     .padding(horizontal = 20.dp)
+                    // Запас прокрутки под клавиатуру (только layout)
+                    .windowInsetsPadding(WindowInsets.ime)
             ) {
                 // ---- Карточка объекта (фото 40 + название + короткий адрес) ----
                 Row(
@@ -327,26 +396,42 @@ fun AttachTenantScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(12.dp))
-                TextValueField(
-                    caption = "ФИО",
-                    value = fullName,
-                    error = nameError,
-                    onValueChange = {
-                        fullName = it
-                        nameError = false
-                        saveDraft()
-                    }
-                )
+                var fullNameBottomPx by remember { mutableStateOf(0f) }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { fullNameBottomPx = it.positionInRoot().y + it.size.height }
+                ) {
+                    TextValueField(
+                        caption = "ФИО",
+                        value = fullName,
+                        error = nameError,
+                        onValueChange = {
+                            fullName = it
+                            nameError = false
+                            revealField { fullNameBottomPx }
+                            saveDraft()
+                        }
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
-                PhoneValueField(
-                    value = phone,
-                    error = phoneError,
-                    onValueChange = {
-                        phone = it
-                        phoneError = null
-                        saveDraft()
-                    }
-                )
+                var phoneBottomPx by remember { mutableStateOf(0f) }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { phoneBottomPx = it.positionInRoot().y + it.size.height }
+                ) {
+                    PhoneValueField(
+                        value = phone,
+                        error = phoneError,
+                        onValueChange = {
+                            phone = it
+                            phoneError = null
+                            revealField { phoneBottomPx }
+                            saveDraft()
+                        }
+                    )
+                }
 
                 Spacer(Modifier.height(20.dp))
                 BlackCtaButton(

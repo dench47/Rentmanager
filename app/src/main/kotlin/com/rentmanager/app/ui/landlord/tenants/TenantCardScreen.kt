@@ -84,6 +84,7 @@ fun TenantCardScreen(
     onDelete: () -> Unit = {},
     onPropertyClick: (String) -> Unit = {},
     onOpenMyProperties: () -> Unit = {},
+    onAttachToProperty: (String) -> Unit = {},
     viewModel: TenantCardViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -478,11 +479,11 @@ fun TenantCardScreen(
             AttachPropertySheet(
                 properties = freeProps,
                 onPick = { propertyId ->
-                    // Даты аренды ещё не выбраны — прикреплять рано: открываем
-                    // карточку выбранного объекта (правка Вики от 21.09),
-                    // срок задаётся в её потоке брони
+                    // Даты не выбраны — ведём в флоу «Добавить арендатора»
+                    // выбранного объекта с заполненными ФИО/телефоном этого
+                    // арендатора: останется проставить даты вручную
                     showAttachSheet = false
-                    onPropertyClick(propertyId)
+                    onAttachToProperty(propertyId)
                 }
             )
         }
@@ -660,12 +661,15 @@ private fun AttachPropertySheet(
             letterSpacing = (-0.4).sp,
             color = GreyText
         )
+        // Замер Дениса: «Выберите свободный объект» -> строка 30
+        // (20 спейсер + 10 верхний паддинг строки)
+        Spacer(Modifier.height(20.dp))
         properties.forEach { p ->
             Column(
                 Modifier
                     .fillMaxWidth()
                     .clickable { onPick(p.id) }
-                    .padding(top = 10.dp, bottom = 12.dp)
+                    .padding(top = 10.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     coil.compose.AsyncImage(
@@ -682,6 +686,7 @@ private fun AttachPropertySheet(
                             p.name.ifBlank { "Без названия" },
                             style = com.rentmanager.app.ui.theme.Headline2MobStyle.copy(lineHeight = 18.2.sp)
                         )
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             p.address.substringBefore(',').trim(),
                             fontSize = 13.sp,
@@ -698,7 +703,11 @@ private fun AttachPropertySheet(
                             .graphicsLayer { rotationZ = -90f }
                     )
                 }
+                // 3677:31838: контент строки -> дивайдер 12
+                Spacer(Modifier.height(12.dp))
                 androidx.compose.material3.HorizontalDivider(color = Color(0xFFDBDBDB))
+                // 3677:31826: дивайдер -> следующая строка 20 (10 здесь + 10 сверху следующей)
+                Spacer(Modifier.height(10.dp))
             }
         }
     }

@@ -49,6 +49,18 @@ class AttachTenantViewModel @Inject constructor(
         _uiState.update { it.copy(failed = false) }
     }
 
+    /** Пресет из карточки арендатора («Прикрепить к объекту»): ФИО/телефон
+     *  подставляются в поля, сохранение идёт через attachExisting */
+    private val _presetTenant = MutableStateFlow<TenantDto?>(null)
+    val presetTenant: StateFlow<TenantDto?> = _presetTenant.asStateFlow()
+
+    fun loadPresetTenant(id: String) {
+        viewModelScope.launch {
+            runCatching { tenantApi.getTenantCard(id).body() }
+                .onSuccess { t -> if (t != null) _presetTenant.value = t }
+        }
+    }
+
     /** Уже добавленные арендаторы — источник «Из списка арендаторов» (3429:66563) */
     private val _tenants = MutableStateFlow<List<TenantDto>>(emptyList())
     val tenants: StateFlow<List<TenantDto>> = _tenants.asStateFlow()

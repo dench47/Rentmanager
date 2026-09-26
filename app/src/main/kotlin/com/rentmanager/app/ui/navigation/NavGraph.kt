@@ -449,6 +449,10 @@ fun RentManagerNavGraph(
                 navArgument("endDate") {
                     type = NavType.StringType
                     defaultValue = "none"
+                },
+                navArgument("tenantId") {
+                    type = NavType.StringType
+                    defaultValue = ""
                 }
             )
         ) { backStackEntry ->
@@ -462,6 +466,8 @@ fun RentManagerNavGraph(
                 propertyId = propertyId,
                 presetStart = presetStart,
                 presetEnd = presetEnd,
+                presetTenantId = backStackEntry.arguments?.getString("tenantId")
+                    ?.takeIf { it.isNotBlank() },
                 onDismiss = { navController.popBackStack() },
                 onAttached = { navController.popBackStack() }
             )
@@ -603,6 +609,11 @@ fun RentManagerNavGraph(
                 },
                 onEdit = {
                     navController.navigate(Screen.TenantEdit.createRoute(tenantId))
+                },
+                onAttachToProperty = { pid ->
+                    navController.navigate(
+                        Screen.AttachTenant.createRoute(pid, null, null, tenantId)
+                    )
                 }
             )
         }

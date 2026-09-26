@@ -116,11 +116,18 @@ sealed class Screen(val route: String) {
     data object Services : Screen("services")
 
     // Attach tenant
-    data object AttachTenant : Screen("landlord/attach_tenant/{propertyId}/{startDate}/{endDate}") {
+    data object AttachTenant : Screen("landlord/attach_tenant/{propertyId}/{startDate}/{endDate}?tenantId={tenantId}") {
         /** startDate/endDate — ISO-строки или "none": пресет периода,
-         *  выбранного в шахматке «Моя недвижимость» (аннотация дизайнера) */
-        fun createRoute(propertyId: String, start: LocalDate? = null, end: LocalDate? = null) =
-            "landlord/attach_tenant/$propertyId/${start?.toString() ?: "none"}/${end?.toString() ?: "none"}"
+         *  выбранного в шахматке «Моя недвижимость» (аннотация дизайнера).
+         *  tenantId — вход из карточки арендатора («Прикрепить к объекту»):
+         *  экран открывается с заполненными ФИО/телефоном этого арендатора */
+        fun createRoute(
+            propertyId: String,
+            start: LocalDate? = null,
+            end: LocalDate? = null,
+            tenantId: String? = null
+        ) = "landlord/attach_tenant/$propertyId/${start?.toString() ?: "none"}/${end?.toString() ?: "none"}" +
+            (tenantId?.let { "?tenantId=$it" } ?: "")
     }
 
     // Meter detail
