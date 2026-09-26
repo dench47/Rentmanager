@@ -228,3 +228,21 @@
   #212121; текст кнопки 15/600/−0.4;
 - **НИКАКОГО масштабирования** (scale-функции) — только raw dp/sp:
   плагинные LocalConfiguration врут, сжимали кнопки 55→48.
+
+## Автоскролл под клавиатуру: три обязательных условия (исправлено 2026-09-26)
+
+Баг «автоскролл не работает» в «Добавить арендатора» — три причины, все три обязательны:
+
+1. **Триггер — ФОКУС поля, а не ввод.** Доскролл вешался только на `onValueChange`, поэтому
+   тап по полю открывал клавиатуру и НИЧЕГО не прокручивал (скролл срабатывал лишь когда
+   начинали печатать). Канон: у поля параметр `onFocused` + `.onFocusChanged { if (it.isFocused)
+   onFocused() }` (см. `TextValueField` / `PhoneValueField` в AttachTenantScreen, `EditField`
+   в TenantEditScreen); вызов из `onValueChange` — только дополнение.
+2. **`rootHeightPx` снимать ДО `statusBarsPadding()`.** Если `onGloballyPositioned` стоит после
+   паддинга, высота корня меньше окна на статус-бар, а `positionInRoot()` у полей считается от
+   полного окна → `keyboardTop = rootHeight - ime` уезжает, `need` занижается, поле не
+   докручивается. Правильно: `.fillMaxSize().onGloballyPositioned { rootHeightPx = ... }
+   .statusBarsPadding()`.
+3. **Контент скролла — `.weight(1f)`**, а не `.fillMaxSize()` (канон: вьюпорт = область между
+   шапкой и низом экрана). Запас прокрутки под клавиатуру — `.windowInsetsPadding(WindowInsets.ime)`
+   ВНУТРИ скролла, маржа докрутки 24.

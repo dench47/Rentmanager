@@ -55,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -311,13 +312,16 @@ fun AttachTenantScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                // ВАЖНО: высоту корня снимаем ДО statusBarsPadding — иначе rootHeightPx
+                // меньше высоты окна на статус-бар, а positionInRoot() у полей считается
+                // от полного окна → «верх клавиатуры» уезжает и поле не докручивается
                 .onGloballyPositioned { rootHeightPx = it.size.height.toFloat() }
+                .statusBarsPadding()
         ) {
             ScreenToolbar(title = "Добавить арендатора", onBack = onDismiss)
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
                     .verticalScroll(contentScroll)
                     .padding(horizontal = 20.dp)
                     // Запас прокрутки под клавиатуру (только layout)
@@ -411,7 +415,8 @@ fun AttachTenantScreen(
                             nameError = false
                             revealField { fullNameBottomPx }
                             saveDraft()
-                        }
+                        },
+                        onFocused = { revealField { fullNameBottomPx } }
                     )
                 }
                 Spacer(Modifier.height(12.dp))
@@ -429,7 +434,8 @@ fun AttachTenantScreen(
                             phoneError = null
                             revealField { phoneBottomPx }
                             saveDraft()
-                        }
+                        },
+                        onFocused = { revealField { phoneBottomPx } }
                     )
                 }
 
@@ -681,7 +687,9 @@ private fun TextValueField(
     value: String,
     error: Boolean,
     keyboardType: KeyboardType = KeyboardType.Text,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    /** Тап/фокус: экран домотает поле над клавиатурой (канон редактирования арендатора) */
+    onFocused: () -> Unit = {}
 ) {
     Column {
         Row(
@@ -714,7 +722,9 @@ private fun TextValueField(
                     // Курсор исчезает: поле отдаёт фокус (стандартное «Готово»)
                     focusManager.clearFocus()
                 }),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { if (it.isFocused) onFocused() },
                 textStyle = TextStyle(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -765,7 +775,9 @@ private fun TextValueField(
 private fun PhoneValueField(
     value: String,
     error: String?,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    /** Тап/фокус: экран домотает поле над клавиатурой (канон редактирования арендатора) */
+    onFocused: () -> Unit = {}
 ) {
     Column {
         Row(
@@ -810,7 +822,9 @@ private fun PhoneValueField(
                     // Курсор исчезает: поле отдаёт фокус (стандартное «Готово»)
                     focusManager.clearFocus()
                 }),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { if (it.isFocused) onFocused() },
                 visualTransformation = if (value.isNotEmpty() && value.any { !it.isDigit() }) {
                     // Иностранный номер из книги — без русской маски, как записан
                     VisualTransformation.None
