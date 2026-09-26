@@ -63,11 +63,17 @@ fun TenantsListScreen(
     val uiState by viewModel.uiState.collectAsState()
     var tenantToDelete by remember { mutableStateOf<TenantDto?>(null) }
 
+    // Удаление из карточки: «Арендатор был удален» на фоне списка (3014:22433)
+    var deletedTenantId by remember { mutableStateOf<String?>(null) }
+
     // Обновление списка при возврате на экран
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.load()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.load()
+                deletedTenantId = DeletedTenantNotice.take()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -251,6 +257,25 @@ fun TenantsListScreen(
         )
     }
 
+    // «Арендатор был удален» — после возврата с карточки (3014:22433)
+    deletedTenantId?.let { id ->
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { deletedTenantId = null },
+            icon = R.drawable.ic_success_check,
+            title = "Арендатор был удален"
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Отменить удаление",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = {
+                    deletedTenantId = null
+                    viewModel.restoreTenant(id)
+                }
+            )
+        }
+    }
+
     tenantToDelete?.let { tenant ->
         com.rentmanager.app.ui.components.CanonicalDialog(
             onDismiss = { tenantToDelete = null },
@@ -311,12 +336,12 @@ private fun TenantCard(
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
                     )
                 } else {
-                    Text(
-                        displayName.take(1).uppercase(),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF8E8E93),
-                        fontFamily = InterFontFamily
+                    // 3694:32894: свой плейсхолдер — силуэт в сером круге
+                    Image(
+                        painter = painterResource(R.drawable.ic_avatar_placeholder),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }

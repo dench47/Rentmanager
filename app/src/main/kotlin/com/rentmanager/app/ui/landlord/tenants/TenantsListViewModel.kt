@@ -62,6 +62,14 @@ class TenantsListViewModel @Inject constructor(
         }
     }
 
+    /** «Отменить удаление» из диалога на фоне списка (3014:22433) */
+    fun restoreTenant(id: String) {
+        viewModelScope.launch {
+            runCatching { tenantApi.restoreTenant(id) }
+            load()
+        }
+    }
+
     /** Закрытие окна «Нет связи» тапом вне (канон остальных экранов) */
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }

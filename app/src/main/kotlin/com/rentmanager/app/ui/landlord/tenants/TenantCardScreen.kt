@@ -91,7 +91,6 @@ fun TenantCardScreen(
     var showActionsSheet by remember { mutableStateOf(false) }
     var showAttachSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var showSuccessDialog by remember { mutableStateOf(false) }
     var showBlockedDialog by remember { mutableStateOf(false) }
     var showDocumentsSheet by remember { mutableStateOf(false) }
 
@@ -515,7 +514,13 @@ fun TenantCardScreen(
                 onClick = {
                     showDeleteDialog = false
                     viewModel.deleteTenant { ok ->
-                        if (ok) showSuccessDialog = true else showBlockedDialog = true
+                        if (ok) {
+                            // Диалог «Арендатор был удален» показывается на
+                            // фоне списка: уходим назад, список подхватит
+                            // уведомление и предложит «Отменить удаление»
+                            DeletedTenantNotice.set(tenantId)
+                            onBack()
+                        } else showBlockedDialog = true
                     }
                 }
             )
@@ -528,24 +533,6 @@ fun TenantCardScreen(
         }
     }
 
-    // ---- Диалог «Арендатор был удален» (3014:22433) ----
-    if (showSuccessDialog) {
-        TenantDialog(
-            onDismiss = { showSuccessDialog = false },
-            icon = R.drawable.ic_success_check,
-            title = "Арендатор был удален"
-        ) {
-            TenantDialogButton(
-                text = "Отменить удаление",
-                container = Graphite,
-                textColor = Color.White,
-                onClick = {
-                    showSuccessDialog = false
-                    viewModel.restoreTenant { }
-                }
-            )
-        }
-    }
 
     // ---- Диалог «Есть активные аренды» (правка Вики 2026-09-24, 3696:34110) ----
     if (showBlockedDialog) {

@@ -4,6 +4,7 @@ package com.rentmanager.app.ui.landlord.tenants
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -148,6 +149,17 @@ class TenantEditViewModel @Inject constructor(
         _uiState.update { it.copy(markedForDeletion = it.markedForDeletion + docId) }
     }
 
+    /** «Отменить удаление» из диалога «Документ удален» (3679:32200) */
+    fun unmarkDocumentForDeletion(docId: String) {
+        _uiState.update {
+            it.copy(markedForDeletion = it.markedForDeletion - docId)
+        }
+    }
+
+    fun restageDocument(doc: StagedDocument) {
+        _uiState.update { it.copy(staged = it.staged + doc) }
+    }
+
     /**
      * «Сохранить изменения»: сначала документы (загрузка в хранилище + прикрепление
      * стейджа, затем удаление помеченных), потом поля карточки. false — окно с глобусом.
@@ -240,6 +252,19 @@ fun TenantEditScreen(
 
     var showSavedDialog by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
+    // Попытка сохранить с пустыми обязательными полями (3695:33355): поля
+    // обводятся красным + «Обязательное поле»; снимается само при заполнении
+    var showRequiredError by remember { mutableStateOf(false) }
+    var showPhoneError by remember { mutableStateOf(false) }
+    val requiredError = showRequiredError && (fullName.text.isBlank() || phone.text.isBlank())
+    // Невалидный номер (2935:39793): «Проверьте правильность заполнения»
+    val phoneInvalid = phone.text.isNotBlank() &&
+        com.rentmanager.app.util.PhoneUtils.normalize(phone.text) == null
+    val phoneError = showPhoneError && phoneInvalid
+    // «Документ удален» с отменой (3679:32200): пометка на удаление не молчаливая
+    var deletedDocDialog by remember { mutableStateOf(false) }
+    var lastDeletedDocId by remember { mutableStateOf<String?>(null) }
+    var lastUnstagedDoc by remember { mutableStateOf<StagedDocument?>(null) }
     var errorText by remember { mutableStateOf<String?>(null) }
     // Выход с несохранёнными изменениями — сперва диалог (2983:45634)
     fun attemptExit() {
@@ -403,7 +428,10 @@ fun TenantEditScreen(
 
             // ---- Основная информация ----
             Text("Основная информация", style = SectionTitleStyle)
-            EditField(caption = "ФИО*", value = fullName, onValue = { fullName = it }, onFocused = { revealField(it) })
+            EditField(caption = "ФИО*", value = fullName, onValue = { fullName = it }, error = requiredError && fullName.text.isBlank(), onFocused = { revealField(it) })
+            if (requiredError && fullName.text.isBlank()) {
+                Text("Обязательное поле", fontSize = 9.5.sp, lineHeight = 11.sp, letterSpacing = (-0.2).sp, color = Color(0xFFFF4249), modifier = Modifier.padding(start = 20.dp, top = 4.dp))
+            }
             EditField(caption = "Название компании", value = company, onValue = { company = it }, onFocused = { revealField(it) })
             EditField(
                 caption = "Электронная почта",
@@ -417,8 +445,15 @@ fun TenantEditScreen(
                 value = phone,
                 onValue = { phone = it },
                 keyboardType = KeyboardType.Phone,
+                error = (requiredError && phone.text.isBlank()) || phoneError,
                 onFocused = { revealField(it) }
             )
+            if (phoneError) {
+                // 2935:39793
+                Text("Проверьте правильность заполнения", fontSize = 9.5.sp, lineHeight = 11.sp, letterSpacing = (-0.2).sp, color = Color(0xFFFF4249), modifier = Modifier.padding(start = 20.dp, top = 4.dp))
+            } else if (requiredError && phone.text.isBlank()) {
+                Text("Обязательное поле", fontSize = 9.5.sp, lineHeight = 11.sp, letterSpacing = (-0.2).sp, color = Color(0xFFFF4249), modifier = Modifier.padding(start = 20.dp, top = 4.dp))
+            }
 
             // ---- Паспорт / ID (правка Вики 2026-09-24, 3677:31337): серия и номер
             // объединены в ОДНО поле «Номер документа», глаза и маски убраны ----
@@ -441,7 +476,12 @@ fun TenantEditScreen(
                         onOpen = {
                             docScope.launch { openDocumentFromUrl(docContext, doc.url, doc.name, doc.fileType) }
                         },
-                        onDelete = { viewModel.markDocumentForDeletion(doc.id) }
+                        onDelete = {
+                            viewModel.markDocumentForDeletion(doc.id)
+                            lastDeletedDocId = doc.id
+                            lastUnstagedDoc = null
+                            deletedDocDialog = true
+                        }
                     )
                 }
             state.staged.forEach { staged ->
@@ -455,7 +495,12 @@ fun TenantEditScreen(
                     onOpen = {
                         docScope.launch { openDocumentFromUrl(docContext, staged.uri.toString(), staged.name, staged.mimeType) }
                     },
-                    onDelete = { viewModel.unstageDocument(staged.uri) }
+                    onDelete = {
+                        lastUnstagedDoc = staged
+                        lastDeletedDocId = null
+                        viewModel.unstageDocument(staged.uri)
+                        deletedDocDialog = true
+                    }
                 )
             }
 
@@ -635,6 +680,15 @@ fun TenantEditScreen(
                 enabled = hasChanges && !state.isSaving,
                 onClick = {
                     val t = tenant ?: return@BlackCtaButton
+                    if (fullName.text.isBlank() || phone.text.isBlank()) {
+                        showRequiredError = true
+                        return@BlackCtaButton
+                    }
+                    // Невалидный номер сохранять нельзя (2935:39793)
+                    if (com.rentmanager.app.util.PhoneUtils.normalize(phone.text) == null) {
+                        showPhoneError = true
+                        return@BlackCtaButton
+                    }
                     viewModel.save(
                         t.copy(
                             fullName = fullName.text.trim().ifBlank { t.fullName },
@@ -690,6 +744,28 @@ fun TenantEditScreen(
                     showSavedDialog = false
                     onBack()
                 }
+            }
+        }
+
+        // ---- «Документ удален» (3679:32200): без подтверждения, но с отменой ----
+        if (deletedDocDialog) {
+            com.rentmanager.app.ui.components.CanonicalDialog(
+                onDismiss = { deletedDocDialog = false },
+                icon = R.drawable.ic_success_check,
+                title = "Документ удален"
+            ) {
+                com.rentmanager.app.ui.components.CanonicalDialogButton(
+                    text = "Отменить удаление",
+                    container = Graphite,
+                    textColor = Color.White,
+                    onClick = {
+                        deletedDocDialog = false
+                        lastDeletedDocId?.let { viewModel.unmarkDocumentForDeletion(it) }
+                        lastUnstagedDoc?.let { viewModel.restageDocument(it) }
+                        lastDeletedDocId = null
+                        lastUnstagedDoc = null
+                    }
+                )
             }
         }
 
@@ -772,6 +848,7 @@ private fun EditField(
     onValue: (TextFieldValue) -> Unit,
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
+    error: Boolean = false,
     onFocused: (() -> Float) -> Unit = {}
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -782,6 +859,8 @@ private fun EditField(
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(EditCardGrey)
+            // Пустое обязательное поле при сохранении: рамка #FF4249 (3695:33355)
+            .then(if (error) Modifier.border(1.dp, Color(0xFFFF4249), RoundedCornerShape(20.dp)) else Modifier)
             .onGloballyPositioned { fieldBottomPx = it.positionInRoot().y + it.size.height }
             .padding(horizontal = 20.dp)
             .pointerInput(Unit) {
@@ -801,7 +880,7 @@ private fun EditField(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(caption, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
+            Text(caption, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = if (error) Color(0xFFFF4249) else GreyText)
             BasicTextField(
                 value = value,
                 onValueChange = {

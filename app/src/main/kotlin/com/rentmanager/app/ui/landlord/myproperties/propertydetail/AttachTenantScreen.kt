@@ -837,7 +837,7 @@ private class RuPhoneVisualTransformation(
  * Значение поля «Телефон» из номера контакта: русские (+7/8) → 10 цифр
  * без семёрки (под маску), иностранные → как записан (без маски).
  */
-private fun contactPhoneValue(raw: String): String {
+fun contactPhoneValue(raw: String): String {
     val digits = raw.filter(Char::isDigit)
     return if (digits.startsWith("7") || digits.startsWith("8")) digits.drop(1).take(10)
     else raw.trim()
@@ -859,7 +859,7 @@ private fun normalizePhoneInput(raw: String): String {
  * начинающимся с +7 или 8; остальные (например +49…) показываются
  * как записаны — семёрку никому не дописываем.
  */
-private fun formatContactPhone(raw: String): String {
+fun formatContactPhone(raw: String): String {
     val digits = raw.filter(Char::isDigit)
     return if (digits.startsWith("7") || digits.startsWith("8")) formatRuPhone(raw)
     else raw.trim()
@@ -872,7 +872,7 @@ private fun formatContactPhone(raw: String): String {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ContactsPickerSheet(
+fun ContactsPickerSheet(
     onPick: (PhoneContact) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1130,11 +1130,11 @@ data class PickerEntry(val id: String, val title: String, val subtitle: String)
  * 15/600 + 4 + подпись 13/400 #727272 + 10 + шеврон (−90°).
  */
 @Composable
-private fun ContactSourceSheet(
-    onTenants: () -> Unit,
+fun ContactSourceSheet(
     onPhonebook: () -> Unit,
     onCalls: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onTenants: (() -> Unit)? = null
 ) {
     TenantActionModalSheet(
         onDismiss = onDismiss,
@@ -1146,7 +1146,10 @@ private fun ContactSourceSheet(
             style = Headline2MobStyle.copy(fontSize = 20.sp, lineHeight = 24.sp)
         )
         Spacer(Modifier.height(20.dp))
-        SourceRow(R.drawable.ic_source_tenants, "Из списка арендаторов", "Ранее добавленные в приложение", onTenants)
+        // «Из списка арендаторов» не нужен на экране «Новый арендатор»
+        onTenants?.let {
+            SourceRow(R.drawable.ic_source_tenants, "Из списка арендаторов", "Ранее добавленные в приложение", it)
+        }
         SourceRow(R.drawable.ic_source_phonebook, "Из телефонной книги", "Выбрать номер из контактов", onPhonebook)
         SourceRow(R.drawable.ic_source_calls, "Из недавних звонков", "Выбрать номер из журнала звонков", onCalls)
     }
@@ -1154,7 +1157,7 @@ private fun ContactSourceSheet(
 
 /** Строка источника 72 (3429:66563): иконка 40 + 8 + имя/подпись + 10 + шеврон −90°. */
 @Composable
-private fun SourceRow(iconRes: Int, title: String, subtitle: String, onClick: () -> Unit) {
+fun SourceRow(iconRes: Int, title: String, subtitle: String, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1205,7 +1208,7 @@ private fun SourceRow(iconRes: Int, title: String, subtitle: String, onClick: ()
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PickerListSheet(
+fun PickerListSheet(
     entries: List<PickerEntry>,
     onPick: (PickerEntry) -> Unit,
     onDismiss: () -> Unit
@@ -1328,7 +1331,7 @@ private fun PickerListSheet(
 }
 
 /** Журнал звонков: до 100 записей, дедуп по номеру, свежие сверху. */
-private fun readCallLog(context: Context): List<PickerEntry> = try {
+fun readCallLog(context: Context): List<PickerEntry> = try {
     val seen = mutableSetOf<String>()
     val out = mutableListOf<PickerEntry>()
     context.contentResolver.query(

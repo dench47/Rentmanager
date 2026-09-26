@@ -139,47 +139,38 @@ fun NewTenantScreen(
     var serviceInfo by remember { mutableStateOf(TextFieldValue()) }
     var showAttachDocSheet by remember { mutableStateOf(false) }
 
-    val canSave = fullName.text.isNotBlank() && phone.text.isNotBlank() && !isSaving
+    // Источник телефона (3695:33445): ручной ввод и недавние звонки → после
+    // сохранения предлагаем добавить номер в тел. книгу; из тел. книги → нет
+    // Источник телефона: MANUAL/CALLS → после сохранения предложить тел.
+    // книгу (3695:33445); CONTACTS → не предлагать
+    var phoneFromCalls by remember { mutableStateOf(false) }
+    var phoneFromContacts by remember { mutableStateOf(false) }
+    var showSourceSheet by remember { mutableStateOf(false) }
+    var showCallsSheet by remember { mutableStateOf(false) }
+    var showContactsSheet by remember { mutableStateOf(false) }
+    var showAddToContactsSheet by remember { mutableStateOf(false) }
 
-    // ---- «Выбрать контакт»: системный пикер → ФИО + первый телефон ----
-    val contactPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickContact()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            val resolver = context.contentResolver
-            resolver.query(uri, null, null, null, null)?.use { c ->
-                if (!c.moveToFirst()) return@use
-                val nameIdx = c.getColumnIndex(android.provider.ContactsContract.Contacts.DISPLAY_NAME)
-                if (nameIdx >= 0) {
-                    c.getString(nameIdx)?.takeIf { it.isNotBlank() }?.let {
-                        fullName = TextFieldValue(it, TextRange(it.length))
-                    }
-                }
-                val hasPhoneIdx = c.getColumnIndex(android.provider.ContactsContract.Contacts.HAS_PHONE_NUMBER)
-                val idIdx = c.getColumnIndex(android.provider.ContactsContract.Contacts._ID)
-                if (hasPhoneIdx >= 0 && idIdx >= 0 &&
-                    c.getInt(hasPhoneIdx) > 0
-                ) {
-                    val id = c.getString(idIdx) ?: return@use
-                    resolver.query(
-                        android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI, null,
-                        android.provider.ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
-                        arrayOf(id), null
-                    )?.use { p ->
-                        if (p.moveToFirst()) {
-                            val numIdx = p.getColumnIndex(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER)
-                            if (numIdx >= 0) {
-                                p.getString(numIdx)?.takeIf { it.isNotBlank() }?.let {
-                                    phone = TextFieldValue(it, TextRange(it.length))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // Попытка сохранить с пустыми обязательными полями (3695:33355)
+    var showRequiredError by remember { mutableStateOf(false) }
+    var showPhoneError by remember { mutableStateOf(false) }
+    val requiredError = showRequiredError && (fullName.text.isBlank() || phone.text.isBlank())
+    // Невалидный номер (2935:39793): normalize не смог распознать формат
+    val phoneInvalid = phone.text.isNotBlank() && PhoneUtils.normalize(phone.text) == null
+    val phoneError = showPhoneError && phoneInvalid
+    // Кнопка: 40% только на девственно пустом экране; дальше клик с пустыми
+    // обязательными показывает состояние ошибки вместо сохранения
+    val canSave = !isSaving && (
+        fullName.text.isNotBlank() || phone.text.isNotBlank() || company.text.isNotBlank() ||
+            email.text.isNotBlank() || document.text.isNotBlank() || serviceInfo.text.isNotBlank()
+        )
+
+    // ---- Шиты контактов: готовые из «Арендатор и договор» ----
+
+    // ---- «Из недавних звонков»    // ---- «Из недавних звонков»: разрешение в рантайме, затем готовый
+    // PickerListSheet с журналом (как в «Арендатор и договор») ----
+    val callLogPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) showCallsSheet = true }
 
     // ---- Канон: клавиатура не прячет поле ввода (как в редактировании) ----
     val contentScroll = rememberScrollState()
@@ -271,7 +262,7 @@ fun NewTenantScreen(
                         .height(48.dp)
                         .clip(RoundedCornerShape(100.dp))
                         .border(1.dp, Graphite, RoundedCornerShape(100.dp))
-                        .clickable { contactPicker.launch(null) },
+                        .clickable { showSourceSheet = true },
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -302,17 +293,31 @@ fun NewTenantScreen(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
 
-                NewTenantField(caption = "ФИО*", value = fullName, onValue = { fullName = it }, onFocused = { revealField(it) })
+                NewTenantField(caption = "ФИО*", value = fullName, onValue = { fullName = it }, error = requiredError && fullName.text.isBlank(), onFocused = { revealField(it) })
+                if (requiredError && fullName.text.isBlank()) {
+                    Text("Обязательное поле", fontSize = 9.5.sp, lineHeight = 11.sp, letterSpacing = (-0.2).sp, color = Color(0xFFFF4249), modifier = Modifier.padding(start = 20.dp, top = 4.dp))
+                }
                 // 20 до заголовка секции: bottom 8 на поле + spacedBy 12
                 // (Spacer между детьми дал бы 12+8+12=32)
                 NewTenantField(
                     caption = "Номер телефона*",
                     value = phone,
-                    onValue = { phone = it },
+                    onValue = {
+                        phone = it
+                        phoneFromCalls = false
+                        phoneFromContacts = false
+                    },
                     keyboardType = KeyboardType.Phone,
+                    error = (requiredError && phone.text.isBlank()) || phoneError,
                     modifier = Modifier.padding(bottom = 8.dp),
                     onFocused = { revealField(it) }
                 )
+                if (phoneError) {
+                    // 2935:39793
+                    Text("Проверьте правильность заполнения", fontSize = 9.5.sp, lineHeight = 11.sp, letterSpacing = (-0.2).sp, color = Color(0xFFFF4249), modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 8.dp))
+                } else if (requiredError && phone.text.isBlank()) {
+                    Text("Обязательное поле", fontSize = 9.5.sp, lineHeight = 11.sp, letterSpacing = (-0.2).sp, color = Color(0xFFFF4249), modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 8.dp))
+                }
                 Text("Дополнительные данные", fontSize = 18.sp, lineHeight = 21.8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, color = Graphite)
                 NewTenantField(caption = "Название компании", value = company, onValue = { company = it }, onFocused = { revealField(it) })
                 NewTenantField(
@@ -461,6 +466,15 @@ fun NewTenantScreen(
                     text = if (isSaving) "Сохранение…" else "Сохранить",
                     enabled = canSave,
                     onClick = {
+                        if (fullName.text.isBlank() || phone.text.isBlank()) {
+                            showRequiredError = true
+                            return@BlackCtaButton
+                        }
+                        // Невалидный номер сохранять нельзя (2935:39793)
+                        if (PhoneUtils.normalize(phone.text) == null) {
+                            showPhoneError = true
+                            return@BlackCtaButton
+                        }
                         viewModel.save(
                             TenantDto(
                                 id = "",
@@ -472,8 +486,14 @@ fun NewTenantScreen(
                                 serviceInfo = serviceInfo.text.ifBlank { null }
                             )
                         ) { ok ->
-                            if (ok) onBack()
-                            else Toast.makeText(context, "Не удалось сохранить арендатора", Toast.LENGTH_SHORT).show()
+                            if (ok) {
+                                // Ручной ввод / недавние звонки → предложить
+                                // тел. книгу (3695:33445); из тел. книги не нужно
+                                if (!phoneFromContacts) showAddToContactsSheet = true
+                                else onBack()
+                            } else {
+                                Toast.makeText(context, "Не удалось сохранить арендатора", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 )
@@ -484,6 +504,154 @@ fun NewTenantScreen(
                     onClick = onBack
                 )
             }
+    }
+
+    // ---- Шит источников «Выбрать контакт»: ГОТОВЫЙ из «Арендатор и договор»
+    // (3429:66563), без строки «Из списка арендаторов» ----
+    if (showSourceSheet) {
+        com.rentmanager.app.ui.landlord.myproperties.propertydetail.ContactSourceSheet(
+            onPhonebook = {
+                showSourceSheet = false
+                showContactsSheet = true
+            },
+            onCalls = {
+                showSourceSheet = false
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.READ_CALL_LOG
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (granted) showCallsSheet = true
+                else callLogPermission.launch(android.Manifest.permission.READ_CALL_LOG)
+            },
+            onDismiss = { showSourceSheet = false }
+        )
+    }
+
+    // ---- Недавние звонки: готовый PickerListSheet ----
+    if (showCallsSheet) {
+        val entries = remember {
+            com.rentmanager.app.ui.landlord.myproperties.propertydetail.readCallLog(context)
+        }
+        com.rentmanager.app.ui.landlord.myproperties.propertydetail.PickerListSheet(
+            entries = entries,
+            onPick = { entry ->
+                phoneFromCalls = true
+                phoneFromContacts = false
+                phone = TextFieldValue(
+                    com.rentmanager.app.ui.landlord.myproperties.propertydetail.contactPhoneValue(entry.subtitle),
+                    TextRange(999)
+                )
+                if (entry.title != entry.subtitle && fullName.text.isBlank()) {
+                    fullName = TextFieldValue(entry.title, TextRange(entry.title.length))
+                }
+                showCallsSheet = false
+            },
+            onDismiss = { showCallsSheet = false }
+        )
+    }
+
+    // ---- Телефонная книга: готовый ContactsPickerSheet ----
+    if (showContactsSheet) {
+        com.rentmanager.app.ui.landlord.myproperties.propertydetail.ContactsPickerSheet(
+            onPick = { contact ->
+                phoneFromContacts = true
+                phoneFromCalls = false
+                fullName = TextFieldValue(contact.name, TextRange(contact.name.length))
+                phone = TextFieldValue(
+                    com.rentmanager.app.ui.landlord.myproperties.propertydetail.contactPhoneValue(contact.phone),
+                    TextRange(999)
+                )
+                showContactsSheet = false
+            },
+            onDismiss = { showContactsSheet = false }
+        )
+    }
+
+    // ---- «Добавить номер в контакты?» (3695:33445): после сохранения при
+    // ручном вводе или выборе из недавних звонков. Геометрия: ручка → 20 →
+    // иллюстрация 128 по центру → заголовок 20/600 → 6 → текст 15/600 #727272
+    // (2 строки) → 20 → чёрная 55 + 6 + контурная 55 ----
+    if (showAddToContactsSheet) {
+        TenantActionModalSheet(onDismiss = {
+            showAddToContactsSheet = false
+            onBack()
+        }) {
+            // Геометрия: поля PNG 34 сверху / 20 снизу + паддинги дают
+            // верх шита -> иконка 94, иконка -> заголовок 24
+            // Замеры Дениса: верх шита -> бежевый фон 91.6, бежевый -> CTA 106,
+            // шит 438. Крем внутри SVG на 36.4..104.8 от верха блока
+            Spacer(Modifier.height(19.2.dp))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                // Данные ноды 3695:33450 от Дениса: бокс 128x128 c padding 0.8,
+                // иконка одним файлом (кремовый фон внутри), ContentScale.None
+                androidx.compose.foundation.Image(
+                    painter = painterResource(R.drawable.ic_add_to_contacts),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.None,
+                    modifier = Modifier
+                        .padding(0.8.dp)
+                        .width(128.dp)
+                        .height(128.dp)
+                )
+            }
+            Spacer(Modifier.height(0.6.dp))
+            Text(
+                "Добавить номер в контакты?",
+                fontSize = 20.sp,
+                lineHeight = 24.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.3).sp,
+                color = Color(0xFF010101),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(6.dp))
+            // 3695:33452: 13/500 #010101, колонка 318 по центру, перенос
+            // по фактическому разрыву макета
+            Text(
+                "Арендатор уже сохранен. Имя и номер можно" + "\n" + "также добавить в телефонную книгу",
+                fontSize = 13.sp,
+                lineHeight = 15.7.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = (-0.4).sp,
+                color = Color(0xFF010101),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 27.dp)
+            )
+            Spacer(Modifier.height(20.dp))
+            BlackCtaButton(
+                text = "Добавить в контакты",
+                onClick = {
+                    showAddToContactsSheet = false
+                    // Системная форма нового контакта с именем и номером —
+                    // без запроса разрешений
+                    runCatching {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.provider.ContactsContract.Intents.Insert.ACTION
+                            ).apply {
+                                type = android.provider.ContactsContract.RawContacts.CONTENT_TYPE
+                                putExtra(android.provider.ContactsContract.Intents.Insert.NAME, fullName.text.trim())
+                                putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, phone.text.trim())
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                        )
+                    }
+                    onBack()
+                }
+            )
+            Spacer(Modifier.height(6.dp))
+            OutlineCtaButton(
+                text = "Не сейчас",
+                borderColor = Graphite,
+                onClick = {
+                    showAddToContactsSheet = false
+                    onBack()
+                }
+            )
+            Spacer(Modifier.height(20.dp))
+        }
     }
 
     // ---- Шит источников документа (общий с редактированием) ----
@@ -539,6 +707,7 @@ private fun NewTenantField(
     onValue: (TextFieldValue) -> Unit,
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
+    error: Boolean = false,
     onFocused: (() -> Float) -> Unit = {}
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -554,6 +723,8 @@ private fun NewTenantField(
             .height(64.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(NewCardGrey)
+            // Пустое обязательное поле при сохранении: рамка #FF4249 (3695:33355)
+            .then(if (error) Modifier.border(1.dp, Color(0xFFFF4249), RoundedCornerShape(20.dp)) else Modifier)
             .onGloballyPositioned { fieldBottomPx = it.positionInRoot().y + it.size.height }
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -566,7 +737,7 @@ private fun NewTenantField(
                 lineHeight = 18.2.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.4).sp,
-                color = GreyText,
+                color = if (error) Color(0xFFFF4249) else GreyText,
                 modifier = Modifier
                     .fillMaxWidth()
                     .pointerInput(Unit) {
@@ -583,7 +754,7 @@ private fun NewTenantField(
             )
         } else {
             Column(Modifier.weight(1f)) {
-                Text(caption, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
+                Text(caption, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = if (error) Color(0xFFFF4249) else GreyText)
                 BasicTextField(
                     value = value,
                     onValueChange = {
