@@ -118,10 +118,11 @@ fun TenantCardScreen(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(contentScroll)
-                .padding(horizontal = 20.dp),
+                // Нижние 20 — запас под тапбар (3694:32889: контент 1833 → тапбар 1853)
+                .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // ---- Аватар + имя + карандаш (Figma: 80, pad v10, аватар 60, зазор 8) ----
+            // ---- Аватар + имя ----
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -331,10 +332,12 @@ fun TenantCardScreen(
             // без фонов, тонкая черта под каждой записью, объекты — ссылки ----
             val currentBooking = state.currentBooking
             if (currentBooking != null || state.pastBookings.isNotEmpty() || true) {
+                // Между карточками «Арендует» и «История аренды» — 6 (3694:32913)
                 Column(
                     modifier = Modifier.onGloballyPositioned { c ->
                         rentBlockTop = (c.positionInRoot().y + contentScroll.value).toInt()
-                    }
+                    },
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (currentBooking == null) {
                         // ---- «Нет активной аренды» (правка Вики 2026-09-24, 3677:31762):
@@ -342,20 +345,28 @@ fun TenantCardScreen(
                         // → 12 → контурная CTA 55 «Прикрепить к объекту» ----
                         Text("Арендует", style = SectionTitleStyle)
                         Spacer(Modifier.height(12.dp))
+                        // Блок 55: оба текста ПО ЦЕНТРУ (правка Вики 2026-09-28, 3694:32913)
                         Column(
-                            modifier = Modifier.height(55.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(55.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
                                 "Нет активной аренды",
-                                style = Headline2MobStyle.copy(lineHeight = 18.2.sp)
+                                style = Headline2MobStyle.copy(lineHeight = 18.2.sp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
                             )
                             Text(
                                 "Арендатора можно прикрепить к свободному объекту",
                                 fontSize = 13.sp,
                                 lineHeight = 15.7.sp,
                                 letterSpacing = (-0.4).sp,
-                                color = GreyText
+                                color = GreyText,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }
@@ -401,19 +412,57 @@ fun TenantCardScreen(
                                 style = SectionTitleStyle,
                                 modifier = Modifier.weight(1f)
                             )
+                            // Пустая история — шеврон НЕ реагирует и не переворачивается
+                            // (решение Дениса 2026-09-28, макет 3694:32913)
+                            val hasHistory = state.pastBookings.isNotEmpty()
                             Image(
                                 painter = painterResource(R.drawable.ic_card_chevron),
-                                contentDescription = "История аренды",
+                                contentDescription = if (hasHistory) "История аренды" else null,
                                 modifier = Modifier
                                     .size(40.dp)
-                                    .graphicsLayer { rotationZ = if (state.historyExpanded) 180f else 0f }
-                                    .clickable(
-                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                        indication = null
-                                    ) { viewModel.toggleHistory() }
+                                    .graphicsLayer {
+                                        rotationZ = if (hasHistory && state.historyExpanded) 180f else 0f
+                                    }
+                                    .then(
+                                        if (hasHistory) {
+                                            Modifier.clickable(
+                                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                indication = null
+                                            ) { viewModel.toggleHistory() }
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                             )
                         }
-                        if (state.historyExpanded) {
+                        if (state.pastBookings.isEmpty()) {
+                            // Пустая история (3694:32913): 59 = паддинги 10 сверху/снизу +
+                            // 39 (15/600 lh 18.15 + 4 + 13/400 lh 15.73 #727272), по центру
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    "Истории аренды пока нет",
+                                    style = Headline2MobStyle.copy(lineHeight = 18.2.sp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    "Здесь появятся завершенные аренды",
+                                    fontSize = 13.sp,
+                                    lineHeight = 15.7.sp,
+                                    letterSpacing = (-0.4).sp,
+                                    color = GreyText,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                        if (state.historyExpanded && state.pastBookings.isNotEmpty()) {
                             state.pastBookings.forEach { b ->
                                 BookingEntry(
                                     period = "с ${b.startDate.format(RuDate)} до ${b.endDate.format(RuDate)}",
@@ -428,7 +477,6 @@ fun TenantCardScreen(
                     }
                 }
 
-            Spacer(Modifier.height(20.dp))
         }
 
         // ---- Тапбар карточки (3681:32808/32809): панель #EDEDED@90%, верхние углы

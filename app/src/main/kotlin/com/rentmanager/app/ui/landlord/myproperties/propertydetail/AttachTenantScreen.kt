@@ -103,6 +103,19 @@ private val DdMmYyyy = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 /** Контакт из телефонной книги для шита «Выбрать контакт». */
 data class PhoneContact(val name: String, val phone: String)
 
+/** Номер контакта: подпись типа («Мобильный», «Рабочий»…) + номер как записан. */
+data class ContactNumber(val typeLabel: String, val number: String)
+
+/**
+ * Контакт телефонной книги со ВСЕМИ номерами: если у человека их несколько,
+ * при выборе показываем шит «Выберите номер телефона» (3696:68046).
+ */
+data class PhoneContactEntry(
+    val contactId: Long,
+    val name: String,
+    val numbers: List<ContactNumber>
+)
+
 /**
  * Черновик прикрепления (Figma 2935:40049): выход с частично заполненным
  * экраном запоминается по объекту, при повторном входе предлагаем
@@ -977,7 +990,9 @@ fun ContactsPickerSheet(
 ) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
-    var contacts by remember { mutableStateOf<List<PhoneContact>>(emptyList()) }
+    var contacts by remember { mutableStateOf<List<PhoneContactEntry>>(emptyList()) }
+    // Контакт с несколькими номерами: шит выбора номера (3696:68046)
+    var numberChoice by remember { mutableStateOf<PhoneContactEntry?>(null) }
     var permissionDenied by remember { mutableStateOf(false) }
 
     var hasPermission by remember {
@@ -995,7 +1010,7 @@ fun ContactsPickerSheet(
 
     LaunchedEffect(hasPermission) {
         if (hasPermission && contacts.isEmpty()) {
-            contacts = readPhoneContacts(context)
+            contacts = readPhoneContactsGrouped(context)
         } else if (!hasPermission) {
             permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
         }
@@ -1011,15 +1026,15 @@ fun ContactsPickerSheet(
             contacts
         } else {
             val digits = q.filter(Char::isDigit)
-            val byName = mutableListOf<PhoneContact>()
-            val byWord = mutableListOf<PhoneContact>()
-            val byPhone = mutableListOf<PhoneContact>()
+            val byName = mutableListOf<PhoneContactEntry>()
+            val byWord = mutableListOf<PhoneContactEntry>()
+            val byPhone = mutableListOf<PhoneContactEntry>()
             contacts.forEach { c ->
                 val n = c.name.trim()
                 when {
                     n.startsWith(q, ignoreCase = true) -> byName += c
                     n.split(' ', ' ').any { it.isNotBlank() && it.startsWith(q, ignoreCase = true) } -> byWord += c
-                    digits.isNotEmpty() && c.phone.filter(Char::isDigit).contains(digits) -> byPhone += c
+                    digits.isNotEmpty() && c.numbers.any { it.number.filter(Char::isDigit).contains(digits) } -> byPhone += c
                 }
             }
             byName + byWord + byPhone
@@ -1128,34 +1143,52 @@ fun ContactsPickerSheet(
                                 )
                                 Spacer(Modifier.height(6.dp))
                             }
-                            items(group, key = { it.name + it.phone }) { contact ->
-                                ContactRow(contact, onPick)
+                            items(group, key = { it.contactId }) { entry ->
+                                ContactRow(entry) {
+                                    if (entry.numbers.size > 1) numberChoice = entry
+                                    else onPick(PhoneContact(entry.name, entry.numbers.first().number))
+                                }
                             }
                         }
                     } else {
                         // Результаты поиска — ранжированный список без
                         // буквенных заголовков: сначала имена на запрос,
                         // ниже — фамильные совпадения, ещё ниже — телефоны
-                        items(filtered, key = { it.name + it.phone }) { contact ->
-                            ContactRow(contact, onPick)
+                        items(filtered, key = { it.contactId }) { entry ->
+                            ContactRow(entry) {
+                                if (entry.numbers.size > 1) numberChoice = entry
+                                else onPick(PhoneContact(entry.name, entry.numbers.first().number))
+                            }
                         }
                     }
                 }
             }
         }
     }
+
+    // Шит выбора номера, когда у контакта их несколько (3696:68046)
+    numberChoice?.let { entry ->
+        PhoneNumberChoiceSheet(
+            entry = entry,
+            onContinue = { number ->
+                numberChoice = null
+                onPick(PhoneContact(entry.name, number.number))
+            },
+            onDismiss = { numberChoice = null }
+        )
+    }
 }
 
 /** Контакт шита (Figma «10», 2935-36541): аватар 40 с силуэтом, имя + телефон
  *  (зазор 4), разделитель внизу; высота строки 64, до следующего — 12. */
 @Composable
-private fun ContactRow(contact: PhoneContact, onPick: (PhoneContact) -> Unit) {
+private fun ContactRow(entry: PhoneContactEntry, onClick: () -> Unit) {
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(58.dp)
-                .clickable { onPick(contact) }
+                .clickable { onClick() }
                 .padding(top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1174,10 +1207,10 @@ private fun ContactRow(contact: PhoneContact, onPick: (PhoneContact) -> Unit) {
                 )
             }
             Column {
-                Text(contact.name, style = Headline2MobStyle)
+                Text(entry.name, style = Headline2MobStyle)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    formatContactPhone(contact.phone),
+                    formatContactPhone(entry.numbers.first().number),
                     style = CardSubtitleStyle
                 )
             }
@@ -1192,30 +1225,59 @@ private fun ContactRow(contact: PhoneContact, onPick: (PhoneContact) -> Unit) {
     }
 }
 
-/** Чтение контактов телефонной книги (имя + первый телефон). */
-private fun readPhoneContacts(context: Context): List<PhoneContact> = try {
-    val list = mutableListOf<PhoneContact>()
+/**
+ * Чтение телефонной книги с ГРУППИРОВКОЙ по контакту: у человека может быть
+ * несколько номеров — тогда при выборе открываем шит «Выберите номер телефона»
+ * (правка Вики 2026-09-27, 3696:68046). Номера внутри контакта не дублируются.
+ */
+private fun readPhoneContactsGrouped(context: Context): List<PhoneContactEntry> = try {
+    val grouped = linkedMapOf<Long, Pair<String, MutableList<ContactNumber>>>()
     context.contentResolver.query(
         ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
         arrayOf(
+            ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
             ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-            ContactsContract.CommonDataKinds.Phone.NUMBER
+            ContactsContract.CommonDataKinds.Phone.NUMBER,
+            ContactsContract.CommonDataKinds.Phone.TYPE,
+            ContactsContract.CommonDataKinds.Phone.LABEL
         ),
         null,
         null,
         ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
     )?.use { cursor ->
         while (cursor.moveToNext()) {
-            val name = cursor.getString(0) ?: continue
-            val phone = cursor.getString(1) ?: ""
-            if (name.isNotBlank() && phone.isNotBlank()) {
-                list.add(PhoneContact(name, phone))
+            val contactId = cursor.getLong(0)
+            val name = cursor.getString(1) ?: continue
+            val number = cursor.getString(2) ?: ""
+            val type = cursor.getInt(3)
+            val customLabel = cursor.getString(4)
+            if (name.isBlank() || number.isBlank()) continue
+            val entry = grouped.getOrPut(contactId) { name to mutableListOf() }
+            val digits = number.filter(Char::isDigit)
+            if (entry.second.none { it.number.filter(Char::isDigit) == digits }) {
+                entry.second.add(ContactNumber(phoneTypeLabel(type, customLabel), number))
             }
         }
     }
-    list.distinctBy { it.name to it.phone }
+    grouped.map { (id, value) -> PhoneContactEntry(id, value.first, value.second) }
 } catch (_: Exception) {
     emptyList()
+}
+
+/** Подпись типа номера из телефонной книги (в макете: «Мобильный», «Рабочий»). */
+private fun phoneTypeLabel(type: Int, customLabel: String?): String = when (type) {
+    ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE,
+    ContactsContract.CommonDataKinds.Phone.TYPE_WORK_MOBILE -> "Мобильный"
+    ContactsContract.CommonDataKinds.Phone.TYPE_WORK -> "Рабочий"
+    ContactsContract.CommonDataKinds.Phone.TYPE_HOME -> "Домашний"
+    ContactsContract.CommonDataKinds.Phone.TYPE_MAIN -> "Основной"
+    ContactsContract.CommonDataKinds.Phone.TYPE_FAX_WORK -> "Рабочий факс"
+    ContactsContract.CommonDataKinds.Phone.TYPE_FAX_HOME -> "Домашний факс"
+    ContactsContract.CommonDataKinds.Phone.TYPE_PAGER -> "Пейджер"
+    ContactsContract.CommonDataKinds.Phone.TYPE_OTHER -> "Другой"
+    ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM ->
+        customLabel?.takeIf { it.isNotBlank() } ?: "Телефон"
+    else -> "Телефон"
 }
 
 
@@ -1456,4 +1518,95 @@ fun readCallLog(context: Context): List<PickerEntry> = try {
     out
 } catch (_: Exception) {
     emptyList()
+}
+
+
+/**
+ * Шит «Выберите номер телефона» (правка Вики 2026-09-27, 3696:68046) — 412×406:
+ * ручка 32×4 r100 сплошной #212121, поля 20/20/36; «Выберите номер телефона»
+ * 20/600 lh 24.2 → 6 → «У контакта найдено несколько номеров» 15/600 lh 18.15
+ * #727272 → 20 → радио-карточки 62 (r20, рамка 1 #212121, 10/10/10/20) с зазором 6
+ * → 20 → чёрная «Продолжить» + 6 + контурная «Отмена».
+ * Показывается ТОЛЬКО когда у выбранного контакта больше одного номера.
+ */
+@Composable
+private fun PhoneNumberChoiceSheet(
+    entry: PhoneContactEntry,
+    onContinue: (ContactNumber) -> Unit,
+    onDismiss: () -> Unit
+) {
+    // По умолчанию выбран первый номер (как в макете — верхняя карточка залита)
+    var selected by remember(entry.contactId) { mutableStateOf(0) }
+    TenantActionModalSheet(onDismiss = onDismiss, handleColor = Graphite) {
+        Text(
+            "Выберите номер телефона",
+            style = Headline2MobStyle.copy(fontSize = 20.sp, lineHeight = 24.sp)
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "У контакта найдено несколько номеров",
+            fontSize = 15.sp,
+            lineHeight = 18.2.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.4).sp,
+            color = GreyText
+        )
+        Spacer(Modifier.height(20.dp))
+        entry.numbers.forEachIndexed { index, number ->
+            if (index > 0) Spacer(Modifier.height(6.dp))
+            NumberRadioCard(
+                number = number,
+                selected = selected == index,
+                onClick = { selected = index }
+            )
+        }
+        Spacer(Modifier.height(20.dp))
+        com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton(
+            text = "Продолжить",
+            onClick = { onContinue(entry.numbers[selected]) }
+        )
+        Spacer(Modifier.height(6.dp))
+        OutlineCtaButton(
+            text = "Отмена",
+            borderColor = Graphite,
+            onClick = onDismiss
+        )
+    }
+}
+
+/** Радио-карточка номера (3696:68046): 62, r20, рамка 1 #212121, паддинги 10/10/10/20. */
+@Composable
+private fun NumberRadioCard(number: ContactNumber, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(62.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .border(1.dp, Graphite, RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .padding(start = 20.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                number.typeLabel,
+                fontSize = 15.sp,
+                lineHeight = 18.2.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.4).sp,
+                color = GreyText
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(formatContactPhone(number.number), style = CardSubtitleStyle)
+        }
+        Spacer(Modifier.width(10.dp))
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(
+                if (selected) R.drawable.ic_radio_on else R.drawable.ic_radio_off
+            ),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp)
+        )
+    }
 }
