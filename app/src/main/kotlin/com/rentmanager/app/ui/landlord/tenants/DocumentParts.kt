@@ -278,6 +278,8 @@ fun DocumentRow(
         }
         Spacer(Modifier.height(12.dp))
         HorizontalDivider(color = DocDividerGrey)
+        // 3677:31396: между дивайдером и следующей строкой — 12
+        Spacer(Modifier.height(12.dp))
     }
 }
 

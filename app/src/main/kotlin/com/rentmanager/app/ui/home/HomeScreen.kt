@@ -63,41 +63,6 @@ fun HomeScreen(
         }
     }
 
-    if (showNameDialog) {
-        EnterNameDialog(
-            onDismiss = { showNameDialog = false },
-            onSaved = { name ->
-                viewModel.updateUserName(name)
-                showNameDialog = false
-            }
-        )
-    }
-
-    // ===== Безопасный вход: предложение настроить 2FA =====
-    if (uiState.showTelegramPrompt) {
-        com.rentmanager.app.ui.components.CanonicalDialog(
-            onDismiss = { viewModel.dismissTelegramPrompt() },
-            title = "Безопасный вход",
-            text = "Настройте подтверждение входа в аккаунт удобным способом: по электронной почте, в Telegram или через Макс. Это подтвердит, что аккаунт принадлежит вам, и защитит от входа посторонних."
-        ) {
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Настроить",
-                container = Color(0xFF212121),
-                textColor = Color.White,
-                onClick = {
-                    viewModel.dismissTelegramPrompt()
-                    onNavigateToSecurity()
-                }
-            )
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Позже",
-                stroke = Color(0xFF212121),
-                textColor = Color(0xFF212121),
-                onClick = { viewModel.dismissTelegramPrompt() }
-            )
-        }
-    }
-
     // Refresh profile when returning to this screen
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -271,5 +236,41 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
+    }
+    // ---- Диалоги ПОСЛЕ контента: CanonicalDialog — оверлей, ДО контента
+    // он рисовался ПОД ним и открывался невидимо ----
+    if (showNameDialog) {
+        EnterNameDialog(
+            onDismiss = { showNameDialog = false },
+            onSaved = { name ->
+                viewModel.updateUserName(name)
+                showNameDialog = false
+            }
+        )
+    }
+
+    // ===== Безопасный вход: предложение настроить 2FA =====
+    if (uiState.showTelegramPrompt) {
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { viewModel.dismissTelegramPrompt() },
+            title = "Безопасный вход",
+            text = "Настройте подтверждение входа в аккаунт удобным способом: по электронной почте, в Telegram или через Макс. Это подтвердит, что аккаунт принадлежит вам, и защитит от входа посторонних."
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Настроить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = {
+                    viewModel.dismissTelegramPrompt()
+                    onNavigateToSecurity()
+                }
+            )
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Позже",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { viewModel.dismissTelegramPrompt() }
+            )
+        }
     }
 }

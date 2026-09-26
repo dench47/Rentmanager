@@ -483,11 +483,9 @@ fun VerifyScreen(
                         }
                     }
                 } else {
-                    // ============================================================
-                    // Calling screen
-                    // ============================================================
+                    // ---- Диалог ПОСЛЕ контента ветки: оверлей до
+                    // контента рисовался под ним невидимо ----
                     var showCallInfoDialog by remember { mutableStateOf(false) }
-
                     // Info dialog
                     if (showCallInfoDialog) {
                         val infoText = buildAnnotatedString {
@@ -513,7 +511,6 @@ fun VerifyScreen(
                             }
                             append(".")
                         }
-
                         com.rentmanager.app.ui.components.CanonicalDialog(
                             onDismiss = { showCallInfoDialog = false },
                             title = "О звонке",
@@ -527,6 +524,9 @@ fun VerifyScreen(
                             )
                         }
                     }
+                    // ============================================================
+                    // Calling screen
+                    // ============================================================
 
                     Text(
                         text = "Звонок для проверки",

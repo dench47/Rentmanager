@@ -192,11 +192,10 @@ fun TenantsListScreen(
                     }
                 }
 
-                // ---- Тапбар с CTA «Добавить арендатора» (канвас «15», 3122:60008):
-                // #EDEDED@90%, r30 сверху, кнопка 372×55 в полях 20/10. Нижний
-                // инсет НЕ добавляем: Scaffold paddingValues (edge-to-edge) уже
-                // содержит его — иначе кнопка повисала над панелью навигации ----
-                Column(
+                // ---- Тапбар с CTA «Добавить арендатора» (3122:60008) — ТОЛЬКО
+                // при непустом списке: в пустом состоянии (3108:56847) CTA живёт
+                // в самой карточке-заглушке, второй кнопки быть не может ----
+                if (uiState.tenants.isNotEmpty()) Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
