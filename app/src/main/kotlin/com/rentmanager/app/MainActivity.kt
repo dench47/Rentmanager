@@ -327,7 +327,10 @@ class MainActivity : FragmentActivity() {
                 }
                 pendingLoginRequest?.let { req ->
                     com.rentmanager.app.ui.components.CanonicalDialog(
-                        onDismiss = { },
+                        // Скрим больше не держит приложение заложником: тап
+                        // вне закрывает запрос (на сервере он остаётся
+                        // активным до ответа или истечения)
+                        onDismiss = { loginApprovalEvents.clearPending() },
                         title = "Подтвердите вход",
                         text = "Попытка входа с устройства " +
                             (req.deviceName?.takeIf { it.isNotBlank() } ?: "неизвестного устройства") +

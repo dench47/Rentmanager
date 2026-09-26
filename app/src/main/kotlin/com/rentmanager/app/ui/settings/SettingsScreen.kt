@@ -88,247 +88,20 @@ fun SettingsScreen(
         if (uri != null) viewModel.uploadAndSetAvatar(uri)
     }
 
-    // Logout dialog
-    if (uiState.showLogoutDialog) {
-        com.rentmanager.app.ui.components.CanonicalDialog(
-            onDismiss = { viewModel.dismissDialogs() },
-            title = "Выйти из учётной записи",
-            text = "Выберите способ выхода"
-        ) {
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "С этого устройства",
-                container = Color(0xFF212121),
-                textColor = Color.White,
-                onClick = { viewModel.logoutCurrentDevice(onLoggedOut) }
-            )
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Со всех устройств",
-                container = Color(0xFFFF4249),
-                textColor = Color.White,
-                onClick = { viewModel.logoutAllDevices(onLoggedOut) }
-            )
-        }
-    }
-
-    // Delete dialog
-    if (uiState.showDeleteDialog) {
-        com.rentmanager.app.ui.components.CanonicalDialog(
-            onDismiss = { viewModel.dismissDialogs() },
-            title = "Удалить учётную запись",
-            text = "Все ваши данные будут безвозвратно удалены"
-        ) {
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Да, удалить",
-                container = Color(0xFFFF4249),
-                textColor = Color.White,
-                onClick = { viewModel.deleteAccount(onLoggedOut) }
-            )
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Отменить",
-                stroke = Color(0xFF212121),
-                textColor = Color(0xFF212121),
-                onClick = { viewModel.dismissDialogs() }
-            )
-        }
-    }
-
-    // Start screen dialog
-    if (uiState.showStartScreenDialog) {
-        com.rentmanager.app.ui.components.CanonicalDialog(
-            onDismiss = { viewModel.dismissDialogs() },
-            title = "Начальный экран",
-            text = "Какой экран открывать при запуске?"
-        ) {
-            val current = uiState.defaultStartScreen
-            listOf(
-                "Арендодатель" to "landlord",
-                "Арендатор" to "tenant",
-                "Главный экран" to ""
-            ).forEach { (label, value) ->
-                val selected = current == value || (value.isEmpty() && (current.isEmpty() || current == "main"))
-                if (selected) {
-                    com.rentmanager.app.ui.components.CanonicalDialogButton(
-                        text = label,
-                        container = Color(0xFF212121),
-                        textColor = Color.White,
-                        onClick = { viewModel.setDefaultStartScreen(value) }
-                    )
-                } else {
-                    com.rentmanager.app.ui.components.CanonicalDialogButton(
-                        text = label,
-                        stroke = Color(0xFF212121),
-                        textColor = Color(0xFF212121),
-                        onClick = { viewModel.setDefaultStartScreen(value) }
-                    )
-                }
-            }
-        }
-    }
-
-    // Phone warning dialog
-    if (uiState.showPhoneWarning) {
-        com.rentmanager.app.ui.components.CanonicalDialog(
-            onDismiss = { viewModel.dismissPhoneWarning() },
-            title = "Смена номера",
-            text = "Для смены номера необходимо заново его верифицировать"
-        ) {
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Продолжить",
-                container = Color(0xFF212121),
-                textColor = Color.White,
-                onClick = { viewModel.startPhoneVerification { onNavigateToPhoneVerify(uiState.newPhone) } }
-            )
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Отменить",
-                stroke = Color(0xFF212121),
-                textColor = Color(0xFF212121),
-                onClick = { viewModel.dismissPhoneWarning() }
-            )
-        }
-    }
-
-    // Edit name dialog (три поля ФИО)
     var showEditNameDialog by remember { mutableStateOf(false) }
     var editFirstName by remember { mutableStateOf("") }
     var editLastName by remember { mutableStateOf("") }
     var editMiddleName by remember { mutableStateOf("") }
-    if (showEditNameDialog) {
-        com.rentmanager.app.ui.components.CanonicalContentDialog(
-            onDismiss = { showEditNameDialog = false },
-            title = "Как вас зовут?"
-        ) {
-            OutlinedTextField(value = editFirstName, onValueChange = { editFirstName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Имя", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(value = editLastName, onValueChange = { editLastName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Фамилия", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(value = editMiddleName, onValueChange = { editMiddleName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Отчество", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
-            Spacer(Modifier.height(20.dp))
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Сохранить",
-                container = Color(0xFF212121),
-                textColor = Color.White,
-                onClick = {
-                    val f = editFirstName.trim()
-                    val l = editLastName.trim()
-                    val m = editMiddleName.trim()
-                    val displayFull = if (l.isNotEmpty()) listOf(f, l, m).filter { it.isNotEmpty() }.joinToString(" ") else f
-                    viewModel.updateProfile(name = f, fullName = displayFull)
-                    showEditNameDialog = false
-                }
-            )
-        }
-    }
-
-    // Edit email dialog
     var showEditEmailDialog by remember { mutableStateOf(false) }
     var editEmail by remember { mutableStateOf(uiState.email ?: "") }
-    if (showEditEmailDialog) {
-        com.rentmanager.app.ui.components.CanonicalContentDialog(
-            onDismiss = { showEditEmailDialog = false },
-            title = "Почтовый ящик"
-        ) {
-            OutlinedTextField(value = editEmail, onValueChange = { editEmail = it }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)), singleLine = true, placeholder = { Text("Введите email", color = Color(0x998E8E93), fontSize = 16.sp) }, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
-            Spacer(Modifier.height(20.dp))
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Сохранить",
-                container = Color(0xFF212121),
-                textColor = Color.White,
-                onClick = { viewModel.updateProfile(email = editEmail); showEditEmailDialog = false }
-            )
-            Spacer(Modifier.height(6.dp))
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Очистить",
-                stroke = Color(0xFF212121),
-                textColor = Color(0xFF212121),
-                onClick = { editEmail = ""; viewModel.updateProfile(email = ""); showEditEmailDialog = false }
-            )
-        }
-    }
-
-    // Email verification dialog
     var showEmailVerifyDialog by remember { mutableStateOf(false) }
-    var emailVerifyStep by remember { mutableIntStateOf(0) } // 0 = инфо, 1 = код
     var emailVerifyCode by remember { mutableStateOf("") }
     var emailVerifyError by remember { mutableStateOf<String?>(null) }
     var emailVerifyLoading by remember { mutableStateOf(false) }
-    if (showEmailVerifyDialog) {
-        com.rentmanager.app.ui.components.CanonicalContentDialog(
-            onDismiss = { if (!emailVerifyLoading) showEmailVerifyDialog = false },
-            title = if (emailVerifyStep == 0) "Email не подтверждён" else "Код подтверждения"
-        ) {
-            if (emailVerifyStep == 0) {
-                Text("Подтвердите почту, чтобы активировать вход через Email. Мы отправим код на ${uiState.email}.", fontSize = 15.sp, color = Color(0x993C3C43))
-            } else {
-                OutlinedTextField(value = emailVerifyCode, onValueChange = { raw -> emailVerifyCode = raw.filter { it.isDigit() }.take(6) }, label = { Text("Код из письма") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                Text("Если письмо не пришло — проверьте папку «Спам»", fontSize = 12.sp, color = Color(0x993C3C43))
-            }
-            if (emailVerifyError != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(emailVerifyError!!, color = Color(0xFFE53935), fontSize = 13.sp)
-            }
-            Spacer(Modifier.height(20.dp))
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = if (emailVerifyStep == 0) "Отправить код" else "Подтвердить",
-                container = Color(0xFF212121),
-                textColor = Color.White,
-                onClick = {
-                    if (emailVerifyStep == 0) {
-                        emailVerifyLoading = true
-                        emailVerifyError = null
-                        viewModel.onEmailSendCode { ok, err ->
-                            emailVerifyLoading = false
-                            if (ok) { emailVerifyStep = 1; emailVerifyCode = "" } else emailVerifyError = err
-                        }
-                    } else {
-                        if (emailVerifyCode.length != 6) emailVerifyError = "Введите 6 цифр кода"
-                        else {
-                            emailVerifyLoading = true
-                            emailVerifyError = null
-                            viewModel.onEmailVerify(emailVerifyCode) { ok, err ->
-                                emailVerifyLoading = false
-                                if (ok) showEmailVerifyDialog = false else emailVerifyError = err
-                            }
-                        }
-                    }
-                }
-            )
-            Spacer(Modifier.height(6.dp))
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = if (emailVerifyStep == 0) "Отмена" else "Назад",
-                stroke = Color(0xFF212121),
-                textColor = Color(0xFF212121),
-                onClick = { if (emailVerifyStep == 1) { emailVerifyStep = 0; emailVerifyError = null } else showEmailVerifyDialog = false }
-            )
-        }
-    }
-
-    // Edit legal name dialog
     var showEditLegalDialog by remember { mutableStateOf(false) }
     var editLegalName by remember { mutableStateOf(uiState.legalName ?: "") }
-    if (showEditLegalDialog) {
-        com.rentmanager.app.ui.components.CanonicalContentDialog(
-            onDismiss = { showEditLegalDialog = false },
-            title = "Юридическое лицо"
-        ) {
-            OutlinedTextField(value = editLegalName, onValueChange = { editLegalName = it }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)), singleLine = true, placeholder = { Text("Название организации", color = Color(0x998E8E93), fontSize = 16.sp) }, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
-            Spacer(Modifier.height(20.dp))
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Сохранить",
-                container = Color(0xFF212121),
-                textColor = Color.White,
-                onClick = { viewModel.updateProfile(legalName = editLegalName); showEditLegalDialog = false }
-            )
-            Spacer(Modifier.height(6.dp))
-            com.rentmanager.app.ui.components.CanonicalDialogButton(
-                text = "Очистить",
-                stroke = Color(0xFF212121),
-                textColor = Color(0xFF212121),
-                onClick = { editLegalName = ""; viewModel.updateProfile(legalName = ""); showEditLegalDialog = false }
-            )
-        }
-    }
 
+    var emailVerifyStep by remember { mutableIntStateOf(0) } // 0 = инфо, 1 = код
     Scaffold(containerColor = Color.White) { paddingValues ->
         // Канон шапки (AppScreenHeader): статус-инсет → 27 → строка(20/13)
         Column(Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
@@ -477,6 +250,236 @@ fun SettingsScreen(
                     item { Text(uiState.errorMessage!!, color = Color(0xFFE53935), fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, top = 8.dp)) }
                 }
             }
+        }
+    }
+    // ---- Диалоги ПОСЛЕ Scaffold: CanonicalDialog — оверлей в окне экрана;
+    // скомпозированный ДО белого экрана он рисовался ПОД ним и открывался
+    // невидимо («поля не реагируют») ----
+    // Logout dialog
+    if (uiState.showLogoutDialog) {
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { viewModel.dismissDialogs() },
+            title = "Выйти из учётной записи",
+            text = "Выберите способ выхода"
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "С этого устройства",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = { viewModel.logoutCurrentDevice(onLoggedOut) }
+            )
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Со всех устройств",
+                container = Color(0xFFFF4249),
+                textColor = Color.White,
+                onClick = { viewModel.logoutAllDevices(onLoggedOut) }
+            )
+        }
+    }
+
+    // Delete dialog
+    if (uiState.showDeleteDialog) {
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { viewModel.dismissDialogs() },
+            title = "Удалить учётную запись",
+            text = "Все ваши данные будут безвозвратно удалены"
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Да, удалить",
+                container = Color(0xFFFF4249),
+                textColor = Color.White,
+                onClick = { viewModel.deleteAccount(onLoggedOut) }
+            )
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Отменить",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { viewModel.dismissDialogs() }
+            )
+        }
+    }
+
+    // Start screen dialog
+    if (uiState.showStartScreenDialog) {
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { viewModel.dismissDialogs() },
+            title = "Начальный экран",
+            text = "Какой экран открывать при запуске?"
+        ) {
+            val current = uiState.defaultStartScreen
+            listOf(
+                "Арендодатель" to "landlord",
+                "Арендатор" to "tenant",
+                "Главный экран" to ""
+            ).forEach { (label, value) ->
+                val selected = current == value || (value.isEmpty() && (current.isEmpty() || current == "main"))
+                if (selected) {
+                    com.rentmanager.app.ui.components.CanonicalDialogButton(
+                        text = label,
+                        container = Color(0xFF212121),
+                        textColor = Color.White,
+                        onClick = { viewModel.setDefaultStartScreen(value) }
+                    )
+                } else {
+                    com.rentmanager.app.ui.components.CanonicalDialogButton(
+                        text = label,
+                        stroke = Color(0xFF212121),
+                        textColor = Color(0xFF212121),
+                        onClick = { viewModel.setDefaultStartScreen(value) }
+                    )
+                }
+            }
+        }
+    }
+
+    // Phone warning dialog
+    if (uiState.showPhoneWarning) {
+        com.rentmanager.app.ui.components.CanonicalDialog(
+            onDismiss = { viewModel.dismissPhoneWarning() },
+            title = "Смена номера",
+            text = "Для смены номера необходимо заново его верифицировать"
+        ) {
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Продолжить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = { viewModel.startPhoneVerification { onNavigateToPhoneVerify(uiState.newPhone) } }
+            )
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Отменить",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { viewModel.dismissPhoneWarning() }
+            )
+        }
+    }
+
+    // Edit name dialog (три поля ФИО)
+    if (showEditNameDialog) {
+        com.rentmanager.app.ui.components.CanonicalContentDialog(
+            onDismiss = { showEditNameDialog = false },
+            title = "Как вас зовут?"
+        ) {
+            OutlinedTextField(value = editFirstName, onValueChange = { editFirstName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Имя", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(value = editLastName, onValueChange = { editLastName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Фамилия", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(value = editMiddleName, onValueChange = { editMiddleName = capitalizeEach(it) }, modifier = Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(12.dp)), placeholder = { Text("Отчество", color = Color(0x998E8E93), fontSize = 16.sp) }, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
+            Spacer(Modifier.height(20.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Сохранить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = {
+                    val f = editFirstName.trim()
+                    val l = editLastName.trim()
+                    val m = editMiddleName.trim()
+                    val displayFull = if (l.isNotEmpty()) listOf(f, l, m).filter { it.isNotEmpty() }.joinToString(" ") else f
+                    viewModel.updateProfile(name = f, fullName = displayFull)
+                    showEditNameDialog = false
+                }
+            )
+        }
+    }
+
+    // Edit email dialog
+    if (showEditEmailDialog) {
+        com.rentmanager.app.ui.components.CanonicalContentDialog(
+            onDismiss = { showEditEmailDialog = false },
+            title = "Почтовый ящик"
+        ) {
+            OutlinedTextField(value = editEmail, onValueChange = { editEmail = it }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)), singleLine = true, placeholder = { Text("Введите email", color = Color(0x998E8E93), fontSize = 16.sp) }, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
+            Spacer(Modifier.height(20.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Сохранить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = { viewModel.updateProfile(email = editEmail); showEditEmailDialog = false }
+            )
+            Spacer(Modifier.height(6.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Очистить",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { editEmail = ""; viewModel.updateProfile(email = ""); showEditEmailDialog = false }
+            )
+        }
+    }
+
+    // Email verification dialog
+    if (showEmailVerifyDialog) {
+        com.rentmanager.app.ui.components.CanonicalContentDialog(
+            onDismiss = { if (!emailVerifyLoading) showEmailVerifyDialog = false },
+            title = if (emailVerifyStep == 0) "Email не подтверждён" else "Код подтверждения"
+        ) {
+            if (emailVerifyStep == 0) {
+                Text("Подтвердите почту, чтобы активировать вход через Email. Мы отправим код на ${uiState.email}.", fontSize = 15.sp, color = Color(0x993C3C43))
+            } else {
+                OutlinedTextField(value = emailVerifyCode, onValueChange = { raw -> emailVerifyCode = raw.filter { it.isDigit() }.take(6) }, label = { Text("Код из письма") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                Text("Если письмо не пришло — проверьте папку «Спам»", fontSize = 12.sp, color = Color(0x993C3C43))
+            }
+            if (emailVerifyError != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(emailVerifyError!!, color = Color(0xFFE53935), fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(20.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = if (emailVerifyStep == 0) "Отправить код" else "Подтвердить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = {
+                    if (emailVerifyStep == 0) {
+                        emailVerifyLoading = true
+                        emailVerifyError = null
+                        viewModel.onEmailSendCode { ok, err ->
+                            emailVerifyLoading = false
+                            if (ok) { emailVerifyStep = 1; emailVerifyCode = "" } else emailVerifyError = err
+                        }
+                    } else {
+                        if (emailVerifyCode.length != 6) emailVerifyError = "Введите 6 цифр кода"
+                        else {
+                            emailVerifyLoading = true
+                            emailVerifyError = null
+                            viewModel.onEmailVerify(emailVerifyCode) { ok, err ->
+                                emailVerifyLoading = false
+                                if (ok) showEmailVerifyDialog = false else emailVerifyError = err
+                            }
+                        }
+                    }
+                }
+            )
+            Spacer(Modifier.height(6.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = if (emailVerifyStep == 0) "Отмена" else "Назад",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { if (emailVerifyStep == 1) { emailVerifyStep = 0; emailVerifyError = null } else showEmailVerifyDialog = false }
+            )
+        }
+    }
+
+    // Edit legal name dialog
+    if (showEditLegalDialog) {
+        com.rentmanager.app.ui.components.CanonicalContentDialog(
+            onDismiss = { showEditLegalDialog = false },
+            title = "Юридическое лицо"
+        ) {
+            OutlinedTextField(value = editLegalName, onValueChange = { editLegalName = it }, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)), singleLine = true, placeholder = { Text("Название организации", color = Color(0x998E8E93), fontSize = 16.sp) }, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color(0xFFF2F2F7), unfocusedContainerColor = Color(0xFFF2F2F7), focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent))
+            Spacer(Modifier.height(20.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Сохранить",
+                container = Color(0xFF212121),
+                textColor = Color.White,
+                onClick = { viewModel.updateProfile(legalName = editLegalName); showEditLegalDialog = false }
+            )
+            Spacer(Modifier.height(6.dp))
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
+                text = "Очистить",
+                stroke = Color(0xFF212121),
+                textColor = Color(0xFF212121),
+                onClick = { editLegalName = ""; viewModel.updateProfile(legalName = ""); showEditLegalDialog = false }
+            )
         }
     }
 }
