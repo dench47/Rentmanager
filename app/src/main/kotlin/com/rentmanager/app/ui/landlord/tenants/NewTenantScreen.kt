@@ -69,8 +69,11 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.rentmanager.app.ui.components.CanonicalDialog
+import com.rentmanager.app.ui.components.CanonicalDialogButton
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -197,6 +200,16 @@ fun NewTenantScreen(
             email.text.isNotBlank() || document.text.isNotBlank() || serviceInfo.text.isNotBlank()
         )
 
+    // Выход (аннотация Вики 3695:33426): пустая форма — сразу назад;
+    // есть ввод или документы — сначала подтверждение (диалог 3695:33428)
+    val formHasInput = fullName.text.isNotBlank() || phone.text.isNotBlank() ||
+        company.text.isNotBlank() || email.text.isNotBlank() ||
+        document.text.isNotBlank() || serviceInfo.text.isNotBlank()
+    var showCancelDialog by remember { mutableStateOf(false) }
+    fun attemptExit() {
+        if (formHasInput) showCancelDialog = true else onBack()
+    }
+
     // ---- Шиты контактов: готовые из «Арендатор и договор» ----
 
     // ---- «Из недавних звонков»    // ---- «Из недавних звонков»: разрешение в рантайме, затем готовый
@@ -257,7 +270,7 @@ fun NewTenantScreen(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { onBack() },
+                    ) { attemptExit() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 androidx.compose.foundation.Image(
@@ -538,7 +551,7 @@ fun NewTenantScreen(
                 OutlineCtaButton(
                     text = "Отменить",
                     borderColor = Graphite,
-                    onClick = onBack
+                    onClick = { attemptExit() }
                 )
             }
     }
@@ -688,6 +701,38 @@ fun NewTenantScreen(
                 }
             )
             Spacer(Modifier.height(20.dp))
+        }
+    }
+
+    // ---- Выход с заполненной формой: подтверждение (3695:33428/33426) ----
+    // Системный «назад» работает как «Отменить»; пока открыт любой шит —
+    // не вмешиваемся (шит закрывает себя своим back-ом)
+    val anySheetOpen = showSourceSheet || showCallsSheet || showContactsSheet ||
+        showAddToContactsSheet || showAttachDocSheet
+    BackHandler(enabled = formHasInput && !showCancelDialog && !anySheetOpen) {
+        showCancelDialog = true
+    }
+    if (showCancelDialog) {
+        CanonicalDialog(
+            onDismiss = { showCancelDialog = false },
+            title = "Отменить создание арендатора?",
+            text = "Введенные данные и прикрепленные документы не сохранятся"
+        ) {
+            CanonicalDialogButton(
+                text = "Продолжить заполнение",
+                container = Graphite,
+                textColor = Color.White,
+                onClick = { showCancelDialog = false }
+            )
+            CanonicalDialogButton(
+                text = "Отменить создание",
+                stroke = Graphite,
+                textColor = Graphite,
+                onClick = {
+                    showCancelDialog = false
+                    onBack()
+                }
+            )
         }
     }
 

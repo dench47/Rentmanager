@@ -550,13 +550,15 @@ fun TenantCardScreen(
     }
 
     // ---- Диалог «Удалить карточку арендатора?» (3005:52537) ----
+    // Канонический компонент (25.09); текст БЕЗ ручного переноса — в макете
+    // 3005:52537 в characters переноса нет (естественный на 332)
     if (showDeleteDialog) {
-        TenantDialog(
+        com.rentmanager.app.ui.components.CanonicalDialog(
             onDismiss = { showDeleteDialog = false },
             title = "Удалить карточку арендатора?",
-            text = "Личные данные и прикрепленные документы\nбудут удалены"
+            text = "Личные данные и прикрепленные документы будут удалены"
         ) {
-            TenantDialogButton(
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
                 text = "Удалить карточку",
                 container = Color(0xFFFF4249),
                 textColor = Color.White,
@@ -573,7 +575,7 @@ fun TenantCardScreen(
                     }
                 }
             )
-            TenantDialogButton(
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
                 text = "Отменить",
                 stroke = Graphite,
                 textColor = Graphite,
@@ -585,12 +587,12 @@ fun TenantCardScreen(
 
     // ---- Диалог «Есть активные аренды» (правка Вики 2026-09-24, 3696:34110) ----
     if (showBlockedDialog) {
-        TenantDialog(
+        com.rentmanager.app.ui.components.CanonicalDialog(
             onDismiss = { showBlockedDialog = false },
             title = "Есть активные аренды",
             text = "Чтобы удалить карточку, завершите аренды или открепите арендатора от объектов"
         ) {
-            TenantDialogButton(
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
                 text = "Посмотреть аренды",
                 container = Graphite,
                 textColor = Color.White,
@@ -601,7 +603,7 @@ fun TenantCardScreen(
                     cardScrollScope.launch { contentScroll.animateScrollTo(rentBlockTop) }
                 }
             )
-            TenantDialogButton(
+            com.rentmanager.app.ui.components.CanonicalDialogButton(
                 text = "Отменить",
                 stroke = Graphite,
                 textColor = Graphite,
