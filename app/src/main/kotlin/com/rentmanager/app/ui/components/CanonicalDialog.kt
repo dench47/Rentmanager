@@ -88,7 +88,7 @@ fun CanonicalDialog(
                     lineHeight = 24.2.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = -0.3.sp,
-                    color = Graphite,
+                    color = Color(0xFF010101),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -102,7 +102,7 @@ fun CanonicalDialog(
                         lineHeight = 24.2.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = -0.3.sp,
-                        color = Graphite
+                        color = Color(0xFF010101)
                     )
                     if (text != null) {
                         Spacer(Modifier.height(6.dp))
@@ -197,7 +197,7 @@ fun CanonicalContentDialog(
                 lineHeight = 24.2.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = -0.3.sp,
-                color = Graphite
+                color = Color(0xFF010101)
             )
             Spacer(Modifier.height(6.dp))
             content()

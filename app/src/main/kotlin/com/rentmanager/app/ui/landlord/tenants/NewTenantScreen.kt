@@ -102,11 +102,25 @@ private val NewTabBarGrey = Color(0xFFEDEDED).copy(alpha = 0.9f)
 @HiltViewModel
 class NewTenantViewModel @Inject constructor(
     private val tenantApi: TenantApi,
-    private val tenantEvents: TenantEvents
+    private val tenantEvents: TenantEvents,
+    private val photoUploader: com.rentmanager.app.data.repository.PhotoUploader
 ) : ViewModel() {
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving = _isSaving.asStateFlow()
+
+    /** Файлы, выбранные на этом экране: строка видна сразу, на сервер — после создания */
+    private val _staged = MutableStateFlow<List<StagedDocument>>(emptyList())
+    val staged = _staged.asStateFlow()
+
+    fun stageDocument(uri: android.net.Uri, name: String, storageName: String, mimeType: String?) {
+        _staged.value = _staged.value + StagedDocument(uri, name, storageName, mimeType)
+    }
+
+    /** Корзина на ещё не прикреплённом файле — убрать из стейджа */
+    fun unstageDocument(uri: android.net.Uri) {
+        _staged.value = _staged.value.filterNot { d -> d.uri == uri }
+    }
 
     /**
      * Нормализованные номера УЖЕ СУЩЕСТВУЮЩИХ карточек — состояние «дубликат»
@@ -132,14 +146,47 @@ class NewTenantViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Создание арендатора, затем прикрепление выбранных документов (загрузка в
+     * хранилище + POST /tenants/:id/documents). onDone(ok, docsFailed):
+     * ok=false — арендатор не создан; ok=true и docsFailed=true — арендатор создан,
+     * но документы не прикрепились (их можно догрузить в карточке).
+     */
     fun save(tenant: TenantDto, onDone: (Boolean) -> Unit) {
         if (_isSaving.value) return
         viewModelScope.launch {
             _isSaving.value = true
-            val ok = runCatching { tenantApi.createTenant(tenant).isSuccessful }.getOrDefault(false)
-            if (ok) tenantEvents.notifyChanged()
+            val created = runCatching { tenantApi.createTenant(tenant).body() }.getOrNull()
+            if (created == null) {
+                _isSaving.value = false
+                onDone(false)
+                return@launch
+            }
+            tenantEvents.notifyChanged()
+            val staged = _staged.value
+            // Документы — «best effort» (решение Дениса 2026-09-27): главное действие —
+            // создание арендатора, про сбой заливки пользователю не сообщаем (только лог)
+            val docsOk = if (staged.isEmpty()) true else runCatching {
+                staged.forEach { d ->
+                    val uploaded = photoUploader.uploadDocument(d.uri, d.storageName, d.mimeType)
+                    val type = d.storageName.substringAfterLast('.', "").uppercase()
+                    val added = tenantApi.addTenantDocument(
+                        created.id,
+                        com.rentmanager.app.data.api.AddTenantDocumentRequest(
+                            name = d.name,
+                            fileType = type.ifEmpty { null },
+                            url = uploaded.url,
+                            size = uploaded.size
+                        )
+                    ).isSuccessful
+                    if (!added) throw IllegalStateException("attach document failed")
+                }
+            }.onFailure { e ->
+                android.util.Log.e("DOCS", "attach document failed: " + e.message, e)
+            }.isSuccess
+            if (docsOk) _staged.value = emptyList()
             _isSaving.value = false
-            onDone(ok)
+            onDone(true)
         }
     }
 }
@@ -160,6 +207,7 @@ fun NewTenantScreen(
     val context = LocalContext.current
     val isSaving by viewModel.isSaving.collectAsState()
     val existingPhones by viewModel.existingPhones.collectAsState()
+    val stagedDocs by viewModel.staged.collectAsState()
 
     var fullName by remember { mutableStateOf(TextFieldValue()) }
     var phone by remember { mutableStateOf(TextFieldValue()) }
@@ -181,6 +229,8 @@ fun NewTenantScreen(
     var showAddToContactsSheet by remember { mutableStateOf(false) }
     // 3695:33459 — подтверждение после сохранения в телефонную книгу
     var showContactAddedDialog by remember { mutableStateOf(false) }
+    // 3695:33421 «Арендатор добавлен» — ВСЕГДА после сохранения, автоскрытие ~1.5 с
+    var showTenantAddedDialog by remember { mutableStateOf(false) }
 
     // Попытка сохранить с пустыми обязательными полями (3695:33355)
     var showRequiredError by remember { mutableStateOf(false) }
@@ -199,14 +249,16 @@ fun NewTenantScreen(
     // обязательными показывает состояние ошибки вместо сохранения
     val canSave = !isSaving && (
         fullName.text.isNotBlank() || phone.text.isNotBlank() || company.text.isNotBlank() ||
-            email.text.isNotBlank() || document.text.isNotBlank() || serviceInfo.text.isNotBlank()
+            email.text.isNotBlank() || document.text.isNotBlank() || serviceInfo.text.isNotBlank() ||
+            stagedDocs.isNotEmpty()
         )
 
     // Выход (аннотация Вики 3695:33426): пустая форма — сразу назад;
     // есть ввод или документы — сначала подтверждение (диалог 3695:33428)
     val formHasInput = fullName.text.isNotBlank() || phone.text.isNotBlank() ||
         company.text.isNotBlank() || email.text.isNotBlank() ||
-        document.text.isNotBlank() || serviceInfo.text.isNotBlank()
+        document.text.isNotBlank() || serviceInfo.text.isNotBlank() ||
+        stagedDocs.isNotEmpty()
     var showCancelDialog by remember { mutableStateOf(false) }
     fun attemptExit() {
         if (formHasInput) showCancelDialog = true else onBack()
@@ -235,6 +287,48 @@ fun NewTenantScreen(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) showContactAddedDialog = true
         else onBack()
+    }
+
+    // ---- Документы (2983:42346): лаунчеры живут на уровне ЭКРАНА, а не внутри шита —
+    // шит закрывается сразу после запуска интента, результат терялся бы. Стейдж держит
+    // VM: строки видны сразу, на сервер уходят ПОСЛЕ создания арендатора ----
+    val todayDocLabel = remember {
+        java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+    }
+    val camUriHolder = remember { mutableStateOf<android.net.Uri?>(null) }
+    val docCameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { ok ->
+        val uri = camUriHolder.value
+        if (ok && uri != null) {
+            viewModel.stageDocument(
+                uri, "Фото от " + todayDocLabel, docStorageName("image/jpeg", "doc.jpg"), "image/jpeg"
+            )
+        }
+    }
+    val docGalleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+            val display = docDisplayName(context, uri).ifBlank {
+                if (mime?.startsWith("image/") == true) "Фото от " + todayDocLabel
+                else "Документ от " + todayDocLabel
+            }
+            viewModel.stageDocument(uri, display, docStorageName(mime, display), mime)
+        }
+    }
+    val docFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val mime = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+            val display = docDisplayName(context, uri).ifBlank {
+                if (mime?.startsWith("image/") == true) "Фото от " + todayDocLabel
+                else "Документ от " + todayDocLabel
+            }
+            viewModel.stageDocument(uri, display, docStorageName(mime, display), mime)
+        }
     }
 
     // ---- Канон: клавиатура не прячет поле ввода (как в редактировании) ----
@@ -403,6 +497,27 @@ fun NewTenantScreen(
                     onFocused = { revealField(it) }
                 )
 
+                // Строки выбранных документов — канон 2983:42232 (превью 40 r8 +
+                // имя 15/600 + подпись 13/400, корзина убирает из стейджа).
+                // Тап — открыть локальный файл (content:// открывается напрямую)
+                val stagedScope = rememberCoroutineScope()
+                stagedDocs.forEach { staged ->
+                    DocumentRow(
+                        doc = com.rentmanager.app.data.model.TenantDocumentDto(
+                            id = staged.uri.toString(),
+                            name = staged.name,
+                            fileType = staged.storageName.substringAfterLast('.', "").uppercase().ifEmpty { null },
+                            url = staged.uri.toString()
+                        ),
+                        onOpen = {
+                            stagedScope.launch {
+                                openDocumentFromUrl(context, staged.uri.toString(), staged.name, staged.mimeType)
+                            }
+                        },
+                        onDelete = { viewModel.unstageDocument(staged.uri) }
+                    )
+                }
+
                 // «Прикрепить документ» (как в редактировании: скрепка +
                 // подчёркнутый текст 13/500 #212121@0.85)
                 Column(
@@ -556,10 +671,10 @@ fun NewTenantScreen(
                             )
                         ) { ok ->
                             if (ok) {
-                                // Ручной ввод / недавние звонки → предложить
-                                // тел. книгу (3695:33445); из тел. книги не нужно
-                                if (!phoneFromContacts) showAddToContactsSheet = true
-                                else onBack()
+                                // 3695:33421: подтверждение ВСЕГДА после сохранения
+                                // (решение Вики 2026-09-27). Дальше — шит «Добавить номер
+                                // в контакты?» (3695:33445) либо сразу список
+                                showTenantAddedDialog = true
                             } else {
                                 Toast.makeText(context, "Не удалось сохранить арендатора", Toast.LENGTH_SHORT).show()
                             }
@@ -760,6 +875,25 @@ fun NewTenantScreen(
         }
     }
 
+    // 3695:33421 (Continue): «Арендатор добавлен» — иконка 50 + заголовок 20/600
+    // по центру, кнопок нет; автоскрытие ~1.5 с. Дальше — шит телефонной книги
+    // (только если номер вводили вручную/из звонков) либо возврат к списку
+    if (showTenantAddedDialog) {
+        val finishAdded = {
+            showTenantAddedDialog = false
+            if (!phoneFromContacts) showAddToContactsSheet = true else onBack()
+        }
+        CanonicalDialog(
+            onDismiss = { if (showTenantAddedDialog) finishAdded() },
+            icon = R.drawable.ic_success_check,
+            title = "Арендатор добавлен"
+        )
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(1500)
+            if (showTenantAddedDialog) finishAdded()
+        }
+    }
+
     // 3695:33459 (Continue): иконка 50 + заголовок 20/600 по центру,
     // кнопок нет — как «Изменения сохранены»
     if (showContactAddedDialog) {
@@ -789,7 +923,8 @@ fun NewTenantScreen(
         showAddToContactsSheet || showAttachDocSheet ||
         showContactsDeniedSheet || showCallLogDeniedSheet
     BackHandler(
-        enabled = formHasInput && !showCancelDialog && !showContactAddedDialog && !anySheetOpen
+        enabled = formHasInput && !showCancelDialog && !showContactAddedDialog &&
+            !showTenantAddedDialog && !anySheetOpen
     ) {
         showCancelDialog = true
     }
@@ -819,38 +954,27 @@ fun NewTenantScreen(
 
     // ---- Шит источников документа (общий с редактированием) ----
     if (showAttachDocSheet) {
-        val camContext = LocalContext.current
-        var camUri by remember { mutableStateOf<android.net.Uri?>(null) }
-        val cameraLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.TakePicture()
-        ) { }
-        val galleryLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.GetContent()
-        ) { }
-        val fileLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.OpenDocument()
-        ) { }
         TenantActionModalSheet(onDismiss = { showAttachDocSheet = false }) {
             AttachDocumentSourceSheet(
                 onCamera = {
                     showAttachDocSheet = false
                     runCatching {
-                        val dir = java.io.File(camContext.cacheDir, "docs").apply { mkdirs() }
+                        val dir = java.io.File(context.cacheDir, "docs").apply { mkdirs() }
                         val file = java.io.File(dir, "doc_${System.currentTimeMillis()}.jpg")
                         val uri = androidx.core.content.FileProvider.getUriForFile(
-                            camContext, camContext.packageName + ".fileprovider", file
+                            context, context.packageName + ".fileprovider", file
                         )
-                        camUri = uri
-                        cameraLauncher.launch(uri)
+                        camUriHolder.value = uri
+                        docCameraLauncher.launch(uri)
                     }
                 },
                 onGallery = {
                     showAttachDocSheet = false
-                    galleryLauncher.launch("image/*")
+                    docGalleryLauncher.launch("image/*")
                 },
                 onFile = {
                     showAttachDocSheet = false
-                    fileLauncher.launch(arrayOf("*/*"))
+                    docFileLauncher.launch(arrayOf("*/*"))
                 }
             )
         }

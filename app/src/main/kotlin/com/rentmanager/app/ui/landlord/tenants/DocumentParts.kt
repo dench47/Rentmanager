@@ -85,6 +85,13 @@ fun docDisplayName(context: Context, uri: Uri): String = runCatching {
     )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
 }.getOrNull().orEmpty()
 
+/** Имя файла в хранилище: doc_<timestamp>.<ext> (ext по имени, иначе по mime). */
+fun docStorageName(mime: String?, displayName: String): String {
+    val ext = displayName.substringAfterLast('.', "").lowercase()
+        .ifBlank { if (mime?.startsWith("image/") == true) "jpg" else "bin" }
+    return "doc_" + System.currentTimeMillis() + "." + ext
+}
+
 private fun mimeForName(name: String): String = when (name.substringAfterLast('.', "").lowercase()) {
     "jpg", "jpeg" -> "image/jpeg"
     "png" -> "image/png"
