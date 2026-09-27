@@ -179,6 +179,8 @@ fun NewTenantScreen(
     var showCallsSheet by remember { mutableStateOf(false) }
     var showContactsSheet by remember { mutableStateOf(false) }
     var showAddToContactsSheet by remember { mutableStateOf(false) }
+    // 3695:33459 — подтверждение после сохранения в телефонную книгу
+    var showContactAddedDialog by remember { mutableStateOf(false) }
 
     // Попытка сохранить с пустыми обязательными полями (3695:33355)
     var showRequiredError by remember { mutableStateOf(false) }
@@ -212,11 +214,28 @@ fun NewTenantScreen(
 
     // ---- Шиты контактов: готовые из «Арендатор и договор» ----
 
-    // ---- «Из недавних звонков»    // ---- «Из недавних звонков»: разрешение в рантайме, затем готовый
-    // PickerListSheet с журналом (как в «Арендатор и договор») ----
+    // ---- «Из недавних звонков»: разрешение в рантайме, затем готовый
+    // PickerListSheet с журналом (как в «Арендатор и договор»).
+    // Отказ в разрешении (контакты/звонки) → шит «нет доступа» (3739:68496):
+    // системный запрос ВСЕГДА, шит только после отказа (решение Дениса 2026-09-27)
+    var showContactsDeniedSheet by remember { mutableStateOf(false) }
+    var showCallLogDeniedSheet by remember { mutableStateOf(false) }
     val callLogPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) showCallsSheet = true }
+    ) { granted -> if (granted) showCallsSheet = true else showCallLogDeniedSheet = true }
+    val contactsPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) showContactsSheet = true else showContactsDeniedSheet = true }
+
+    // Системная форма контакта: запуск НА РЕЗУЛЬТАТ —
+    // с ним система сама возвращает нас после «Сохранить» (RESULT_OK),
+    // FLAG_ACTIVITY_NEW_TASK уводил контакты в отдельную задачу и возврата не было
+    val addToContactsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) showContactAddedDialog = true
+        else onBack()
+    }
 
     // ---- Канон: клавиатура не прячет поле ввода (как в редактировании) ----
     val contentScroll = rememberScrollState()
@@ -562,7 +581,12 @@ fun NewTenantScreen(
         com.rentmanager.app.ui.landlord.myproperties.propertydetail.ContactSourceSheet(
             onPhonebook = {
                 showSourceSheet = false
-                showContactsSheet = true
+                // Запрос разрешения ДО открытия пикера; при отказе — шит 3739:68496
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.READ_CONTACTS
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (granted) showContactsSheet = true
+                else contactsPermission.launch(android.Manifest.permission.READ_CONTACTS)
             },
             onCalls = {
                 showSourceSheet = false
@@ -612,7 +636,39 @@ fun NewTenantScreen(
                 )
                 showContactsSheet = false
             },
-            onDismiss = { showContactsSheet = false }
+            onDismiss = { showContactsSheet = false },
+            onPermissionDenied = {
+                showContactsSheet = false
+                showContactsDeniedSheet = true
+            }
+        )
+    }
+
+    // ---- «Нет доступа…» (3739:68496): системный запрос уже показан, пользователь
+    // отказал. Для журнала звонков — тот же шит с адаптированными текстами ----
+    if (showContactsDeniedSheet) {
+        com.rentmanager.app.ui.landlord.myproperties.propertydetail.AccessDeniedSheet(
+            onManualEntry = { showContactsDeniedSheet = false },
+            onOpenSettings = {
+                showContactsDeniedSheet = false
+                com.rentmanager.app.ui.landlord.myproperties.propertydetail
+                    .openAppSettings(context)
+            },
+            onDismiss = { showContactsDeniedSheet = false }
+        )
+    }
+    if (showCallLogDeniedSheet) {
+        com.rentmanager.app.ui.landlord.myproperties.propertydetail.AccessDeniedSheet(
+            title = "Нет доступа к журналу звонков",
+            text = "Введите данные вручную или разрешите доступ к журналу звонков " +
+                "в настройках телефона",
+            onManualEntry = { showCallLogDeniedSheet = false },
+            onOpenSettings = {
+                showCallLogDeniedSheet = false
+                com.rentmanager.app.ui.landlord.myproperties.propertydetail
+                    .openAppSettings(context)
+            },
+            onDismiss = { showCallLogDeniedSheet = false }
         )
     }
 
@@ -674,21 +730,21 @@ fun NewTenantScreen(
                 text = "Добавить в контакты",
                 onClick = {
                     showAddToContactsSheet = false
-                    // Системная форма нового контакта с именем и номером —
-                    // без запроса разрешений
-                    runCatching {
-                        context.startActivity(
+                    // Без запроса разрешений. Запуск на результат: система
+                    // сама вернёт нас после «Сохранить», и мы покажем 3695:33459
+                    val launched = runCatching {
+                        addToContactsLauncher.launch(
                             android.content.Intent(
                                 android.provider.ContactsContract.Intents.Insert.ACTION
                             ).apply {
                                 type = android.provider.ContactsContract.RawContacts.CONTENT_TYPE
                                 putExtra(android.provider.ContactsContract.Intents.Insert.NAME, fullName.text.trim())
                                 putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, phone.text.trim())
-                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
                         )
-                    }
-                    onBack()
+                    }.isSuccess
+                    // Нет приложения контактов — молча выходим к списку
+                    if (!launched) onBack()
                 }
             )
             Spacer(Modifier.height(6.dp))
@@ -704,12 +760,37 @@ fun NewTenantScreen(
         }
     }
 
+    // 3695:33459 (Continue): иконка 50 + заголовок 20/600 по центру,
+    // кнопок нет — как «Изменения сохранены»
+    if (showContactAddedDialog) {
+        CanonicalDialog(
+            onDismiss = {
+                if (showContactAddedDialog) {
+                    showContactAddedDialog = false
+                    onBack()
+                }
+            },
+            icon = R.drawable.ic_success_check,
+            title = "Контакт добавлен в телефонную книгу"
+        )
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(1400)
+            if (showContactAddedDialog) {
+                showContactAddedDialog = false
+                onBack()
+            }
+        }
+    }
+
     // ---- Выход с заполненной формой: подтверждение (3695:33428/33426) ----
     // Системный «назад» работает как «Отменить»; пока открыт любой шит —
     // не вмешиваемся (шит закрывает себя своим back-ом)
     val anySheetOpen = showSourceSheet || showCallsSheet || showContactsSheet ||
-        showAddToContactsSheet || showAttachDocSheet
-    BackHandler(enabled = formHasInput && !showCancelDialog && !anySheetOpen) {
+        showAddToContactsSheet || showAttachDocSheet ||
+        showContactsDeniedSheet || showCallLogDeniedSheet
+    BackHandler(
+        enabled = formHasInput && !showCancelDialog && !showContactAddedDialog && !anySheetOpen
+    ) {
         showCancelDialog = true
     }
     if (showCancelDialog) {

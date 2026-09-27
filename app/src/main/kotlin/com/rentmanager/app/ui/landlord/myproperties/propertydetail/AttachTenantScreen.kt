@@ -255,9 +255,16 @@ fun AttachTenantScreen(
     var showSourceSheet by remember { mutableStateOf(false) }
     var showTenantsSheet by remember { mutableStateOf(false) }
     var showCallLogSheet by remember { mutableStateOf(false) }
+    // Контакты и звонки: при отказе показываем шит «нет доступа» (3739:68496) —
+    // системный запрос ВСЕГДА, шит только после отказа (решение Дениса 2026-09-27)
+    var showContactsDeniedSheet by remember { mutableStateOf(false) }
+    var showCallLogDeniedSheet by remember { mutableStateOf(false) }
     val callLogPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) showCallLogSheet = true }
+    ) { granted -> if (granted) showCallLogSheet = true else showCallLogDeniedSheet = true }
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) showContactsSheet = true else showContactsDeniedSheet = true }
 
     fun tryAttach() {
         startError = startDate == null
@@ -505,7 +512,12 @@ fun AttachTenantScreen(
             },
             onPhonebook = {
                 showSourceSheet = false
-                showContactsSheet = true
+                // Разрешение спрашиваем ДО открытия пикера; при отказе — шит 3739:68496
+                val granted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.READ_CONTACTS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) showContactsSheet = true
+                else contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
             },
             onCalls = {
                 showSourceSheet = false
@@ -574,7 +586,38 @@ fun AttachTenantScreen(
                 showContactsSheet = false
                 saveDraft()
             },
-            onDismiss = { showContactsSheet = false }
+            onDismiss = { showContactsSheet = false },
+            onPermissionDenied = {
+                showContactsSheet = false
+                showContactsDeniedSheet = true
+            }
+        )
+    }
+
+    // ---- «Нет доступа…» (3739:68496): после системного запроса, если пользователь
+    // отказал. Тексты/иллюстрация — по макету; для журнала звонков словарь
+    // адаптирован (макета под него нет, решение Дениса 2026-09-27) ----
+    if (showContactsDeniedSheet) {
+        AccessDeniedSheet(
+            onManualEntry = { showContactsDeniedSheet = false },
+            onOpenSettings = {
+                showContactsDeniedSheet = false
+                openAppSettings(context)
+            },
+            onDismiss = { showContactsDeniedSheet = false }
+        )
+    }
+    if (showCallLogDeniedSheet) {
+        AccessDeniedSheet(
+            title = "Нет доступа к журналу звонков",
+            text = "Введите данные вручную или разрешите доступ к журналу звонков " +
+                "в настройках телефона",
+            onManualEntry = { showCallLogDeniedSheet = false },
+            onOpenSettings = {
+                showCallLogDeniedSheet = false
+                openAppSettings(context)
+            },
+            onDismiss = { showCallLogDeniedSheet = false }
         )
     }
 
@@ -978,6 +1021,83 @@ fun formatContactPhone(raw: String): String {
 }
 
 /**
+ * Шит «Нет доступа к контактам» (макет 3739:68496): ручка 32×4 @40% (16/16) → 20 →
+ * иллюстрация 128 (тот же арт `add-to-contacts`, что в шите «Добавить номер
+ * в контакты?») → заголовок 20/600 #010101 по центру → 6 → пояснение 13/500 #010101
+ * (колонка 318 = 372−2×27) → 20 → чёрная 55 «Ввести вручную» + 6 + контурная 55
+ * «Открыть настройки»; низ 36. Тем же шитом закрываем отказ и в журнале звонков —
+ * тексты параметризованы (макета под журнал нет, решение Дениса 2026-09-27).
+ */
+@Composable
+fun AccessDeniedSheet(
+    onManualEntry: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onDismiss: () -> Unit,
+    title: String = "Нет доступа к контактам",
+    text: String = "Введите данные вручную или разрешите доступ к контактам " +
+        "в настройках телефона"
+) {
+    TenantActionModalSheet(onDismiss = onDismiss) {
+        Spacer(Modifier.height(19.2.dp))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_add_to_contacts),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.None,
+                modifier = Modifier
+                    .padding(0.8.dp)
+                    .width(128.dp)
+                    .height(128.dp)
+            )
+        }
+        Spacer(Modifier.height(0.6.dp))
+        Text(
+            title,
+            fontSize = 20.sp,
+            lineHeight = 24.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.3).sp,
+            color = Color(0xFF010101),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text,
+            fontSize = 13.sp,
+            lineHeight = 15.7.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.4).sp,
+            color = Color(0xFF010101),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 27.dp)
+        )
+        Spacer(Modifier.height(20.dp))
+        BlackCtaButton(text = "Ввести вручную", onClick = onManualEntry)
+        Spacer(Modifier.height(6.dp))
+        OutlineCtaButton(
+            text = "Открыть настройки",
+            borderColor = Graphite,
+            onClick = onOpenSettings
+        )
+    }
+}
+
+/** Системные настройки приложения — кнопка «Открыть настройки» в шите «Нет доступа…». */
+fun openAppSettings(context: Context) {
+    runCatching {
+        context.startActivity(
+            android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", context.packageName, null)
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
+}
+
+/**
  * Шит «Выбрать контакт» (Figma 2935:36528): заголовок + крестик,
  * поиск «Имя или телефон», список секциями по первой букве (аватар 40,
  * имя + телефон, разделители #DBDBDB).
@@ -986,34 +1106,27 @@ fun formatContactPhone(raw: String): String {
 @Composable
 fun ContactsPickerSheet(
     onPick: (PhoneContact) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Разрешения нет (в т.ч. отозвали при открытом пикере) — просим шит 3739:68496 */
+    onPermissionDenied: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     var contacts by remember { mutableStateOf<List<PhoneContactEntry>>(emptyList()) }
     // Контакт с несколькими номерами: шит выбора номера (3696:68046)
     var numberChoice by remember { mutableStateOf<PhoneContactEntry?>(null) }
-    var permissionDenied by remember { mutableStateOf(false) }
 
-    var hasPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
-                PackageManager.PERMISSION_GRANTED
-        )
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasPermission = granted
-        permissionDenied = !granted
+    val hasPermission = remember {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
+            PackageManager.PERMISSION_GRANTED
     }
 
+    // Системный запрос делает ВЫЗЫВАЮЩИЙ экран до открытия пикера (канон 3739:68496:
+    // запрос → отказ → шит «Нет доступа к контактам»). Если разрешения всё же нет
+    // (например отозвали в настройках) — не рисуем пикер, а просим показать шит.
     LaunchedEffect(hasPermission) {
-        if (hasPermission && contacts.isEmpty()) {
-            contacts = readPhoneContactsGrouped(context)
-        } else if (!hasPermission) {
-            permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
-        }
+        if (!hasPermission) onPermissionDenied()
+        else if (contacts.isEmpty()) contacts = readPhoneContactsGrouped(context)
     }
 
     // Ранжированный поиск: СНАЧАЛА все имена, начинающиеся с запроса
@@ -1122,11 +1235,6 @@ fun ContactsPickerSheet(
             Spacer(Modifier.height(20.dp))
 
             when {
-                permissionDenied -> Text(
-                    "Нет доступа к контактам",
-                    style = CardSubtitleStyle,
-                    modifier = Modifier.padding(bottom = 20.dp)
-                )
                 contacts.isEmpty() -> Text(
                     "Контакты не найдены",
                     style = CardSubtitleStyle,
