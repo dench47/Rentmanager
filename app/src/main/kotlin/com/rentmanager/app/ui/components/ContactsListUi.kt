@@ -53,13 +53,36 @@ private val CircleFill = Color(0xFFEFEFEF)
 private val DividerColor = Color(0xFFDBDBDB)
 private val ActiveDot = Color(0xFF2F7D4D)
 
-/** Состояние аренды в фильтре списка (канвас 13, поповер 182×188). */
-enum class RentFilter(val label: String) {
-    ALL("Все"),
-    ACTIVE("Арендую сейчас"),
-    FINISHED("Арендовал ранее"),
-    BOOKING("С бронью"),
-    NONE("Аренды не было");
+/**
+ * Состояние аренды в фильтре списка (канвас 17): панель 202×188 #EFEFEF r20,
+ * строки 182×28 r10 внутри. Подписи отличаются тем, кто смотрит:
+ * арендодатель (экран «Арендаторы», 3919:74391) или арендатор
+ * (экран «Арендодатели», 3925:82898).
+ */
+enum class RentFilter {
+    ALL,
+    ACTIVE,
+    FINISHED,
+    BOOKING,
+    NONE;
+
+    fun label(asLandlord: Boolean): String = if (asLandlord) {
+        when (this) {
+            ALL -> "Все"
+            ACTIVE -> "Арендуют сейчас"
+            FINISHED -> "Арендовали ранее"
+            BOOKING -> "Аренда запланирована"
+            NONE -> "Без аренды"
+        }
+    } else {
+        when (this) {
+            ALL -> "Все"
+            ACTIVE -> "Арендую сейчас"
+            FINISHED -> "Арендовал(а) ранее"
+            BOOKING -> "Аренда запланирована"
+            NONE -> "Аренды не было"
+        }
+    }
 
     /** Подходит ли контакт под выбранное состояние (статус приходит с сервера). */
     fun matches(status: String?): Boolean = when (this) {
@@ -417,16 +440,20 @@ fun ContactsToolbar(
 }
 
 /**
- * Поповер фильтра (канвас 13, 3110:57110): панель 182×188 #EFEFEF r20,
- * строки 162×28 r10, выбранная — белая плашка с галочкой.
- * Затемнение ловит тап и закрывает панель.
+ * Окошко фильтра (канвас 17, 3919:74391 / 3925:82898): панель 202×188 #EFEFEF,
+ * r20, отступы 10/12/10/12, строки 182×28 r10 с зазором 6, подписи 13/400,
+ * выбранная — белая плашка и галочка 16 справа.
+ *
+ * Панель прижимается к ВЕРХУ своей области — её нужно вкладывать в область списка
+ * (Box вокруг LazyColumn), тогда верх окошка совпадает с верхом первой строки,
+ * как в макете, и не зависит от высоты тулбара. Правый отступ — 20.
  */
 @Composable
 fun RentFilterPopup(
     selected: RentFilter,
     onSelect: (RentFilter) -> Unit,
     onDismiss: () -> Unit,
-    topPadding: Dp
+    asLandlord: Boolean
 ) {
     Box(
         Modifier
@@ -439,11 +466,11 @@ fun RentFilterPopup(
         Column(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = topPadding, end = 20.dp)
-                .width(182.dp)
+                .padding(end = 20.dp)
+                .width(202.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(CircleFill)
-                .padding(horizontal = 10.dp, vertical = 12.dp),
+                .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             RentFilter.entries.forEach { filter ->
@@ -463,10 +490,11 @@ fun RentFilterPopup(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        filter.label,
+                        filter.label(asLandlord),
                         fontSize = 13.sp,
                         fontFamily = InterFontFamily,
-                        color = TextPrimary,
+                        // в макете текст пункта #212121 с прозрачностью 0.85
+                        color = TextPrimary.copy(alpha = 0.85f),
                         letterSpacing = (-0.4).sp
                     )
                     if (isSelected) {

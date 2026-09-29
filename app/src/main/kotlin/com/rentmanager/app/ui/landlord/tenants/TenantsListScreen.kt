@@ -121,87 +121,96 @@ fun TenantsListScreen(
                     showActions = visible.isNotEmpty()
                 )
 
-                if (uiState.isLoading) {
-                    // Первый запуск без кэша: глобус + объяснение по центру.
-                    // fillMaxWidth обязателен: вес даёт только высоту, без него
-                    // Box схлопывается по ширине и текст уезжает влево
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Image(
-                                painter = painterResource(R.drawable.ic_globe_warning_vec),
-                                contentDescription = null,
-                                modifier = Modifier.size(50.dp)
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "Загружаем арендаторов…",
-                                fontSize = 15.sp,
-                                lineHeight = 18.2.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                fontFamily = InterFontFamily,
-                                letterSpacing = (-0.4).sp,
-                                color = Color(0xFF212121)
-                            )
+                // Область списка. Окошко фильтра живёт внутри неё и прижато к её верху,
+                // поэтому верх панели совпадает с верхом первой строки (как в макете).
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    if (uiState.isLoading) {
+                        // Первый запуск без кэша: глобус + объяснение по центру
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_globe_warning_vec),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(50.dp)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Загружаем арендаторов…",
+                                    fontSize = 15.sp,
+                                    lineHeight = 18.2.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = InterFontFamily,
+                                    letterSpacing = (-0.4).sp,
+                                    color = Color(0xFF212121)
+                                )
+                            }
+                        }
+                    } else if (visible.isNotEmpty()) {
+                        LazyColumn(Modifier.fillMaxSize()) {
+                            items(visible, key = { it.id }) { tenant ->
+                                TenantCard(
+                                    tenant = tenant,
+                                    onClick = {
+                                        // Мгновенный рендер карточки: кладём DTO в кеш до навигации
+                                        TenantCardCache.put(tenant)
+                                        onTenantClick(tenant.id)
+                                    },
+                                    onLongClick = { tenantToDelete = tenant }
+                                )
+                                ContactRowDivider()
+                            }
+                        }
+                    } else if (uiState.errorMessage != null) {
+                        // Сети нет и данных нет: «Арендаторов пока нет» — враньё,
+                        // поэтому глобус с объяснением, тап повторяет загрузку
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { viewModel.load() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Image(
+                                    painter = painterResource(R.drawable.ic_globe_warning_vec),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(50.dp)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Нет связи с сервером",
+                                    fontSize = 15.sp,
+                                    lineHeight = 18.2.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = InterFontFamily,
+                                    letterSpacing = (-0.4).sp,
+                                    color = Color(0xFF212121)
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Проверьте подключение и попробуйте ещё раз",
+                                    fontSize = 13.sp,
+                                    lineHeight = 15.7.sp,
+                                    letterSpacing = (-0.4).sp,
+                                    color = Color(0xFF727272)
+                                )
+                            }
                         }
                     }
-                } else if (visible.isNotEmpty()) {
-                    LazyColumn(Modifier.weight(1f)) {
-                        items(visible, key = { it.id }) { tenant ->
-                            TenantCard(
-                                tenant = tenant,
-                                onClick = {
-                                    // Мгновенный рендер карточки: кладём DTO в кеш до навигации
-                                    TenantCardCache.put(tenant)
-                                    onTenantClick(tenant.id)
-                                },
-                                onLongClick = { tenantToDelete = tenant }
-                            )
-                            ContactRowDivider()
-                        }
-                    }
-                } else if (uiState.errorMessage != null) {
-                    // Сети нет и данных нет: не показываем «Арендаторов пока нет»
-                    // (это враньё) — глобус с объяснением, тап повторяет загрузку
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { viewModel.load() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Image(
-                                painter = painterResource(R.drawable.ic_globe_warning_vec),
-                                contentDescription = null,
-                                modifier = Modifier.size(50.dp)
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "Нет связи с сервером",
-                                fontSize = 15.sp,
-                                lineHeight = 18.2.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                fontFamily = InterFontFamily,
-                                letterSpacing = (-0.4).sp,
-                                color = Color(0xFF212121)
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "Проверьте подключение и попробуйте ещё раз",
-                                fontSize = 13.sp,
-                                lineHeight = 15.7.sp,
-                                letterSpacing = (-0.4).sp,
-                                color = Color(0xFF727272)
-                            )
-                        }
+
+                    // Окошко фильтра (3919:74391): справа 20, верх — верх первой строки
+                    if (filterOpen) {
+                        RentFilterPopup(
+                            selected = rentFilter,
+                            onSelect = {
+                                rentFilter = it
+                                filterOpen = false
+                            },
+                            onDismiss = { filterOpen = false },
+                            asLandlord = true
+                        )
                     }
                 }
 
@@ -281,18 +290,6 @@ fun TenantsListScreen(
                 )
             }
 
-            // Окошко фильтра: справа 20, сверху — низ тулбара + 2 (макет 3110:57109)
-            if (filterOpen) {
-                RentFilterPopup(
-                    selected = rentFilter,
-                    onSelect = {
-                        rentFilter = it
-                        filterOpen = false
-                    },
-                    onDismiss = { filterOpen = false },
-                    topPadding = 66.dp
-                )
-            }
         }
     }
 

@@ -118,25 +118,43 @@ fun LandlordsListScreen(
                     )
                 }
 
-                if (uiState.isLoading) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Загрузка…", fontSize = 14.sp, color = Color(0xFF8E8E93))
-                    }
-                } else if (visible.isNotEmpty()) {
-                    LazyColumn(Modifier.weight(1f)) {
-                        items(visible, key = { it.id }) { landlord ->
-                            ContactRow(
-                                title = landlord.name.ifBlank { landlord.phone },
-                                // Вторая строка у арендодателей — название компании
-                                // (в настройках не указано → строки нет)
-                                subtitle = landlord.companyName?.takeIf { it.isNotBlank() },
-                                avatarUrl = landlord.avatarUrl,
-                                showActiveDot = false,
-                                phone = landlord.phone,
-                                onClick = { onLandlordClick(landlord.id) }
-                            )
-                            ContactRowDivider()
+                // Область списка. Окошко фильтра живёт внутри неё и прижато к её верху,
+                // поэтому верх панели совпадает с верхом первой строки (как в макете),
+                // без магических dp, зависящих от высоты тулбара.
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    if (uiState.isLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Загрузка…", fontSize = 14.sp, color = Color(0xFF8E8E93))
                         }
+                    } else if (visible.isNotEmpty()) {
+                        LazyColumn(Modifier.fillMaxSize()) {
+                            items(visible, key = { it.id }) { landlord ->
+                                ContactRow(
+                                    title = landlord.name.ifBlank { landlord.phone },
+                                    // Вторая строка у арендодателей — название компании
+                                    // (в настройках не указано → строки нет)
+                                    subtitle = landlord.companyName?.takeIf { it.isNotBlank() },
+                                    avatarUrl = landlord.avatarUrl,
+                                    showActiveDot = false,
+                                    phone = landlord.phone,
+                                    onClick = { onLandlordClick(landlord.id) }
+                                )
+                                ContactRowDivider()
+                            }
+                        }
+                    }
+
+                    // Окошко фильтра (3925:82898): справа 20, верх — верх первой строки
+                    if (filterOpen) {
+                        RentFilterPopup(
+                            selected = rentFilter,
+                            onSelect = {
+                                rentFilter = it
+                                filterOpen = false
+                            },
+                            onDismiss = { filterOpen = false },
+                            asLandlord = false
+                        )
                     }
                 }
 
@@ -213,19 +231,6 @@ fun LandlordsListScreen(
                 )
             }
 
-            // Окошко фильтра (3110:57109): справа 20, сверху — низ тулбара + 2
-            // (в макете панель 182×188 на (210,109), тулбар кончается на 103)
-            if (filterOpen) {
-                RentFilterPopup(
-                    selected = rentFilter,
-                    onSelect = {
-                        rentFilter = it
-                        filterOpen = false
-                    },
-                    onDismiss = { filterOpen = false },
-                    topPadding = 66.dp
-                )
-            }
         }
     }
 }
