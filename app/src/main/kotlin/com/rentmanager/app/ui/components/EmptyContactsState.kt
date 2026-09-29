@@ -15,8 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.imageResource
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -26,12 +27,13 @@ import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.theme.Graphite
 
 /**
- * Пустое состояние списков «Арендаторы»/«Арендодатели» (канвас «13», 3108:56847/56859):
- * иллюстрация empty-contacts 135, заголовок 20/600 −0.3, подпись 15/600 −0.4 (обе #212121,
- * по центру), зазоры 20/12/20, чёрная CTA 372×55 с иконкой «человек+плюс» (зазор 6).
+ * Пустое состояние списков «Арендаторы»/«Арендодатели» (канвас 13).
+ * Карточка 412×313 r30 центрируется по всей высоте кадра; внутри —
+ * иллюстрация 140, заголовок 20/600, подпись 13/500 (обе #212121, по центру),
+ * зазоры 12/6/20 и чёрная CTA 372×55 r100 (иконка в CTA — по состоянию).
  *
- * Блок центрируется по всей высоте экрана — в макете карточка лежит на (917−325)/2 = 296
- * от верха кадра, т.е. по центру полного фрейма, а не области между шапкой и таббаром.
+ * Иллюстрации в макете РАЗНЫЕ: «списка нет» — empty-contacts (люди+плюс),
+ * «ничего не найдено» (фильтр/поиск) — contacts-not-found (лупа с крестиком).
  */
 @Composable
 fun EmptyContactsState(
@@ -39,7 +41,12 @@ fun EmptyContactsState(
     subtitle: String,
     ctaText: String,
     onCtaClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    illustration: Painter = BitmapPainter(
+        ImageBitmap.imageResource(R.drawable.ic_empty_contacts),
+        filterQuality = FilterQuality.High
+    ),
+    ctaIconRes: Int? = R.drawable.ic_person_plus
 ) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
@@ -50,14 +57,12 @@ fun EmptyContactsState(
         ) {
             // PNG 675px рисуется в ~425 физических пикселей: без High (мипмапы)
             // билинейная минификация даёт лестницу на кривых
-            val illustration = ImageBitmap.imageResource(R.drawable.ic_empty_contacts)
             Image(
-                bitmap = illustration,
+                painter = illustration,
                 contentDescription = null,
-                modifier = Modifier.size(135.dp),
-                filterQuality = FilterQuality.High
+                modifier = Modifier.size(140.dp)
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 title,
                 fontSize = 20.sp,
@@ -67,11 +72,11 @@ fun EmptyContactsState(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
                 subtitle,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
                 letterSpacing = (-0.4).sp,
                 color = Graphite,
                 textAlign = TextAlign.Center,
@@ -80,7 +85,7 @@ fun EmptyContactsState(
             Spacer(Modifier.height(20.dp))
             BlackCtaButton(
                 text = ctaText,
-                iconRes = R.drawable.ic_person_plus,
+                iconRes = ctaIconRes,
                 iconSpacing = 6.dp,
                 onClick = onCtaClick
             )

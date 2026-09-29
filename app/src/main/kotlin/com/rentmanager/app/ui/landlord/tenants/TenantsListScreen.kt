@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,10 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -49,7 +44,13 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.data.model.TenantDto
+import com.rentmanager.app.ui.components.ContactRow
+import com.rentmanager.app.ui.components.ContactRowDivider
+import com.rentmanager.app.ui.components.ContactsToolbar
 import com.rentmanager.app.ui.components.EmptyContactsState
+import com.rentmanager.app.ui.components.RentFilter
+import com.rentmanager.app.ui.components.RentFilterPopup
+import com.rentmanager.app.ui.components.tenantRentSubtitle
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
@@ -66,6 +67,12 @@ fun TenantsListScreen(
     // Удаление из карточки: «Арендатор был удален» на фоне списка (3014:22433)
     var deletedTenantId by remember { mutableStateOf<String?>(null) }
 
+    // Лупа и фильтр (канвас 13): поиск в тулбаре + поповер состояний аренды
+    var searchActive by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var rentFilter by remember { mutableStateOf(RentFilter.ALL) }
+    var filterOpen by remember { mutableStateOf(false) }
+
     // Обновление списка при возврате на экран
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -79,6 +86,15 @@ fun TenantsListScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Сначала фильтр по состоянию аренды, затем поиск по имени/компании
+    val byFilter = uiState.tenants.filter { rentFilter.matches(it.rentStatus) }
+    val visible = byFilter.filter { tenant ->
+        val q = query.trim()
+        q.isEmpty() ||
+            tenant.fullName.contains(q, ignoreCase = true) ||
+            tenant.companyName.orEmpty().contains(q, ignoreCase = true)
+    }
+
     Scaffold(containerColor = Color.White) { paddingValues ->
         Box(Modifier.fillMaxSize()) {
             // Паттерн эталонных экранов: Scaffold paddingValues (стабильны с первого кадра;
@@ -87,26 +103,23 @@ fun TenantsListScreen(
                 modifier = Modifier.fillMaxSize().padding(paddingValues).background(Color.White)
             ) {
                 Spacer(Modifier.height(27.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier.clickable { onBack() },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Image(painter = painterResource(R.drawable.ic_landlord_back), contentDescription = "Назад", modifier = Modifier.size(24.dp))
-                        Text("Арендаторы", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
-                    }
-                    if (uiState.tenants.isNotEmpty()) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Image(painter = painterResource(R.drawable.ic_search), contentDescription = "Поиск", modifier = Modifier.size(24.dp).clickable { })
-                            Image(painter = painterResource(R.drawable.ic_sort), contentDescription = "Сортировка", modifier = Modifier.size(24.dp).clickable { })
+                ContactsToolbar(
+                    title = "Арендаторы",
+                    searchActive = searchActive,
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearchClick = { searchActive = true },
+                    onFilterClick = { filterOpen = true },
+                    onBack = {
+                        if (searchActive) {
+                            searchActive = false
+                            query = ""
+                        } else {
+                            onBack()
                         }
-                    }
-                }
+                    },
+                    showActions = visible.isNotEmpty()
+                )
 
                 if (uiState.isLoading) {
                     // Первый запуск без кэша: глобус + объяснение по центру.
@@ -136,19 +149,19 @@ fun TenantsListScreen(
                             )
                         }
                     }
-                } else if (uiState.tenants.isNotEmpty()) {
+                } else if (visible.isNotEmpty()) {
                     LazyColumn(Modifier.weight(1f)) {
-                    items(uiState.tenants, key = { it.id }) { tenant ->
-                        TenantCard(
-                            tenant = tenant,
-                            onClick = {
-                                // Мгновенный рендер карточки: кладём DTO в кеш до навигации
-                                TenantCardCache.put(tenant)
-                                onTenantClick(tenant.id)
-                            },
-                            onLongClick = { tenantToDelete = tenant }
-                        )
-                            HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+                        items(visible, key = { it.id }) { tenant ->
+                            TenantCard(
+                                tenant = tenant,
+                                onClick = {
+                                    // Мгновенный рендер карточки: кладём DTO в кеш до навигации
+                                    TenantCardCache.put(tenant)
+                                    onTenantClick(tenant.id)
+                                },
+                                onLongClick = { tenantToDelete = tenant }
+                            )
+                            ContactRowDivider()
                         }
                     }
                 } else if (uiState.errorMessage != null) {
@@ -195,7 +208,7 @@ fun TenantsListScreen(
                 // ---- Тапбар с CTA «Добавить арендатора» (3122:60008) — ТОЛЬКО
                 // при непустом списке: в пустом состоянии (3108:56847) CTA живёт
                 // в самой карточке-заглушке, второй кнопки быть не может ----
-                if (uiState.tenants.isNotEmpty()) Column(
+                if (visible.isNotEmpty()) Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
@@ -234,12 +247,50 @@ fun TenantsListScreen(
             // Пустое состояние — оверлей на весь экран: центр блока по полной
             // высоте кадра (макет 3108:56847). Только БЕЗ ошибки: при обрыве
             // сети «Арендаторов пока нет» — ложь, там свой глобус выше
+            // Три взаимоисключающих пустых состояния (канвас 13, состояние
+            // «сеть упала» — отдельно выше): списка нет / фильтр пуст / поиск пуст
             if (!uiState.isLoading && uiState.errorMessage == null && uiState.tenants.isEmpty()) {
                 EmptyContactsState(
                     title = "Арендаторов пока нет",
                     subtitle = "Добавленные арендаторы появятся здесь",
                     ctaText = "Добавить арендатора",
                     onCtaClick = onAddTenant
+                )
+            } else if (!uiState.isLoading && uiState.errorMessage == null &&
+                uiState.tenants.isNotEmpty() && byFilter.isEmpty()
+            ) {
+                // 3124:64037 — фильтр ничего не нашёл: CTA без иконки, сброс фильтра
+                EmptyContactsState(
+                    title = "Нет арендаторов с таким статусом",
+                    subtitle = "Выберите другой статус или покажите весь список",
+                    ctaText = "Показать всех",
+                    ctaIconRes = null,
+                    illustration = painterResource(R.drawable.ic_contacts_not_found),
+                    onCtaClick = { rentFilter = RentFilter.ALL }
+                )
+            } else if (!uiState.isLoading && uiState.errorMessage == null &&
+                uiState.tenants.isNotEmpty() && visible.isEmpty()
+            ) {
+                // 3157:64495 — поиск ничего не нашёл
+                EmptyContactsState(
+                    title = "Ничего не найдено",
+                    subtitle = "Проверьте написание или добавьте нового арендатора",
+                    ctaText = "Добавить арендатора",
+                    illustration = painterResource(R.drawable.ic_contacts_not_found),
+                    onCtaClick = onAddTenant
+                )
+            }
+
+            // Окошко фильтра: справа 20, сверху — низ тулбара + 2 (макет 3110:57109)
+            if (filterOpen) {
+                RentFilterPopup(
+                    selected = rentFilter,
+                    onSelect = {
+                        rentFilter = it
+                        filterOpen = false
+                    },
+                    onDismiss = { filterOpen = false },
+                    topPadding = 66.dp
                 )
             }
         }
@@ -306,91 +357,25 @@ private fun TenantCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val displayName = tenant.fullName.ifBlank { tenant.phone }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(tenant.id) {
-                detectTapGestures(
-                    onTap = { onClick() },
-                    onLongPress = { onLongClick() }
-                )
-            }
-            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
-            Box(
-                modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFEFEFEF)),
-                contentAlignment = Alignment.Center
-            ) {
-                // Ава с аккаунта арендатора (если телефон совпал с юзером), иначе инициал
-                val avatarUrl = tenant.avatarUrl
-                if (avatarUrl != null) {
-                    coil.compose.AsyncImage(
-                        model = avatarUrl,
-                        contentDescription = null,
-                        modifier = Modifier.size(40.dp).clip(CircleShape),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                } else {
-                    // 3694:32894: свой плейсхолдер — силуэт в сером круге
-                    Image(
-                        painter = painterResource(R.drawable.ic_avatar_placeholder),
-                        contentDescription = null,
-                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(displayName, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.Black, letterSpacing = (-0.3).sp)
-                val subtitle = tenant.companyName.orEmpty()
-                if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
-            }
-        }
-
-        // «Написать»/«Позвонить» (3122:59510): круг 40 #EFEFEF + иконка 24,
-        // между ними 8; тапы пока пустые — логика будет позже. Кнопки
-        // перехватывают тап, строка-карточка при этом не открывается
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFEFEFEF))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { },
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_tab_email),
-                    contentDescription = "Написать",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFEFEFEF))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { },
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_tab_call),
-                    contentDescription = "Позвонить",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
+    // Вторая строка — объект и срок аренды (канвас 13, заметки Вики):
+    // «БЦ Легенда · до 23.12.2027» / «… · завершено 01.02.2024» /
+    // «Аренда ещё не оформлялась». Пока сервер не отдаёт rent_status,
+    // показываем прежнюю вторую строку (название компании) — без вранья.
+    // Зелёная точка — «арендует сейчас».
+    val subtitle = if (tenant.rentStatus == null) {
+        tenant.companyName.orEmpty()
+    } else {
+        tenantRentSubtitle(tenant.propertyTitle, tenant.rentEndDate, tenant.rentStatus)
     }
+    ContactRow(
+        title = tenant.fullName.ifBlank { tenant.phone },
+        subtitle = subtitle,
+        avatarUrl = tenant.avatarUrl,
+        showActiveDot = tenant.rentStatus == "active",
+        phone = tenant.phone,
+        onClick = onClick,
+        onLongClick = onLongClick
+    )
 }
 
 @Preview(showBackground = true, name = "Список арендаторов")

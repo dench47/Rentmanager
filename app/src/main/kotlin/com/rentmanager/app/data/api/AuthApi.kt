@@ -150,7 +150,11 @@ data class UserSearchResult(
     @SerializedName("name") val name: String,
     @SerializedName("phone") val phone: String,
     @SerializedName("avatar_url") val avatarUrl: String? = null,
-    @SerializedName("is_landlord") val isLandlord: Boolean = false
+    @SerializedName("is_landlord") val isLandlord: Boolean = false,
+    /** «Название компании» владельца из его настроек — вторая строка списка (канвас 13) */
+    @SerializedName("company_name") val companyName: String? = null,
+    /** Состояние аренды для фильтра: active / booking / finished / none */
+    @SerializedName("rent_status") val rentStatus: String? = null
 )
 
 data class PinAttemptsResponse(

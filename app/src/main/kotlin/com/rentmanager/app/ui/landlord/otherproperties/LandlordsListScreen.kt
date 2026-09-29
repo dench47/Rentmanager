@@ -7,27 +7,29 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -38,11 +40,21 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
-import com.rentmanager.app.data.api.UserSearchResult
+import com.rentmanager.app.ui.components.ContactRow
+import com.rentmanager.app.ui.components.ContactRowDivider
+import com.rentmanager.app.ui.components.ContactsToolbar
 import com.rentmanager.app.ui.components.EmptyContactsState
+import com.rentmanager.app.ui.components.RentFilter
+import com.rentmanager.app.ui.components.RentFilterPopup
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
+/**
+ * Список арендодателей (канвас 13, 3122:60026). Строка: аватар 40 (фото или
+ * силуэт) + имя 15/600 + название компании 13/400 + кнопки «письмо»/«звонок».
+ * Зелёной точки «арендует сейчас» здесь нет — она только у арендаторов.
+ * Лупа и фильтр из тулбара рабочие: поиск строки и поповер состояний аренды.
+ */
 @Composable
 fun LandlordsListScreen(
     onLandlordClick: (String) -> Unit,
@@ -50,6 +62,11 @@ fun LandlordsListScreen(
     viewModel: LandlordsListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    var searchActive by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var rentFilter by remember { mutableStateOf(RentFilter.ALL) }
+    var filterOpen by remember { mutableStateOf(false) }
 
     // Обновление списка при возврате на экран / из фона
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -61,80 +78,154 @@ fun LandlordsListScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Сначала фильтр по состоянию аренды, затем поиск по строке
+    val byFilter = uiState.landlords.filter { rentFilter.matches(it.rentStatus) }
+    val visible = byFilter.filter { landlord ->
+        val q = query.trim()
+        q.isEmpty() ||
+            landlord.name.contains(q, ignoreCase = true) ||
+            landlord.companyName.orEmpty().contains(q, ignoreCase = true)
+    }
+
     Scaffold(containerColor = Color.White) { paddingValues ->
         Box(Modifier.fillMaxSize()) {
-            // Паттерн эталонных экранов: Scaffold paddingValues (стабильны с первого кадра;
-            // явный statusBarsPadding на переходе «нырял» вниз) → 27 → строка(20/13)
             Column(Modifier.fillMaxSize().padding(paddingValues).background(Color.White)) {
                 Spacer(Modifier.height(27.dp))
-                Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(Modifier.clickable { onBack() },
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Image(painter = painterResource(R.drawable.ic_landlord_back), contentDescription = "Назад", modifier = Modifier.size(24.dp), contentScale = ContentScale.Fit)
-                        Text("Арендодатели", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, fontFamily = InterFontFamily, color = Color(0xFF212121), letterSpacing = (-0.3).sp)
-                    }
-                    if (uiState.landlords.isNotEmpty()) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Image(painter = painterResource(R.drawable.ic_search), contentDescription = "Поиск", modifier = Modifier.size(24.dp).clickable { })
-                            Image(painter = painterResource(R.drawable.ic_sort), contentDescription = "Сортировка", modifier = Modifier.size(24.dp).clickable { })
+                ContactsToolbar(
+                    title = "Арендодатели",
+                    searchActive = searchActive,
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearchClick = { searchActive = true },
+                    onFilterClick = { filterOpen = true },
+                    onBack = {
+                        if (searchActive) {
+                            searchActive = false
+                            query = ""
+                        } else {
+                            onBack()
                         }
-                    }
-                }
+                    },
+                    showActions = visible.isNotEmpty()
+                )
                 uiState.errorMessage?.let {
-                    Text(it, color = Color(0xFFE53935), fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                    Text(
+                        it,
+                        color = Color(0xFFE53935),
+                        fontSize = 13.sp,
+                        fontFamily = InterFontFamily,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                    )
                 }
 
                 if (uiState.isLoading) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("Загрузка…", fontSize = 14.sp, color = Color(0xFF8E8E93))
                     }
-                } else if (uiState.landlords.isNotEmpty()) {
-                    LazyColumn(Modifier.fillMaxSize()) {
-                        items(uiState.landlords, key = { it.id }) { landlord ->
-                            LandlordCard(landlord) { onLandlordClick(landlord.id) }
-                            HorizontalDivider(Modifier.padding(horizontal = 20.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.1f))
+                } else if (visible.isNotEmpty()) {
+                    LazyColumn(Modifier.weight(1f)) {
+                        items(visible, key = { it.id }) { landlord ->
+                            ContactRow(
+                                title = landlord.name.ifBlank { landlord.phone },
+                                // Вторая строка у арендодателей — название компании
+                                // (в настройках не указано → строки нет)
+                                subtitle = landlord.companyName?.takeIf { it.isNotBlank() },
+                                avatarUrl = landlord.avatarUrl,
+                                showActiveDot = false,
+                                phone = landlord.phone,
+                                onClick = { onLandlordClick(landlord.id) }
+                            )
+                            ContactRowDivider()
                         }
+                    }
+                }
+
+                // Тапбар с CTA «Добавить арендодателя» (3122:60026) — только при
+                // непустом списке: в пустых состояниях CTA живёт в карточке-заглушке.
+                // Действие — заглушка, флоу добавления появится позже.
+                if (visible.isNotEmpty()) Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                        .background(Color(0xFFEDEDED).copy(alpha = 0.9f))
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(55.dp)
+                            .clip(RoundedCornerShape(100.dp))
+                            .background(Color(0xFF212121))
+                            .clickable { },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_cta_person_plus_white),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Добавить арендодателя",
+                            fontSize = 15.sp,
+                            lineHeight = 18.2.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = InterFontFamily,
+                            letterSpacing = (-0.4).sp,
+                            color = Color.White
+                        )
                     }
                 }
             }
 
-            // Пустое состояние — оверлей на весь экран: центр блока по полной высоте кадра (макет 3108:56859)
-            if (!uiState.isLoading && uiState.landlords.isEmpty()) {
-                EmptyContactsState(
+            // Три взаимоисключающих пустых состояния (канвас 13):
+            // 3108:56859 — списка нет, 3124:64037 — фильтр ничего не нашёл,
+            // 3122:60046 — поиск ничего не нашёл.
+            val nothingYet = !uiState.isLoading && uiState.landlords.isEmpty()
+            val filterEmpty =
+                !uiState.isLoading && uiState.landlords.isNotEmpty() && byFilter.isEmpty()
+            val searchEmpty = !uiState.isLoading && uiState.landlords.isNotEmpty() &&
+                !filterEmpty && visible.isEmpty()
+            when {
+                nothingYet -> EmptyContactsState(
                     title = "Арендодателей пока нет",
                     subtitle = "Добавленные арендодатели появятся здесь",
                     ctaText = "Добавить арендодателя",
                     onCtaClick = { }
                 )
-            }
-        }
-    }
-}
 
-@Composable
-private fun LandlordCard(landlord: UserSearchResult, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFEFEFEF)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                landlord.name.ifBlank { "?" }.take(1).uppercase(),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF8E8E93),
-                fontFamily = InterFontFamily
-            )
-        }
-        Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(landlord.name.ifBlank { "Без имени" }, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.Black, letterSpacing = (-0.3).sp)
-            Text(landlord.phone, fontSize = 13.sp, fontWeight = FontWeight.Normal, color = Color(0x993C3C43), letterSpacing = (-0.4).sp)
+                filterEmpty -> EmptyContactsState(
+                    title = "Нет арендодателей с таким статусом",
+                    subtitle = "Выберите другой статус или покажите весь список",
+                    ctaText = "Показать всех",
+                    ctaIconRes = null,
+                    illustration = painterResource(R.drawable.ic_contacts_not_found),
+                    onCtaClick = { rentFilter = RentFilter.ALL }
+                )
+
+                searchEmpty -> EmptyContactsState(
+                    title = "Ничего не найдено",
+                    subtitle = "Проверьте написание или добавьте нового арендодателя",
+                    ctaText = "Добавить арендодателя",
+                    illustration = painterResource(R.drawable.ic_contacts_not_found),
+                    onCtaClick = { }
+                )
+            }
+
+            // Окошко фильтра (3110:57109): справа 20, сверху — низ тулбара + 2
+            // (в макете панель 182×188 на (210,109), тулбар кончается на 103)
+            if (filterOpen) {
+                RentFilterPopup(
+                    selected = rentFilter,
+                    onSelect = {
+                        rentFilter = it
+                        filterOpen = false
+                    },
+                    onDismiss = { filterOpen = false },
+                    topPadding = 66.dp
+                )
+            }
         }
     }
 }
