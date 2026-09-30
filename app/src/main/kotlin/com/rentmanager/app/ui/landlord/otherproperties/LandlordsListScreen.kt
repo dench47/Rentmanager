@@ -1,22 +1,15 @@
 package com.rentmanager.app.ui.landlord.otherproperties
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,10 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,12 +31,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
+import com.rentmanager.app.ui.components.ActiveGreen
+import com.rentmanager.app.ui.components.ContactGroupHeader
 import com.rentmanager.app.ui.components.ContactRow
 import com.rentmanager.app.ui.components.ContactRowDivider
 import com.rentmanager.app.ui.components.ContactsToolbar
 import com.rentmanager.app.ui.components.EmptyContactsState
 import com.rentmanager.app.ui.components.RentFilter
 import com.rentmanager.app.ui.components.RentFilterPopup
+import com.rentmanager.app.ui.components.rentSubtitle
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
@@ -128,16 +122,39 @@ fun LandlordsListScreen(
                         }
                     } else if (visible.isNotEmpty()) {
                         LazyColumn(Modifier.fillMaxSize()) {
+                            // Заголовок группы — только при фильтре, не при поиске
+                            if (rentFilter != RentFilter.ALL && query.isBlank()) {
+                                item(key = "group_header") {
+                                    ContactGroupHeader(
+                                        "${rentFilter.label(asLandlord = false)} · ${visible.size}"
+                                    )
+                                }
+                            }
                             items(visible, key = { it.id }) { landlord ->
+                                val isActive = landlord.rentStatus == "active"
                                 ContactRow(
                                     title = landlord.name.ifBlank { landlord.phone },
-                                    // Вторая строка у арендодателей — название компании
-                                    // (в настройках не указано → строки нет)
-                                    subtitle = landlord.companyName?.takeIf { it.isNotBlank() },
+                                    // Вторая строка (канвас 17, 3108:54896):
+                                    // «Арендую до 23.12.2027 · Квартира 12»,
+                                    // «Арендовал до 01.02.2024 · Апартаменты 24»,
+                                    // «Аренда с 25.09.2026 · Дом в Химках»;
+                                    // при «ещё не было аренды» строки нет вовсе.
+                                    subtitle = if (landlord.rentStatus == null) {
+                                        landlord.companyName.orEmpty()
+                                    } else {
+                                        rentSubtitle(
+                                            asLandlord = false,
+                                            status = landlord.rentStatus,
+                                            propertyTitle = landlord.propertyTitle,
+                                            rentStartRaw = landlord.rentStartDate,
+                                            rentEndRaw = landlord.rentEndDate
+                                        )
+                                    },
                                     avatarUrl = landlord.avatarUrl,
-                                    showActiveDot = false,
+                                    activeRing = isActive,
                                     phone = landlord.phone,
-                                    onClick = { onLandlordClick(landlord.id) }
+                                    onClick = { onLandlordClick(landlord.id) },
+                                    subtitleColor = if (isActive) ActiveGreen else Color(0xFF727272)
                                 )
                                 ContactRowDivider()
                             }
@@ -157,44 +174,6 @@ fun LandlordsListScreen(
                         )
                     }
                 }
-
-                // Тапбар с CTA «Добавить арендодателя» (3122:60026) — только при
-                // непустом списке: в пустых состояниях CTA живёт в карточке-заглушке.
-                // Действие — заглушка, флоу добавления появится позже.
-                if (visible.isNotEmpty()) Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                        .background(Color(0xFFEDEDED).copy(alpha = 0.9f))
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(55.dp)
-                            .clip(RoundedCornerShape(100.dp))
-                            .background(Color(0xFF212121))
-                            .clickable { },
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_cta_person_plus_white),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "Добавить арендодателя",
-                            fontSize = 15.sp,
-                            lineHeight = 18.2.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = InterFontFamily,
-                            letterSpacing = (-0.4).sp,
-                            color = Color.White
-                        )
-                    }
-                }
             }
 
             // Три взаимоисключающих пустых состояния (канвас 13):
@@ -206,11 +185,11 @@ fun LandlordsListScreen(
             val searchEmpty = !uiState.isLoading && uiState.landlords.isNotEmpty() &&
                 !filterEmpty && visible.isEmpty()
             when {
+                // Арендатор не может добавить себе владельца, поэтому кнопки
+                // в этих состояниях нет — только текст (решение Дениса)
                 nothingYet -> EmptyContactsState(
                     title = "Арендодателей пока нет",
-                    subtitle = "Добавленные арендодатели появятся здесь",
-                    ctaText = "Добавить арендодателя",
-                    onCtaClick = { }
+                    subtitle = "Добавленные арендодатели появятся здесь"
                 )
 
                 filterEmpty -> EmptyContactsState(
@@ -224,10 +203,8 @@ fun LandlordsListScreen(
 
                 searchEmpty -> EmptyContactsState(
                     title = "Ничего не найдено",
-                    subtitle = "Проверьте написание или добавьте нового арендодателя",
-                    ctaText = "Добавить арендодателя",
-                    illustration = painterResource(R.drawable.ic_contacts_not_found),
-                    onCtaClick = { }
+                    subtitle = "Проверьте написание",
+                    illustration = painterResource(R.drawable.ic_contacts_not_found)
                 )
             }
 

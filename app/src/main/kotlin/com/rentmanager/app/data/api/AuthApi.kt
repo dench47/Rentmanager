@@ -151,10 +151,14 @@ data class UserSearchResult(
     @SerializedName("phone") val phone: String,
     @SerializedName("avatar_url") val avatarUrl: String? = null,
     @SerializedName("is_landlord") val isLandlord: Boolean = false,
-    /** «Название компании» владельца из его настроек — вторая строка списка (канвас 13) */
+    /** «Название компании» владельца из его настроек (канвас 13) */
     @SerializedName("company_name") val companyName: String? = null,
-    /** Состояние аренды для фильтра: active / booking / finished / none */
-    @SerializedName("rent_status") val rentStatus: String? = null
+    /** Состояние аренды: active / booking / finished / none — подписи и фильтр */
+    @SerializedName("rent_status") val rentStatus: String? = null,
+    /** Вторая строка: «Арендую до 23.12.2027 · Квартира 12» (канвас 17, 3108:54896) */
+    @SerializedName("property_title") val propertyTitle: String? = null,
+    @SerializedName("rent_end_date") val rentEndDate: String? = null,
+    @SerializedName("rent_start_date") val rentStartDate: String? = null
 )
 
 data class PinAttemptsResponse(

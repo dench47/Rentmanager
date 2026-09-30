@@ -39,8 +39,10 @@ import com.rentmanager.app.ui.theme.Graphite
 fun EmptyContactsState(
     title: String,
     subtitle: String,
-    ctaText: String,
-    onCtaClick: () -> Unit,
+    // Кнопки может не быть вовсе: на экране «Арендодатели» арендатор не может
+    // добавить владельца сам — там ctaText = null, остаётся только текст
+    ctaText: String? = null,
+    onCtaClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     illustration: Painter = BitmapPainter(
         ImageBitmap.imageResource(R.drawable.ic_empty_contacts),
@@ -83,12 +85,14 @@ fun EmptyContactsState(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(20.dp))
-            BlackCtaButton(
-                text = ctaText,
-                iconRes = ctaIconRes,
-                iconSpacing = 6.dp,
-                onClick = onCtaClick
-            )
+            if (ctaText != null) {
+                BlackCtaButton(
+                    text = ctaText,
+                    iconRes = ctaIconRes,
+                    iconSpacing = 6.dp,
+                    onClick = onCtaClick
+                )
+            }
         }
     }
 }

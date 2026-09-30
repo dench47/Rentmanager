@@ -44,13 +44,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
 import com.rentmanager.app.data.model.TenantDto
+import com.rentmanager.app.ui.components.ActiveGreen
+import com.rentmanager.app.ui.components.ContactGroupHeader
 import com.rentmanager.app.ui.components.ContactRow
 import com.rentmanager.app.ui.components.ContactRowDivider
 import com.rentmanager.app.ui.components.ContactsToolbar
 import com.rentmanager.app.ui.components.EmptyContactsState
 import com.rentmanager.app.ui.components.RentFilter
 import com.rentmanager.app.ui.components.RentFilterPopup
-import com.rentmanager.app.ui.components.tenantRentSubtitle
+import com.rentmanager.app.ui.components.rentSubtitle
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.RentManagerTheme
 
@@ -147,6 +149,15 @@ fun TenantsListScreen(
                         }
                     } else if (visible.isNotEmpty()) {
                         LazyColumn(Modifier.fillMaxSize()) {
+                            // Заголовок группы — только при фильтре (не при поиске):
+                            // «Арендуют сейчас · 3» (канвас 17, 3919:74295)
+                            if (rentFilter != RentFilter.ALL && query.isBlank()) {
+                                item(key = "group_header") {
+                                    ContactGroupHeader(
+                                        "${rentFilter.label(asLandlord = true)} · ${visible.size}"
+                                    )
+                                }
+                            }
                             items(visible, key = { it.id }) { tenant ->
                                 TenantCard(
                                     tenant = tenant,
@@ -354,24 +365,31 @@ private fun TenantCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    // Вторая строка — объект и срок аренды (канвас 13, заметки Вики):
-    // «БЦ Легенда · до 23.12.2027» / «… · завершено 01.02.2024» /
-    // «Аренда ещё не оформлялась». Пока сервер не отдаёт rent_status,
-    // показываем прежнюю вторую строку (название компании) — без вранья.
-    // Зелёная точка — «арендует сейчас».
+    // Вторая строка (канвас 17, 3919:74282): «Арендует до 23.12.2027 · БЦ Легенда» /
+    // «Завершено 01.02.2024 · Апартаменты 24» / «Аренда с 25.09.2026 · Апартаменты 24»;
+    // при «без аренды» строки нет вовсе. Активная аренда — зелёная подпись и обводка
+    // аватара 2px. Пока сервер не отдаёт rent_status, показываем название компании.
+    val isActive = tenant.rentStatus == "active"
     val subtitle = if (tenant.rentStatus == null) {
         tenant.companyName.orEmpty()
     } else {
-        tenantRentSubtitle(tenant.propertyTitle, tenant.rentEndDate, tenant.rentStatus)
+        rentSubtitle(
+            asLandlord = true,
+            status = tenant.rentStatus,
+            propertyTitle = tenant.propertyTitle,
+            rentStartRaw = tenant.rentStartDate,
+            rentEndRaw = tenant.rentEndDate
+        )
     }
     ContactRow(
         title = tenant.fullName.ifBlank { tenant.phone },
         subtitle = subtitle,
         avatarUrl = tenant.avatarUrl,
-        showActiveDot = tenant.rentStatus == "active",
+        activeRing = isActive,
         phone = tenant.phone,
         onClick = onClick,
-        onLongClick = onLongClick
+        onLongClick = onLongClick,
+        subtitleColor = if (isActive) ActiveGreen else Color(0xFF727272)
     )
 }
 

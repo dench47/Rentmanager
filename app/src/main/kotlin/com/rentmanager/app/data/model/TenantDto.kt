@@ -16,8 +16,10 @@ data class TenantDto(
     @SerializedName("avatar_url") val avatarUrl: String? = null,
     /** Вторая строка списка: объект аренды и срок (канвас 13, канвас «Арендаторы») */
     @SerializedName("property_title") val propertyTitle: String? = null,
-    /** Дата окончания аренды, ISO (YYYY-MM-DD) → «до 23.12.2027» */
+    /** Дата окончания аренды, ISO (YYYY-MM-DD) → «Арендует до 23.12.2027» */
     @SerializedName("rent_end_date") val rentEndDate: String? = null,
+    /** Дата начала аренды по брони, ISO → «Аренда с 25.09.2026» */
+    @SerializedName("rent_start_date") val rentStartDate: String? = null,
     /** Состояние аренды: active / booking / finished / none — подпись и фильтр */
     @SerializedName("rent_status") val rentStatus: String? = null,
     /** Брони с объектами — приходит из GET /tenants/{id}/card (один запрос на весь экран) */

@@ -51,7 +51,9 @@ private val TextPrimary = Color(0xFF212121)
 private val TextSecondary = Color(0xFF727272)
 private val CircleFill = Color(0xFFEFEFEF)
 private val DividerColor = Color(0xFFDBDBDB)
-private val ActiveDot = Color(0xFF2F7D4D)
+/** Зелёный активной аренды (канвас 17): обводка аватара и вторая строка. */
+val ActiveGreen = Color(0xFF2F7D4D)
+private val ActiveDot = ActiveGreen
 
 /**
  * Состояние аренды в фильтре списка (канвас 17): панель 202×188 #EFEFEF r20,
@@ -92,6 +94,17 @@ enum class RentFilter {
         BOOKING -> status == "booking"
         NONE -> status == "none"
     }
+
+    companion object {
+        /**
+         * Набор состояний для фильтра. У арендатора (экран «Арендодатели»)
+         * состояний на одно меньше: владельца нельзя добавить себе вручную —
+         * он появляется только если ты у него арендуешь/арендовал/запланировал,
+         * поэтому «аренды не было» там не бывает.
+         */
+        fun options(asLandlord: Boolean): List<RentFilter> =
+            if (asLandlord) entries.toList() else listOf(ALL, ACTIVE, FINISHED, BOOKING)
+    }
 }
 
 /** ISO-дата (YYYY-MM-DD) → «23.12.2027»; уже отображаемый вид отдаём как есть. */
@@ -104,41 +117,73 @@ fun formatRentDate(raw: String?): String {
 }
 
 /**
- * Вторая строка списка арендаторов (канвас 13, заметки Вики):
- * активная — «БЦ Легенда · до 23.12.2027»;
- * завершённая — «Апартаменты 24 · завершено 01.02.2024»;
- * аренды не было — «Аренда ещё не оформлялась».
+ * Вторая строка строки-контакта (канвас 17: 3919:74282 — арендаторы,
+ * 3108:54896 — арендодатели). Порядок: состояние + дата → « · » → объект.
+ * У состояния «без аренды» второй строки нет вовсе.
+ *
+ * Смотрит арендодатель: «Арендует до 23.12.2027 · БЦ Легенда»,
+ * «Завершено 01.02.2024 · Апартаменты 24», «Аренда с 25.09.2026 · Апартаменты 24».
+ * Смотрит арендатор: «Арендую до … · Кухня», «Арендовал до … · …», «Аренда с …».
  */
-fun tenantRentSubtitle(propertyTitle: String?, rentEndRaw: String?, status: String?): String {
+fun rentSubtitle(
+    asLandlord: Boolean,
+    status: String?,
+    propertyTitle: String?,
+    rentStartRaw: String?,
+    rentEndRaw: String?
+): String {
     val title = propertyTitle?.trim().orEmpty()
     val end = formatRentDate(rentEndRaw)
+    val start = formatRentDate(rentStartRaw)
+    fun withTitle(state: String): String =
+        listOf(state, title).filter { it.isNotEmpty() }.joinToString(" · ")
+
     return when (status) {
-        "active" -> listOf(title, if (end.isEmpty()) "" else "до $end")
-            .filter { it.isNotEmpty() }
-            .joinToString(" · ")
-            .ifEmpty { "Аренда ещё не оформлялась" }
+        "active" -> withTitle(
+            when {
+                asLandlord && end.isNotEmpty() -> "Арендует до $end"
+                asLandlord -> "Арендует"
+                end.isNotEmpty() -> "Арендую до $end"
+                else -> "Арендую"
+            }
+        )
 
-        "booking" -> listOf(title, if (end.isEmpty()) "" else "забронировано до $end")
-            .filter { it.isNotEmpty() }
-            .joinToString(" · ")
-            .ifEmpty { "Аренда ещё не оформлялась" }
+        "finished" -> withTitle(
+            when {
+                asLandlord && end.isNotEmpty() -> "Завершено $end"
+                asLandlord -> "Завершено"
+                end.isNotEmpty() -> "Арендовал до $end"
+                else -> "Арендовал"
+            }
+        )
 
-        "finished" -> listOf(title, if (end.isEmpty()) "завершено" else "завершено $end")
-            .filter { it.isNotEmpty() }
-            .joinToString(" · ")
+        "booking" -> withTitle(
+            if (start.isNotEmpty()) "Аренда с $start" else "Аренда запланирована"
+        )
 
-        else -> "Аренда ещё не оформлялась"
+        // «без аренды» — второй строки нет (кадр 3919:74282, «Лебедев Павел»)
+        else -> ""
     }
 }
 
-/** Аватар 40: фото с аккаунта, иначе силуэт. Зелёная точка — «арендует сейчас». */
+/**
+ * Аватар 40: фото с аккаунта, иначе силуэт. Активная аренда помечается
+ * зелёной обводкой 2 #2F7D4D (канвас 17, 3919:74295) — зелёной точки больше нет.
+ */
 @Composable
 fun ContactAvatar(
     avatarUrl: String?,
-    showActiveDot: Boolean = false,
+    activeRing: Boolean = false,
     size: Dp = 40.dp
 ) {
-    Box(Modifier.size(size)) {
+    Box(
+        Modifier
+            .size(size)
+            .clip(CircleShape)
+            .then(
+                if (activeRing) Modifier.border(2.dp, ActiveDot, CircleShape) else Modifier
+            )
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -163,16 +208,6 @@ fun ContactAvatar(
                     modifier = Modifier.size(size * 0.7f)
                 )
             }
-        }
-        if (showActiveDot) {
-            Box(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(ActiveDot)
-                    .border(1.dp, Color.White, CircleShape)
-            )
         }
     }
 }
@@ -238,11 +273,13 @@ fun ContactRow(
     title: String,
     subtitle: String?,
     avatarUrl: String?,
-    showActiveDot: Boolean,
+    activeRing: Boolean,
     phone: String?,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // У активной аренды вторая строка зелёная (канвас 17, 3919:74282)
+    subtitleColor: Color = TextSecondary
 ) {
     val tapModifier = if (onLongClick != null) {
         Modifier.pointerInput(title, subtitle) {
@@ -267,7 +304,7 @@ fun ContactRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ContactAvatar(avatarUrl = avatarUrl, showActiveDot = showActiveDot)
+            ContactAvatar(avatarUrl = avatarUrl, activeRing = activeRing)
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(
                     title,
@@ -288,7 +325,7 @@ fun ContactRow(
                         fontWeight = FontWeight.Normal,
                         fontFamily = InterFontFamily,
                         letterSpacing = (-0.4).sp,
-                        color = TextSecondary,
+                        color = subtitleColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -297,6 +334,28 @@ fun ContactRow(
         }
         ContactActionsRow(phone = phone)
     }
+}
+
+/**
+ * Заголовок группы в списке (канвас 17, 3919:74295: «Арендуют сейчас · 3»):
+ * 13/500 #727272, отступы 20 слева, 4 сверху, 6 снизу. Показывается только
+ * при выбранном фильтре — при поиске заголовки не нужны.
+ */
+@Composable
+fun ContactGroupHeader(text: String) {
+    Text(
+        text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        fontFamily = InterFontFamily,
+        letterSpacing = (-0.4).sp,
+        color = TextSecondary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 6.dp)
+    )
 }
 
 /** Разделитель строки списка контактов: #DBDBDB, отступы 20. */
@@ -473,7 +532,7 @@ fun RentFilterPopup(
                 .padding(start = 10.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            RentFilter.entries.forEach { filter ->
+            RentFilter.options(asLandlord).forEach { filter ->
                 val isSelected = filter == selected
                 Row(
                     modifier = Modifier
