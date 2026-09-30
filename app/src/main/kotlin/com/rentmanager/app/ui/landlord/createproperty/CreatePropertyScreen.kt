@@ -161,6 +161,10 @@ fun CreatePropertyScreen(
     var price by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.rentAmount?.toFieldText().orEmpty() else CreateDraftHolder.price)
     }
+    // Тумблер «Предоставляю отчётные документы» (3970:83640/83458)
+    var providesDocs by rememberSaveable(editKey) {
+        mutableStateOf(isEditMode && editProperty?.providesDocuments == true)
+    }
     var description by rememberSaveable(editKey) {
         mutableStateOf(if (isEditMode) editProperty?.description.orEmpty() else CreateDraftHolder.description)
     }
@@ -299,6 +303,7 @@ fun CreatePropertyScreen(
             rulesText != p.houseRules.orEmpty() ||
             serviceInfo != p.serviceInfo.orEmpty() ||
             photoUris != p.photos.orEmpty().map { it.url } ||
+            providesDocs != (p.providesDocuments == true) ||
             editAddress != null
     } == true
 
@@ -329,7 +334,8 @@ fun CreatePropertyScreen(
                 floor = floor,
                 floorsInHouse = floorsInHouse,
                 latitude = effLatitude,
-                longitude = effLongitude
+                longitude = effLongitude,
+                providesDocuments = providesDocs
             ) { onCreated(it) }
         }
     }
@@ -349,6 +355,7 @@ fun CreatePropertyScreen(
         rulesText = p.houseRules.orEmpty()
         serviceInfo = p.serviceInfo.orEmpty()
         photoUris = p.photos.orEmpty().map { it.url }
+        providesDocs = p.providesDocuments == true
         editAddress = null
         editLatitude = null
         editLongitude = null
@@ -584,6 +591,11 @@ fun CreatePropertyScreen(
                         isError = priceError,
                         errorHint = "Это поле обязательно для заполнения"
                     )
+                    // Тумблер «Предоставляю отчётные документы» (3970:83458)
+                    com.rentmanager.app.ui.components.ReportsDocsSwitchRow(
+                        checked = providesDocs,
+                        onCheckedChange = { providesDocs = it }
+                    )
                 }
 
                 // 6. Дополнительно (Figma 5: только «График платежей и реквизиты»)
@@ -604,7 +616,8 @@ fun CreatePropertyScreen(
                                 viewModel, name, effAddress, area, price, description,
                                 photoUris, serviceInfo, phoneNumber, wifiPassword, rulesText,
                                 effPropertyType, effRentType, rooms, sleepingPlaces, floor,
-                                floorsInHouse, effLatitude, effLongitude
+                                floorsInHouse, effLatitude, effLongitude,
+                                providesDocuments = providesDocs
                             ) { newId -> onPaymentSchedule(newId) }
                         }
                     }
@@ -902,6 +915,7 @@ private fun submitCreate(
     latitude: Double?,
     longitude: Double?,
     publishNow: Boolean = false,
+    providesDocuments: Boolean = false,
     onSuccess: (String) -> Unit
 ) {
     viewModel.createProperty(
@@ -924,6 +938,7 @@ private fun submitCreate(
         latitude = latitude,
         longitude = longitude,
         publishNow = publishNow,
+        providesDocuments = providesDocuments,
         onSuccess = onSuccess
     )
 }

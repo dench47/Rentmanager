@@ -105,6 +105,8 @@ fun AboutPropertyEditScreen(
     var floorsInHouse by rememberSaveable(property?.id) { mutableStateOf(property?.floorsInHouse) }
     var description by rememberSaveable(property?.id) { mutableStateOf(property?.description.orEmpty()) }
     var price by rememberSaveable(property?.id) { mutableStateOf(property?.rentAmount.toFieldText()) }
+    // Тумблер «Предоставляю отчётные документы» (3970:83640)
+    var providesDocs by rememberSaveable(property?.id) { mutableStateOf(property?.providesDocuments == true) }
     var showDescriptionSheet by remember { mutableStateOf(false) }
 
     var addressError by remember { mutableStateOf(false) }
@@ -143,6 +145,7 @@ fun AboutPropertyEditScreen(
         floorsInHouse = p.floorsInHouse
         description = p.description.orEmpty()
         price = p.rentAmount.toFieldText()
+        providesDocs = p.providesDocuments == true
         pickedLat = null
         pickedLon = null
         addressError = false; roomsError = false; areaError = false; sleepingError = false; priceError = false
@@ -242,6 +245,11 @@ fun AboutPropertyEditScreen(
                 isError = priceError,
                 errorHint = "Обязательное поле"
             )
+            // Тумблер «Предоставляю отчётные документы» — после стоимости (3970:83458)
+            com.rentmanager.app.ui.components.ReportsDocsSwitchRow(
+                checked = providesDocs,
+                onCheckedChange = { providesDocs = it }
+            )
             Spacer(Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 BlackCtaButton(
@@ -257,7 +265,8 @@ fun AboutPropertyEditScreen(
                         if (!hasErrors) {
                             viewModel.save(
                                 name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price,
-                                latitude = pickedLat, longitude = pickedLon
+                                latitude = pickedLat, longitude = pickedLon,
+                                providesDocuments = providesDocs
                             )
                         }
                     }

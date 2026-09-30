@@ -255,6 +255,7 @@ class CreatePropertyViewModel @Inject constructor(
         latitude: Double?,
         longitude: Double?,
         publishNow: Boolean = false,
+        providesDocuments: Boolean = false,
         onSuccess: (String) -> Unit
     ) {        viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isCreating = true)
@@ -284,7 +285,8 @@ class CreatePropertyViewModel @Inject constructor(
                     longitude = longitude,
                     // «Создать и опубликовать» публикует сразу; обычное создание —
                     // черновик (null → поле не уходит, сервер ставит false)
-                    isPublished = if (publishNow) true else null
+                    isPublished = if (publishNow) true else null,
+                    providesDocuments = providesDocuments
                 )
                 val resp = propertyRepository.createProperty(dto)
                 if (resp.isSuccessful) {
@@ -362,6 +364,7 @@ class CreatePropertyViewModel @Inject constructor(
         floorsInHouse: String?,
         latitude: Double?,
         longitude: Double?,
+        providesDocuments: Boolean = false,
         onSuccess: (String) -> Unit
     ) {
         val original = _uiState.value.editProperty
@@ -385,6 +388,7 @@ class CreatePropertyViewModel @Inject constructor(
                     sleepingPlaces = sleepingPlaces,
                     floor = floor,
                     floorsInHouse = floorsInHouse,
+                    providesDocuments = providesDocuments,
                     latitude = latitude,
                     longitude = longitude
                 )

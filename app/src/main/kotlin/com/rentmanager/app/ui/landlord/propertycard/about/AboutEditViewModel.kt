@@ -70,7 +70,8 @@ class AboutEditViewModel @Inject constructor(
         description: String,
         rentAmount: String,
         latitude: Double? = null,
-        longitude: Double? = null
+        longitude: Double? = null,
+        providesDocuments: Boolean = false
     ) {
         val current = _uiState.value.property ?: return
         if (_uiState.value.isSaving) return
@@ -88,7 +89,8 @@ class AboutEditViewModel @Inject constructor(
                     description = description.ifBlank { null },
                     rentAmount = rentAmount.toDoubleOrNull(),
                     latitude = latitude ?: current.latitude,
-                    longitude = longitude ?: current.longitude
+                    longitude = longitude ?: current.longitude,
+                    providesDocuments = providesDocuments
                 )
                 val resp = repository.updateProperty(current.id, dto)
                 if (resp.isSuccessful) {

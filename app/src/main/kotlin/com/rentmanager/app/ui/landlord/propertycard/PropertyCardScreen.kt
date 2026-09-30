@@ -441,6 +441,11 @@ fun PropertyCardScreen(
                         } ?: "",
                         Modifier.fillMaxWidth()
                     )
+                    // Включённый тумблер «Предоставляю отчётные документы» —
+                    // серый блок в карточке (3980:87127)
+                    if (property?.providesDocuments == true) {
+                        com.rentmanager.app.ui.components.ReportsDocsInfoCard()
+                    }
                 }
 
                 // Публикация

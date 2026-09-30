@@ -33,5 +33,7 @@ data class PropertyDto(
     @SerializedName("tenant_id") val tenantId: String? = null,
     @SerializedName("latitude") val latitude: Double? = null,
     @SerializedName("longitude") val longitude: Double? = null,
-    @SerializedName("is_published") val isPublished: Boolean? = null
+    @SerializedName("is_published") val isPublished: Boolean? = null,
+    /** Тумблер «Предоставляю отчётные документы» («Об объекте», 3970:83640) */
+    @SerializedName("provides_documents") val providesDocuments: Boolean? = null
 )
