@@ -6,9 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreateBookingRequest
 import com.rentmanager.app.data.api.FinanceApi
+import com.rentmanager.app.data.api.TenantApi
 import com.rentmanager.app.data.local.PropertyDetailCache
+import com.rentmanager.app.data.model.BookingDto
 import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PaymentScheduleDto
+import com.rentmanager.app.data.model.TenantDto
 import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PhotoUploader
@@ -39,7 +42,11 @@ data class PropertyCardUiState(
     val hasDebt: Boolean = false,
     val debtAmount: Double = 0.0,
     /** Блокировка действий, пока выполняется публикация/удаление. */
-    val isActionInProgress: Boolean = false
+    val isActionInProgress: Boolean = false,
+    /** Брони объекта — список аккордеонов секции «Арендаторы» (3970:83015). */
+    val bookings: List<BookingDto> = emptyList(),
+    /** Карточки арендаторов по id — имя/компания/аватар для аккордеонов. */
+    val tenants: Map<String, TenantDto> = emptyMap()
 )
 
 @HiltViewModel
@@ -48,7 +55,8 @@ class PropertyCardViewModel @Inject constructor(
     private val photoUploader: PhotoUploader,
     private val detailCache: PropertyDetailCache,
     private val bookingApi: BookingApi,
-    private val financeApi: FinanceApi
+    private val financeApi: FinanceApi,
+    private val tenantApi: TenantApi
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PropertyCardUiState())
@@ -100,20 +108,28 @@ class PropertyCardViewModel @Inject constructor(
                 } catch (_: Exception) {
                     null
                 }
+                // Брони объекта: список секции «Арендаторы» + «Срок аренды» (посуточно)
+                val bookings = try {
+                    bookingApi.getBookings(propertyId).body().orEmpty()
+                } catch (_: Exception) {
+                    emptyList()
+                }
                 // Посуточно: «Срок аренды» — дата последней брони в календаре
                 val lastBookingEnd = if ((body?.rentType ?: "посуточно") == "посуточно") {
-                    try {
-                        bookingApi.getBookings(propertyId).body().orEmpty()
-                            .mapNotNull { b ->
-                                runCatching { java.time.LocalDate.parse(b.endDate) }.getOrNull()
-                            }
-                            .maxOrNull()
-                            ?.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-                    } catch (_: Exception) {
-                        null
-                    }
+                    bookings
+                        .mapNotNull { b ->
+                            runCatching { java.time.LocalDate.parse(b.endDate) }.getOrNull()
+                        }
+                        .maxOrNull()
+                        ?.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
                 } else {
                     null
+                }
+                // Карточки арендаторов по id — имя/компания/аватар в аккордеонах
+                val tenants = try {
+                    tenantApi.getTenants().body().orEmpty().associateBy { it.id }
+                } catch (_: Exception) {
+                    emptyMap()
                 }
                 // Задолженность: тот же расчёт, что на дашборде арендодателя —
                 // наступившие даты графика без отметки об оплате
@@ -126,7 +142,8 @@ class PropertyCardViewModel @Inject constructor(
                 val debtAmount = if (hasDebt) PaymentOverdue.overdueAmount(schedule, payments) else 0.0
                 _uiState.value = PropertyCardUiState(
                     isLoading = false, property = body, meters = meters, schedule = schedule,
-                    lastBookingEnd = lastBookingEnd, hasDebt = hasDebt, debtAmount = debtAmount
+                    lastBookingEnd = lastBookingEnd, hasDebt = hasDebt, debtAmount = debtAmount,
+                    bookings = bookings, tenants = tenants
                 )
                 if (body != null) {
                     detailCache.saveProperty(body)
@@ -336,11 +353,22 @@ class PropertyCardViewModel @Inject constructor(
             .replace(',', '.')
             .toDoubleOrNull()
 
-    /** Шит «Арендатор и договор»: ровно три поля (арендатор, договор «№… от …», телефон). */
-    fun saveTenantInfo(tenantInfo: String, contractText: String, phone: String) {
+    /**
+     * Шит «Арендатор и договор» (3803:68424): арендатор, договор «№… от …»,
+     * телефон — в карточку объекта; «Количество гостей» — в бронь, из которой
+     * открыт шит (PUT с прежними датами, меняются только гости).
+     */
+    fun saveTenantContract(
+        tenantInfo: String,
+        contractText: String,
+        phone: String,
+        bookingId: String?,
+        guests: Int?
+    ) {
         val current = _uiState.value.property ?: return
         val text = contractText.trim()
-        val match = Regex("""№\s*(\S+)\s+от\s+(\d{2}\.\d{2}\.\d{4})""").find(text)
+        // «№45 от 14.09.2026» или «45 от 14.09.2026» (в шите подпись уже «Договор №»)
+        val match = Regex("""(?:№\s*)?(\S+)\s+от\s+(\d{2}\.\d{2}\.\d{4})""").find(text)
         saveProperty(
             current.copy(
                 tenantInfo = tenantInfo.takeIf { it.isNotBlank() },
@@ -350,7 +378,31 @@ class PropertyCardViewModel @Inject constructor(
                     ?: text.takeIf { it.isNotBlank() }?.let { current.contractDate },
                 phone = phone.takeIf { it.isNotBlank() }
             ),
-            "Изменения сохранены"
+            "Изменения сохранены",
+            onSaved = {
+                if (bookingId != null && guests != null) {
+                    val booking = _uiState.value.bookings.firstOrNull { it.id == bookingId }
+                    if (booking != null) {
+                        runCatching {
+                            bookingApi.updateBooking(
+                                current.id, bookingId,
+                                CreateBookingRequest(
+                                    startDate = booking.startDate,
+                                    endDate = booking.endDate,
+                                    source = booking.source,
+                                    guests = guests,
+                                    tenantId = booking.tenantId
+                                )
+                            )
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            bookings = _uiState.value.bookings.map {
+                                if (it.id == bookingId) it.copy(guests = guests) else it
+                            }
+                        )
+                    }
+                }
+            }
         )
     }
 

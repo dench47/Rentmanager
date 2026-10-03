@@ -68,6 +68,7 @@ import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.IconNotificationDialog
 import com.rentmanager.app.util.shortAddress
+import com.rentmanager.app.data.model.BookingDto
 import com.rentmanager.app.data.model.MeterDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.ui.landlord.myproperties.propertydetail.PhoneContact
@@ -195,7 +196,10 @@ fun PropertyCardScreen(
 
     // Шиты быстрого редактирования секций (карандаши у заголовков) и сетки фото
     var showRentSheet by remember { mutableStateOf(false) }
-    var showTenantSheet by remember { mutableStateOf(false) }
+    // Секция «Арендаторы»: раскрытие списка и аккордеона, шит по карандашу
+    var tenantsListExpanded by remember { mutableStateOf(false) }
+    var expandedBookingId by remember { mutableStateOf<String?>(null) }
+    var sheetBooking by remember { mutableStateOf<BookingDto?>(null) }
     // Открепление арендатора (Figma 2936:41556/41570): шит-подтверждение
     // и окно «Арендатор откреплен» после
     var showDetachSheet by remember { mutableStateOf(false) }
@@ -345,71 +349,20 @@ fun PropertyCardScreen(
                     }
                 }
 
-                // Арендатор и договор
-                // Без арендатора карандаш ничего не открывает (Figma 2574-20392:
-                // шит редактирования доступен только при прикреплённом арендаторе)
-                SectionHeader("Арендатор и договор", onPencilClick = {
-                    if (property?.tenantInfo?.isNotBlank() == true) showTenantSheet = true
-                })
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(CardBackground)
-                        .padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        InfoPair(
-                            label = "Арендатор",
-                            value = property?.tenantInfo.orEmpty(),
-                            modifier = Modifier.weight(1f)
-                        )
-                        InfoPair(
-                            label = "Договор",
-                            value = property
-                                ?.let { contractDisplayText(it.contractNumber, it.contractDate) }
-                                .orEmpty(),
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    // Нет арендатора → кнопки связи неактивны (Figma 2574-20392:
-                    // контур/иконка/текст #212121 на 40%, нажатие отключено)
-                    val tenantAttached = property?.tenantInfo?.isNotBlank() == true
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            OutlineCtaButton(
-                                text = "Позвонить",
-                                iconRes = R.drawable.ic_call_phone,
-                                modifier = Modifier.weight(1f),
-                                iconSpacing = 4.dp,
-                                enabled = tenantAttached,
-                                borderColor = if (tenantAttached) GreyText else Graphite,
-                                onClick = {}
-                            )
-                            OutlineCtaButton(
-                                text = "Написать",
-                                iconRes = R.drawable.ic_chat_message,
-                                modifier = Modifier.weight(1f),
-                                iconSpacing = 4.dp,
-                                enabled = tenantAttached,
-                                borderColor = if (tenantAttached) GreyText else Graphite,
-                                onClick = {}
-                            )
-                        }
-                        val attached = property?.tenantInfo?.isNotBlank() == true
-                        BlackCtaButton(
-                            text = if (attached) "Открепить арендатора" else "Прикрепить арендатора",
-                            onClick = {
-                                if (attached) showDetachSheet = true
-                                else onAttachTenant(propertyId)
-                            }
-                        )
-                    }
-                }
+                // Арендаторы (канвас «17»: 3801:67571 — пусто, 3801:67958 — свёрнуто
+                // с шевроном, 3970:83015 — раскрытый список броней-аккордеонов)
+                TenantsSection(
+                    property = property,
+                    bookings = uiState.bookings,
+                    tenants = uiState.tenants,
+                    listExpanded = tenantsListExpanded,
+                    onToggleList = { tenantsListExpanded = !tenantsListExpanded },
+                    expandedBookingId = expandedBookingId,
+                    onToggleBooking = { expandedBookingId = it },
+                    onEditBooking = { sheetBooking = it },
+                    onAttachTenant = { onAttachTenant(propertyId) },
+                    onDetachTenant = { showDetachSheet = true }
+                )
 // Об объекте
                 SectionHeader("Об объекте", onPencilClick = { onEditAbout(propertyId) })
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -650,15 +603,16 @@ fun PropertyCardScreen(
                 onDismiss = { tenantDetached = false }
             )
         }
-        if (showTenantSheet) {
+        sheetBooking?.let { booking ->
             TenantContractEditSheet(
                 property = p,
+                booking = booking,
                 isSaving = uiState.isActionInProgress,
-                onSave = { tenantInfo, contractText, phone ->
-                    showTenantSheet = false
-                    viewModel.saveTenantInfo(tenantInfo, contractText, phone)
+                onSave = { tenantInfo, contractText, phone, guests ->
+                    sheetBooking = null
+                    viewModel.saveTenantContract(tenantInfo, contractText, phone, booking.id, guests)
                 },
-                onDismiss = { showTenantSheet = false }
+                onDismiss = { sheetBooking = null }
             )
         }
     }

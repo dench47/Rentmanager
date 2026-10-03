@@ -9,5 +9,7 @@ data class BookingDto(
     @SerializedName("start_date") val startDate: String,
     @SerializedName("end_date") val endDate: String,
     @SerializedName("source") val source: String = "manual",
+    /** «Количество гостей» брони (шит «Арендатор и договор», 3803:68424) */
+    @SerializedName("guests") val guests: Int? = null,
     @SerializedName("created_by") val createdBy: String? = null
 )

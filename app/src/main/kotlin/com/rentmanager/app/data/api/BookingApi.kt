@@ -13,7 +13,12 @@ import retrofit2.http.Path
 data class CreateBookingRequest(
     @SerializedName("start_date") val startDate: String,
     @SerializedName("end_date") val endDate: String,
-    @SerializedName("source") val source: String = "manual"
+    @SerializedName("source") val source: String = "manual",
+    /** «Количество гостей» брони (шит «Арендатор и договор», 3803:68424) */
+    @SerializedName("guests") val guests: Int? = null,
+    /** Арендатор брони: при правке шлём текущего, иначе сервер мог обнулить
+     * привязку и в карточке пропадала аватарка */
+    @SerializedName("tenant_id") val tenantId: String? = null
 )
 
 interface BookingApi {

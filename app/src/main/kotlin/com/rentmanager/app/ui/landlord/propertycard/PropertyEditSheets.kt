@@ -28,6 +28,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
@@ -54,12 +56,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
+import com.rentmanager.app.data.model.BookingDto
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton
 import com.rentmanager.app.ui.theme.CardBackground
 import com.rentmanager.app.ui.theme.CardSubtitleStyle
 import com.rentmanager.app.ui.theme.ErrorRed
-import com.rentmanager.app.ui.theme.FieldTextStyle
 import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
@@ -280,29 +282,81 @@ private fun formatDateMask(raw: String): String {
     }
 }
 
-// Шит «Арендатор и договор» (Figma 2677-26531): ровно три поля —
-// арендатор, договор («№… от …»), номер телефона арендатора
+// Шит «Арендатор и договор» (Figma 3803:68424, карандаш аккордеона брони):
+// арендатор, «Количество гостей» (дропдаун 1–10, пишется в бронь), «Договор №»,
+// номер телефона арендатора
 @Composable
 fun TenantContractEditSheet(
     property: PropertyDto,
+    booking: BookingDto?,
     isSaving: Boolean,
-    onSave: (tenantInfo: String, contractText: String, phone: String) -> Unit,
+    onSave: (tenantInfo: String, contractText: String, phone: String, guests: Int?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var tenantInfo by remember(property.id) { mutableStateOf(property.tenantInfo.orEmpty()) }
     var contractText by remember(property.id) {
-        mutableStateOf(contractDisplayText(property.contractNumber, property.contractDate))
+        mutableStateOf(contractDisplayText(property.contractNumber, property.contractDate).removePrefix("№"))
     }
     var phone by remember(property.id) { mutableStateOf(property.phone.orEmpty()) }
+    var guests by remember(booking?.id) { mutableStateOf(booking?.guests) }
+    var guestsExpanded by remember { mutableStateOf(false) }
     EditSheetScaffold(title = "Арендатор и договор", onDismiss = onDismiss) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SheetCaptionField(
                 caption = "Арендатор",
                 value = tenantInfo,
                 onValueChange = { tenantInfo = it }
             )
+            // «Количество гостей»: карточка 64 со шевроном → дропдаун 1–10
+            Box {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(CardBackground)
+                        .clickable { guestsExpanded = true }
+                        .padding(start = 20.dp, end = 10.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (guests == null) {
+                                Text("Количество гостей", style = Headline2MobPlaceholderStyle)
+                            } else {
+                                Text("Количество гостей", style = CardSubtitleStyle)
+                                Text(guests.toString(), style = Headline2MobStyle)
+                            }
+                        }
+                        Image(
+                            painter = painterResource(R.drawable.ic_card_chevron),
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = guestsExpanded,
+                    onDismissRequest = { guestsExpanded = false },
+                    containerColor = Color.White
+                ) {
+                    (1..10).forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option.toString(), style = Headline2MobStyle) },
+                            onClick = {
+                                guests = option
+                                guestsExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
             SheetCaptionField(
-                caption = "Договор",
+                caption = "Договор №",
                 value = contractText,
                 onValueChange = { contractText = it }
             )
@@ -319,7 +373,7 @@ fun TenantContractEditSheet(
             modifier = Modifier.padding(top = 8.dp),
             text = "Сохранить изменения",
             enabled = !isSaving,
-            onClick = { onSave(tenantInfo, contractText, phone) }
+            onClick = { onSave(tenantInfo, contractText, phone, guests) }
         )
     }
 }
@@ -593,7 +647,7 @@ private fun SheetCaptionField(
             .clip(RoundedCornerShape(20.dp))
             .background(CardBackground)
             .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
-            .padding(start = 20.dp, end = 20.dp),
+            .padding(start = 20.dp, end = 10.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -658,13 +712,13 @@ private fun SheetIconField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1f),
-            textStyle = FieldTextStyle,
+            textStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp),
             cursorBrush = SolidColor(Graphite),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
             decorationBox = { innerTextField ->
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(caption, style = CardSubtitleStyle)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(caption, style = CardSubtitleStyle.copy(lineHeight = 15.7.sp))
                     Box {
                         if (value.isEmpty()) {
                             Text(placeholder, style = Headline2MobPlaceholderStyle)

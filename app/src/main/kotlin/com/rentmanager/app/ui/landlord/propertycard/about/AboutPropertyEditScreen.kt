@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -121,6 +122,7 @@ fun AboutPropertyEditScreen(
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 AboutAddressResult.consume()?.let { (newAddress, newLat, newLon) ->
                     address = newAddress
+                    addressError = false
                     pickedLat = newLat
                     pickedLon = newLon
                 }
@@ -166,7 +168,7 @@ fun AboutPropertyEditScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
-                .padding(horizontal = 20.dp),
+                .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             AboutField(
@@ -250,34 +252,44 @@ fun AboutPropertyEditScreen(
                 checked = providesDocs,
                 onCheckedChange = { providesDocs = it }
             )
-            Spacer(Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                BlackCtaButton(
-                    text = "Сохранить изменения",
-                    enabled = !uiState.isSaving,
-                    onClick = {
-                        addressError = address.isBlank()
-                        roomsError = rooms == null
-                        areaError = area.isBlank()
-                        sleepingError = sleepingPlaces == null
-                        priceError = price.isBlank()
-                        val hasErrors = addressError || roomsError || areaError || sleepingError || priceError
-                        if (!hasErrors) {
-                            viewModel.save(
-                                name, address, rooms, area, sleepingPlaces, floor, floorsInHouse, description, price,
-                                latitude = pickedLat, longitude = pickedLon,
-                                providesDocuments = providesDocs
-                            )
-                        }
+        }
+        // Figma 3970:83663: закреплённая панель 136dp, CTA 55 + 6 + 55.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .background(Color(0xE6EDEDED))
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            BlackCtaButton(
+                text = "Сохранить изменения",
+                enabled = property != null && !uiState.isSaving,
+                onClick = {
+                    focusManager.clearFocus()
+                    addressError = address.isBlank()
+                    roomsError = rooms.isNullOrBlank()
+                    areaError = (area.replace(',', '.').toDoubleOrNull() ?: 0.0) <= 0.0
+                    sleepingError = sleepingPlaces.isNullOrBlank()
+                    priceError = (price.replace(',', '.').toDoubleOrNull() ?: 0.0) <= 0.0
+                    val hasErrors = addressError || roomsError || areaError || sleepingError || priceError
+                    if (!hasErrors) {
+                        viewModel.save(
+                            name, address, rooms, area.replace(',', '.'), sleepingPlaces, floor, floorsInHouse,
+                            description, price.replace(',', '.'),
+                            latitude = pickedLat, longitude = pickedLon,
+                            providesDocuments = providesDocs
+                        )
                     }
-                )
-                OutlineCtaButton(
-                    text = "Сбросить изменения",
-                    borderColor = Graphite,
-                    onClick = { resetForm() }
-                )
-                Spacer(Modifier.height(16.dp))
-            }
+                }
+            )
+            OutlineCtaButton(
+                text = "Сбросить изменения",
+                borderColor = Graphite,
+                enabled = property != null && !uiState.isSaving,
+                onClick = { focusManager.clearFocus(); resetForm() }
+            )
         }
     }
 
@@ -324,7 +336,7 @@ private fun AboutField(
                 .background(CardBackground)
                 .then(if (isError) Modifier.border(1.dp, ErrorRed, RoundedCornerShape(20.dp)) else Modifier)
                 .then(if (onFieldClick != null) Modifier.clickable(onClick = onFieldClick) else Modifier)
-                .padding(start = 20.dp, end = 20.dp),
+                .padding(start = 20.dp, end = 10.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             if (onFieldClick != null) {
@@ -342,7 +354,7 @@ private fun AboutField(
                             placeholder.removeSuffix("*"),
                             style = CardSubtitleStyle.copy(color = if (isError) ErrorRed else GreyText)
                         )
-                        Text(value, style = Headline2MobStyle)
+                        Text(value, style = Headline2MobStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             } else {
@@ -363,11 +375,14 @@ private fun AboutField(
                     keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
                     decorationBox = { innerTextField ->
                         if (value.isEmpty()) {
-                            Text(
-                                placeholder,
-                                style = if (isError) CardSubtitleStyle.copy(color = ErrorRed)
-                                else Headline2MobPlaceholderStyle
-                            )
+                            Box {
+                                Text(
+                                    placeholder,
+                                    style = if (isError) CardSubtitleStyle.copy(color = ErrorRed)
+                                    else Headline2MobPlaceholderStyle
+                                )
+                                innerTextField()
+                            }
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
