@@ -67,6 +67,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.IconNotificationDialog
+import com.rentmanager.app.util.hasPropertyName
+import com.rentmanager.app.util.propertyTitle
 import com.rentmanager.app.util.shortAddress
 import com.rentmanager.app.data.model.BookingDto
 import com.rentmanager.app.data.model.MeterDto
@@ -274,78 +276,94 @@ fun PropertyCardScreen(
             // Карандаш на фото открывает сетку фотографий, а не экран редактирования
             PhotoSlider(property, onEdit = { showPhotosSheet = true })
 
-            // Белая панель (наложение на фото, offset -19dp)
+            // Белая панель (наложение на фото, offset -19dp).
+            // Зазоры как в макете «Карточка объекта» (3801:67918): 20 между блоками,
+            // 12 внутри блока, 6 между карточками полей, 4 между названием и адресом.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .offset(y = (-19).dp)
                     .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                     .background(Color.White)
-                    .padding(start = 20.dp, end = 20.dp, top = 20.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                if (property != null) {
-                    Text(property.name.ifBlank { "Без названия" }, style = PropertyNameStyle)
-                    // Короткий адрес — как в «Моя недвижимость» (улица, дом)
-                    Text(property.address.shortAddress(), style = Headline2MobStyle.copy(color = GreyText))
-                }
+                // Блок «название/адрес + плашка задолженности» — внутри gap 12
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (property != null) {
+                        // Название необязательно: если пусто, его слот занимает
+                        // короткий адрес, а вторая строка адреса не рисуется
+                        // (Figma 3970-83270 / 3801:67550)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(propertyTitle(property.name, property.address), style = PropertyNameStyle)
+                            if (hasPropertyName(property.name)) {
+                                Text(
+                                    property.address.shortAddress(),
+                                    style = Headline2MobStyle.copy(color = GreyText)
+                                )
+                            }
+                        }
+                    }
 
-                // Плашка задолженности — как на дашборде: красная с суммой
-                // при наступивших неоплаченных датах графика, иначе зелёная
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (uiState.hasDebt) Color(0xFFFBEAEC) else GreenIcon)
-                        .padding(10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (uiState.hasDebt) {
-                            "Задолженность " + String.format(java.util.Locale.US, "%,.0f ₽", uiState.debtAmount).replace(',', ' ')
-                        } else "Задолженностей нет",
-                        style = Headline2MobStyle.copy(color = if (uiState.hasDebt) ErrorRed else GreenText)
-                    )
-                }
-
-                // Аренда и платежи
-                SectionHeader("Аренда и платежи", onPencilClick = { showRentSheet = true })
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(CardBackground)
-                        .padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
+                    // Плашка задолженности — как на дашборде: красная с суммой
+                    // при наступивших неоплаченных датах графика, иначе зелёная
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (uiState.hasDebt) Color(0xFFFBEAEC) else GreenIcon)
+                            .padding(10.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        InfoPair("Арендная плата", property?.let { rentText(it, uiState.schedule) } ?: "", Modifier.weight(1f))
-                        // Посуточно: срок = дата последней брони в календаре;
-                        // длительно — rentEndDate объекта; нет даты → пусто
-                        InfoPair(
-                            "Срок аренды",
-                            when {
-                                property?.rentType == "посуточно" ->
-                                    uiState.lastBookingEnd?.let { "до $it" }.orEmpty()
-                                else ->
-                                    property?.rentEndDate?.takeIf { it.isNotBlank() }?.let { "до $it" }.orEmpty()
-                            },
-                            Modifier.weight(1f)
+                        Text(
+                            if (uiState.hasDebt) {
+                                "Задолженность " + String.format(java.util.Locale.US, "%,.0f ₽", uiState.debtAmount).replace(',', ' ')
+                            } else "Задолженностей нет",
+                            style = Headline2MobStyle.copy(color = if (uiState.hasDebt) ErrorRed else GreenText)
                         )
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlineCtaButton(
-                            text = "График платежей и реквизиты",
-                            iconRes = R.drawable.ic_payment_schedule,
-                            onClick = { onPaymentSchedule(propertyId) }
-                        )
-                        OutlineCtaButton(
-                            text = "Добавить расходы",
-                            iconRes = R.drawable.ic_expense_receipt,
-                            onClick = {}
-                        )
+                }
+
+                // Аренда и платежи — заголовок и контент с зазором 12
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SectionHeader("Аренда и платежи", onPencilClick = { showRentSheet = true })
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(CardBackground)
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
+                        ) {
+                            InfoPair("Арендная плата", property?.let { rentText(it, uiState.schedule) } ?: "", Modifier.weight(1f))
+                            // Посуточно: срок = дата последней брони в календаре;
+                            // длительно — rentEndDate объекта; нет даты → пусто
+                            InfoPair(
+                                "Срок аренды",
+                                when {
+                                    property?.rentType == "посуточно" ->
+                                        uiState.lastBookingEnd?.let { "до $it" }.orEmpty()
+                                    else ->
+                                        property?.rentEndDate?.takeIf { it.isNotBlank() }?.let { "до $it" }.orEmpty()
+                                },
+                                Modifier.weight(1f)
+                            )
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlineCtaButton(
+                                text = "График платежей и реквизиты",
+                                iconRes = R.drawable.ic_payment_schedule,
+                                onClick = { onPaymentSchedule(propertyId) }
+                            )
+                            OutlineCtaButton(
+                                text = "Добавить расходы",
+                                iconRes = R.drawable.ic_expense_receipt,
+                                onClick = {}
+                            )
+                        }
                     }
                 }
 
@@ -363,54 +381,57 @@ fun PropertyCardScreen(
                     onAttachTenant = { onAttachTenant(propertyId) },
                     onDetachTenant = { showDetachSheet = true }
                 )
-// Об объекте
-                SectionHeader("Об объекте", onPencilClick = { onEditAbout(propertyId) })
+                // Об объекте (Figma: заголовок → контент gap 12; карточки полей gap 6)
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ValueCard("Название", property?.name ?: "", Modifier.fillMaxWidth())
-                    ValueCard("Адрес", property?.address?.shortAddress() ?: "", Modifier.fillMaxWidth())
-                    ValueCard("Кол-во комнат", property?.rooms ?: "", Modifier.fillMaxWidth())
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionHeader("Об объекте", onPencilClick = { onEditAbout(propertyId) })
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ValueCard("Название", property?.name ?: "", Modifier.fillMaxWidth())
+                        ValueCard("Адрес", property?.address?.shortAddress() ?: "", Modifier.fillMaxWidth())
+                        ValueCard("Кол-во комнат", property?.rooms ?: "", Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ValueCard(
+                                "Площадь, м2",
+                                property?.area?.let {
+                                    if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+                                } ?: "",
+                                Modifier.weight(1f)
+                            )
+                            ValueCard("Спальные места", property?.sleepingPlaces ?: "", Modifier.weight(1f))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            ValueCard("Этаж", property?.floor ?: "", Modifier.weight(1f))
+                            ValueCard("Этажей в доме", property?.floorsInHouse ?: "", Modifier.weight(1f))
+                        }
+                        ValueCard2Lines(property?.description.orEmpty())
                         ValueCard(
-                            "Площадь, м2",
-                            property?.area?.let {
-                                if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+                            if ((uiState.schedule?.type
+                                    ?: if (property?.rentType == "длительно") "auto" else "manual") == "auto"
+                            ) "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
+                            property?.rentAmount?.let {
+                                val s = if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+                                formatAmount(s)
                             } ?: "",
-                            Modifier.weight(1f)
+                            Modifier.fillMaxWidth()
                         )
-                        ValueCard("Спальные места", property?.sleepingPlaces ?: "", Modifier.weight(1f))
+                        // Включённый тумблер «Предоставляю отчётные документы» —
+                        // серый блок в карточке (3980:87127)
+                        if (property?.providesDocuments == true) {
+                            com.rentmanager.app.ui.components.ReportsDocsInfoCard()
+                        }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        ValueCard("Этаж", property?.floor ?: "", Modifier.weight(1f))
-                        ValueCard("Этажей в доме", property?.floorsInHouse ?: "", Modifier.weight(1f))
-                    }
-                    ValueCard2Lines(property?.description.orEmpty())
-                    ValueCard(
-                        if ((uiState.schedule?.type
-                                ?: if (property?.rentType == "длительно") "auto" else "manual") == "auto"
-                        ) "Стоимость за месяц, ₽" else "Стоимость за сутки, ₽",
-                        property?.rentAmount?.let {
-                            val s = if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
-                            formatAmount(s)
-                        } ?: "",
-                        Modifier.fillMaxWidth()
-                    )
-                    // Включённый тумблер «Предоставляю отчётные документы» —
-                    // серый блок в карточке (3980:87127)
-                    if (property?.providesDocuments == true) {
-                        com.rentmanager.app.ui.components.ReportsDocsInfoCard()
+
+                    // Публикация — от полей 12, кнопка и подсказка между собой 6
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        GradientFullButton({})
+                        Text(
+                            "После публикации объявление станет доступно для просмотра арендаторам",
+                            style = TextIconeStyle.copy(color = GreyText)
+                        )
                     }
                 }
 
-                // Публикация
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    GradientFullButton({})
-                    Text(
-                        "После публикации объявление станет доступно для просмотра арендаторам",
-                        style = TextIconeStyle.copy(color = GreyText)
-                    )
-                }
-
-                // Аккордеоны (Figma 20741: между ними gap 12, до «Счетчиков» — вплотную, без отступа)
+                // Аккордеоны (Figma: между ними gap 12; до «Счетчиков» — 20,
+                // нижний паддинг белой панели)
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     AccordionCard(
                         "Информация об объекте",
@@ -452,13 +473,15 @@ fun PropertyCardScreen(
                 }
             }
 
-            // Счетчики
+            // Счетчики — жёлтая панель во всю ширину, скругление 20 со ВСЕХ сторон
+            // (Figma 2574:19635 и 3002:44421: cornerRadius 20; вариант 3970:83082
+            // с квадратным низом — старая упрощённая версия блока, без карандаша)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         color = Color(0xFFFFF1CF),
-                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 0.dp, bottomEnd = 0.dp)
+                        shape = RoundedCornerShape(20.dp)
                     )
                     .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -479,6 +502,10 @@ fun PropertyCardScreen(
                     }
                 }
             }
+
+            // 22 от низа «Счетчиков» до тапбара (Figma: 3970:83082 низ −3849
+            // → 3970:83287 тапбар −3827). Панель скроллится, зазор — часть скролла.
+            Spacer(Modifier.height(22.dp))
         }
 
         // Таббар — статичный (закреплён внизу, не скроллится).

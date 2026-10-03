@@ -73,6 +73,8 @@ import coil.request.ImageRequest
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.IconNotificationDialog
 import com.rentmanager.app.ui.components.ScheduleDialog
+import com.rentmanager.app.util.hasPropertyName
+import com.rentmanager.app.util.propertyTitle
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -535,20 +537,24 @@ private fun ObjectCard(
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
+                // Название необязательно: если поле пустое, его слот занимает
+                // адрес (Figma 3970-83270) — вторая строка с адресом не рисуется
                 Text(
-                    property.name.ifBlank { "Без названия" },
+                    propertyTitle(property.name, property.address),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = (-0.4).sp,
                     color = TextPrimary
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    property.address,
-                    fontSize = 13.sp,
-                    letterSpacing = (-0.4).sp,
-                    color = TextGray
-                )
+                if (hasPropertyName(property.name)) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        property.address,
+                        fontSize = 13.sp,
+                        letterSpacing = (-0.4).sp,
+                        color = TextGray
+                    )
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -826,18 +832,21 @@ private fun ChessTab(
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
-                                property.name.ifBlank { "Без названия" },
+                                propertyTitle(property.name, property.address),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 letterSpacing = (-0.4).sp,
                                 color = TextPrimary
                             )
-                            Text(
-                                property.address.substringBefore(',').trim(),
-                                fontSize = 9.5.sp,
-                                letterSpacing = (-0.2).sp,
-                                color = TextGray
-                            )
+                            // Без названия адрес стоит в его слоте — вторая строка не нужна
+                            if (hasPropertyName(property.name)) {
+                                Text(
+                                    property.address.substringBefore(',').trim(),
+                                    fontSize = 9.5.sp,
+                                    letterSpacing = (-0.2).sp,
+                                    color = TextGray
+                                )
+                            }
                         }
                     },
                     cells = {

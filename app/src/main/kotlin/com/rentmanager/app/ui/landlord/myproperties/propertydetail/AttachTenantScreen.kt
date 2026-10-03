@@ -94,6 +94,8 @@ import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.SectionTitleStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
+import com.rentmanager.app.util.hasPropertyName
+import com.rentmanager.app.util.propertyTitle
 import com.rentmanager.app.util.shortAddress
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -367,14 +369,17 @@ fun AttachTenantScreen(
                     )
                     Column {
                         Text(
-                            property?.name?.ifBlank { "Без названия" } ?: "",
+                            property?.let { propertyTitle(it.name, it.address) }.orEmpty(),
                             style = Headline2MobStyle
                         )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            property?.address?.shortAddress().orEmpty(),
-                            style = CardSubtitleStyle
-                        )
+                        // Адрес второй строкой — только если название заполнено
+                        if (hasPropertyName(property?.name)) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                property?.address?.shortAddress().orEmpty(),
+                                style = CardSubtitleStyle
+                            )
+                        }
                     }
                 }
 

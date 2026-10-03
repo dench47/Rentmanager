@@ -8,3 +8,20 @@ package com.rentmanager.app.util
  */
 fun String.shortAddress(): String =
     split(',').map { it.trim() }.filter { it.isNotEmpty() }.take(2).joinToString(", ")
+
+/**
+ * Заголовок объекта: «Название» — необязательное поле, поэтому если оно пустое,
+ * его место занимает короткий адрес (Figma, аннотация 3970-83270; пример 3801:67550,
+ * где вместо названия стоит «пр. Космонавтов, 1»). «Без названия» — только если
+ * не заполнено ни название, ни адрес.
+ */
+fun propertyTitle(name: String?, address: String?): String =
+    name?.trim().orEmpty()
+        .ifBlank { address?.shortAddress().orEmpty() }
+        .ifBlank { "Без названия" }
+
+/**
+ * Название заполнено? Если нет — адрес показывается в слоте названия, и вторая
+ * строка с адресом не рисуется (иначе адрес дублировался бы, Figma 3801:67550).
+ */
+fun hasPropertyName(name: String?): Boolean = !name.isNullOrBlank()

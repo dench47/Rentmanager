@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rentmanager.app.data.api.TenantApi
 import com.rentmanager.app.data.model.TenantDto
+import com.rentmanager.app.util.propertyTitle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,12 +78,16 @@ class TenantCardViewModel @Inject constructor(
     private fun applyCard(state: TenantCardUiState, dto: TenantDto): TenantCardUiState {
         val entries = dto.bookings.orEmpty().mapNotNull { b ->
             runCatching {
+                val name = b.propertyName?.trim().orEmpty()
+                val address = (b.propertyAddress ?: "").substringBefore(',').trim()
                 BookingEntryUi(
                     propertyId = b.propertyId.orEmpty(),
                     startDate = LocalDate.parse(b.startDate),
                     endDate = LocalDate.parse(b.endDate),
-                    propertyName = b.propertyName?.ifBlank { null } ?: "Без названия",
-                    propertyAddress = (b.propertyAddress ?: "").substringBefore(',').trim(),
+                    // Без названия место занимает адрес, а строка адреса
+                    // остаётся пустой, чтобы не дублировать его (Figma 3970-83270)
+                    propertyName = propertyTitle(name, address),
+                    propertyAddress = if (name.isEmpty()) "" else address,
                     propertyPhoto = b.propertyPhoto
                 )
             }.getOrNull()

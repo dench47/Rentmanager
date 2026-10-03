@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rentmanager.app.util.propertyTitle
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -167,7 +168,7 @@ fun ScheduleTable(
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Text(
-                            property.name,
+                            propertyTitle(property.name, property.address),
                             Modifier.padding(start = 16.dp),
                             fontSize = 13.sp,
                             color = Color(0xFF212121)

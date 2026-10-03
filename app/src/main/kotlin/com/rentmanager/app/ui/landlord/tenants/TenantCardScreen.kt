@@ -58,6 +58,8 @@ import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.SectionTitleStyle
+import com.rentmanager.app.util.hasPropertyName
+import com.rentmanager.app.util.propertyTitle
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -732,18 +734,21 @@ private fun AttachPropertySheet(
                     )
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
+                        // Название необязательно: пусто — в слоте адрес (Figma 3970-83270)
                         Text(
-                            p.name.ifBlank { "Без названия" },
+                            propertyTitle(p.name, p.address),
                             style = com.rentmanager.app.ui.theme.Headline2MobStyle.copy(lineHeight = 18.2.sp)
                         )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            p.address.substringBefore(',').trim(),
-                            fontSize = 13.sp,
-                            lineHeight = 15.7.sp,
-                            letterSpacing = (-0.4).sp,
-                            color = GreyText
-                        )
+                        if (hasPropertyName(p.name)) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                p.address.substringBefore(',').trim(),
+                                fontSize = 13.sp,
+                                lineHeight = 15.7.sp,
+                                letterSpacing = (-0.4).sp,
+                                color = GreyText
+                            )
+                        }
                     }
                     Image(
                         painter = painterResource(R.drawable.ic_card_chevron),

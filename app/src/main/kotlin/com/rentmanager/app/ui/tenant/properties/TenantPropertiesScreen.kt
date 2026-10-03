@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rentmanager.app.R
+import com.rentmanager.app.util.hasPropertyName
+import com.rentmanager.app.util.propertyTitle
 
 private val GradientBackground = Brush.verticalGradient(
     colors = listOf(Color.White, Color(0xFFF5F7FA))
@@ -170,17 +172,20 @@ fun TenantPropertiesScreen(
                                     colors = CardDefaults.cardColors(containerColor = Color.White)
                                 ) {
                                     Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                        // Название необязательно: пусто — в слоте адрес
                                         Text(
-                                            property.name,
+                                            propertyTitle(property.name, property.address),
                                             fontSize = 17.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = Color(0xFF1D1D1F)
                                         )
-                                        Text(
-                                            property.address,
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF8E8E93)
-                                        )
+                                        if (hasPropertyName(property.name)) {
+                                            Text(
+                                                property.address,
+                                                fontSize = 14.sp,
+                                                color = Color(0xFF8E8E93)
+                                            )
+                                        }
                                     }
                                 }
                             }

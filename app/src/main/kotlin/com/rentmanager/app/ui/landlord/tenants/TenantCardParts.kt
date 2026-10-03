@@ -167,8 +167,11 @@ fun BookingEntry(
             )
             Column {
                 Text(propertyName, style = Headline2MobStyle.copy(lineHeight = 18.2.sp))
-                Spacer(Modifier.height(4.dp))
-                Text(propertyAddress, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
+                // Пустой адрес не рисуем: он уже стоит в слоте названия (Figma 3970-83270)
+                if (propertyAddress.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(propertyAddress, fontSize = 13.sp, lineHeight = 15.7.sp, letterSpacing = (-0.4).sp, color = GreyText)
+                }
             }
         }
         HorizontalDivider(color = DividerGrey)
