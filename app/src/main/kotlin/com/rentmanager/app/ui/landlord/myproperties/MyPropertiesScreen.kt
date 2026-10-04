@@ -129,6 +129,7 @@ fun MyPropertiesScreen(
     val propertiesRaw by viewModel.properties.collectAsState()
     val viewMode by viewModel.viewMode.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val attachSuggestion by viewModel.attachSuggestion.collectAsState()
 
     // Обновление списка при возврате на экран / из фона
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -278,6 +279,7 @@ fun MyPropertiesScreen(
                         else viewModel.saveBooking(propertyId, start, monthEnd)
                     },
                     onOverdueMark = { confirmPaidPropertyId = it },
+                    attachSuggestion = attachSuggestion,
                     onAttachTenant = onAttachTenant
                 )
             }
@@ -698,17 +700,16 @@ private fun ChessTab(
     onPeriodClick: () -> Unit,
     onRangeSelected: (String, LocalDate, LocalDate, Boolean) -> Unit,
     onOverdueMark: (String) -> Unit,
+    // Подсказка «Добавить арендатора» приходит из ViewModel: живёт, пока у
+    // объекта есть покраски и арендатор не прикреплён (тапы её не сбрасывают)
+    attachSuggestion: AttachSuggestion?,
     onAttachTenant: (String, LocalDate, LocalDate) -> Unit
 ) {
     // Выбор диапазона: строка объекта + индекс первой ячейки; по второму
     // тапу — покраска/стирание. Градиентная кнопка «Добавить арендатора»
-    // появляется ПОСЛЕ применения периода (ячейки позеленели), а не после
-    // первого тапа; новый выбор её сбрасывает
+    // живёт до привязки арендатора (см. MyPropertiesViewModel.attachSuggestion)
     var selPropertyId by remember { mutableStateOf<String?>(null) }
     var selStart by remember { mutableStateOf<Int?>(null) }
-    var pendingAttach by remember {
-        mutableStateOf<Triple<String, LocalDate, LocalDate>?>(null)
-    }
 
     val currentOnAttachTenant by rememberUpdatedState(onAttachTenant)
 
@@ -866,7 +867,6 @@ private fun ChessTab(
                                         if (!rowSelected || start == null) {
                                             selPropertyId = property.id
                                             selStart = index
-                                            pendingAttach = null
                                         } else {
                                             val lo = minOf(start, index)
                                             val hi = maxOf(start, index)
@@ -880,11 +880,6 @@ private fun ChessTab(
                                             )
                                             selPropertyId = null
                                             selStart = null
-                                            // Применили бронь — период готов
-                                            // к добавлению арендатора
-                                            pendingAttach = if (!remove) {
-                                                Triple(property.id, dates[lo], dates[hi])
-                                            } else null
                                         }
                                     },
                                     onLongClick = {
@@ -901,9 +896,10 @@ private fun ChessTab(
     }
 
 
-    // Статичная градиентная кнопка: период применён (ячейки позеленели) —
-    // предлагаем добавить арендатора на этот период
-    pendingAttach?.let { (propertyId, start, end) ->
+    // Статичная градиентная кнопка: у объекта есть покраски без арендатора —
+    // предлагаем прикрепить его на этот период. Состояние живёт в ViewModel,
+    // поэтому тапы по ячейкам и диалоги оплаты кнопку не сбрасывают.
+    attachSuggestion?.let { suggestion ->
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -912,7 +908,9 @@ private fun ChessTab(
         ) {
             com.rentmanager.app.ui.landlord.createproperty.GradientCtaButton(
                 text = "Добавить арендатора",
-                onClick = { currentOnAttachTenant(propertyId, start, end) }
+                onClick = {
+                    currentOnAttachTenant(suggestion.propertyId, suggestion.start, suggestion.end)
+                }
             )
         }
     }

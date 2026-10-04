@@ -56,6 +56,19 @@ data class MyPropertyItem(
 )
 
 /**
+ * Подсказка «Добавить арендатора» для шахматки: объект + последний покрашенный
+ * период. Живёт, пока у объекта есть покраски без арендатора, поэтому тапы по
+ * ячейкам и диалоги отметки оплаты её не сбрасывают (раньше CTA исчезала вместе
+ * с выбором ячейки).
+ */
+@Immutable
+data class AttachSuggestion(
+    val propertyId: String,
+    val start: LocalDate,
+    val end: LocalDate
+)
+
+/**
  * Статус занятости на дату: попадание в диапазон брони — занято
  * («fullness»), а на занятом текущем месяце при просрочке — «expired»
  * (красная рамка: месяц арендуется, но платёж не получен).
@@ -107,6 +120,15 @@ class MyPropertiesViewModel @Inject constructor(
      */
     val visibleProperties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
 
+    private val _attachSuggestion = MutableStateFlow<AttachSuggestion?>(null)
+
+    /**
+     * Подсказка прикрепления арендатора для шахматки. Считается по данным:
+     * пока у объекта есть покраски и нет арендатора — CTA на месте; арендатор
+     * прикреплён или покраски сняты — подсказка снимается.
+     */
+    val attachSuggestion: StateFlow<AttachSuggestion?> = _attachSuggestion.asStateFlow()
+
     init {
         refresh()
     }
@@ -129,12 +151,35 @@ class MyPropertiesViewModel @Inject constructor(
                     val schedules = loadSchedules()
                     val withBookings = items.map { loadBookings(it) }
                     _properties.value = withBookings.map { loadOverdue(it, schedules) }
+                    validateAttachSuggestion(_properties.value)
                 } else {
                     _errorMessage.value = "Ошибка загрузки"
                 }
             } catch (_: Exception) {
                 _errorMessage.value = "Нет связи с сервером"
             }
+        }
+    }
+
+    /**
+     * Держит подсказку «Добавить арендатора» актуальной по данным.
+     * Пока у объекта есть покраски и арендатор не прикреплён — подсказка
+     * остаётся (тапы по ячейкам и диалоги оплаты её не сбрасывают);
+     * покраски сняты или арендатор прикреплён — подсказка убирается.
+     * Диапазон — последний покрашенный период объекта.
+     */
+    private fun validateAttachSuggestion(properties: List<MyPropertyItem>) {
+        val current = _attachSuggestion.value
+        if (current != null) {
+            val item = properties.find { it.id == current.propertyId }
+            if (item != null && item.tenantInfo == null && item.bookings.isNotEmpty()) return
+        }
+        val candidate = properties.firstOrNull { it.tenantInfo == null && it.bookings.isNotEmpty() }
+        val last = candidate?.bookings?.maxByOrNull { it.end }
+        _attachSuggestion.value = if (candidate != null && last != null) {
+            AttachSuggestion(candidate.id, last.start, last.end)
+        } else {
+            null
         }
     }
 
@@ -146,6 +191,9 @@ class MyPropertiesViewModel @Inject constructor(
                     CreateBookingRequest(start.toString(), end.toString())
                 )
                 if (resp.isSuccessful) {
+                    // Подсказку прикрепления держим до привязки арендатора:
+                    // её больше не сбрасывают тапы по ячейкам
+                    _attachSuggestion.value = AttachSuggestion(propertyId, start, end)
                     syncAfterBookingChange(propertyId)
                     refresh()
                 }
