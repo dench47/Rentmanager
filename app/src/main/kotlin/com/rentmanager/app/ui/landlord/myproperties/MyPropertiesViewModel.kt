@@ -32,7 +32,9 @@ data class BookingRange(
     val id: String? = null,
     val start: LocalDate,
     val end: LocalDate,
-    val source: String = "manual"
+    val source: String = "manual",
+    /** Арендатор периода; null = покраска без арендатора (неразмеченный период) */
+    val tenantId: String? = null
 )
 
 @Immutable
@@ -162,25 +164,27 @@ class MyPropertiesViewModel @Inject constructor(
     }
 
     /**
-     * Держит подсказку «Добавить арендатора» актуальной по данным.
-     * Пока у объекта есть покраски и арендатор не прикреплён — подсказка
-     * остаётся (тапы по ячейкам и диалоги оплаты её не сбрасывают);
-     * покраски сняты или арендатор прикреплён — подсказка убирается.
-     * Диапазон — последний покрашенный период объекта.
+     * Подсказка-кнопка НЕ воскрешается сама: по макету (заметка 2950:45816) «кнопка
+     * появляется при выборе периода». Ставится при покраске, переживает refresh и
+     * диалоги оплаты, а гаснет, когда период размечен (арендатор прикреплён) или
+     * покраску сняли — либо при новом выборе (clearAttachSuggestion).
      */
     private fun validateAttachSuggestion(properties: List<MyPropertyItem>) {
-        val current = _attachSuggestion.value
-        if (current != null) {
-            val item = properties.find { it.id == current.propertyId }
-            if (item != null && item.tenantInfo == null && item.bookings.isNotEmpty()) return
-        }
-        val candidate = properties.firstOrNull { it.tenantInfo == null && it.bookings.isNotEmpty() }
-        val last = candidate?.bookings?.maxByOrNull { it.end }
-        _attachSuggestion.value = if (candidate != null && last != null) {
-            AttachSuggestion(candidate.id, last.start, last.end)
+        val current = _attachSuggestion.value ?: return
+        val item = properties.find { it.id == current.propertyId }
+        val last = item?.bookings
+            ?.filter { it.tenantId == null }
+            ?.maxByOrNull { it.end }
+        _attachSuggestion.value = if (item != null && last != null) {
+            current.copy(start = last.start, end = last.end)
         } else {
             null
         }
+    }
+
+    /** Новый выбор в шахматке сбрасывает кнопку-подсказку (как в макете). */
+    fun clearAttachSuggestion() {
+        _attachSuggestion.value = null
     }
 
     fun saveBooking(propertyId: String, start: LocalDate, end: LocalDate) {
@@ -196,6 +200,14 @@ class MyPropertiesViewModel @Inject constructor(
                     _attachSuggestion.value = AttachSuggestion(propertyId, start, end)
                     syncAfterBookingChange(propertyId)
                     refresh()
+                } else {
+                    // Раньше отказ сервера проглатывался — выглядело как
+                    // «клетка не перекрашивается»
+                    _errorMessage.value = "Не удалось сохранить период: " +
+                        when (resp.code()) {
+                            409 -> "у арендатора уже есть бронь на эти даты"
+                            else -> "ошибка ${resp.code()}"
+                        }
                 }
             } catch (_: Exception) { }
         }
@@ -217,7 +229,11 @@ class MyPropertiesViewModel @Inject constructor(
                     return@launch
                 }
                 for (b in toDelete) {
-                    bookingApi.deleteBooking(propertyId, b.id!!)
+                    val del = bookingApi.deleteBooking(propertyId, b.id!!)
+                    if (!del.isSuccessful) {
+                        _errorMessage.value = "Не удалось снять период (${del.code()})"
+                        break
+                    }
                     // Вырезаем только выделенный диапазон: нераскрашенные
                     // остатки брони пересоздаём, иначе снятие одного месяца
                     // сносило бы всю многомесячную бронь целиком
@@ -394,5 +410,6 @@ private fun BookingDto.toBookingRange(): BookingRange = BookingRange(
     id = id,
     start = LocalDate.parse(startDate),
     end = LocalDate.parse(endDate),
-    source = source
+    source = source,
+    tenantId = tenantId
 )

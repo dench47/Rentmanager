@@ -66,7 +66,7 @@ fun TenantsSection(
     onToggleBooking: (String?) -> Unit,
     onEditBooking: (BookingDto) -> Unit,
     onAttachTenant: () -> Unit,
-    onDetachTenant: () -> Unit
+    onDetachTenant: (BookingDto) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Заголовок: 18/600; с бронями — строка 40 с каноническим шевроном
@@ -141,7 +141,7 @@ private fun TenantBookingCard(
     expanded: Boolean,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
-    onDetach: () -> Unit
+    onDetach: (BookingDto) -> Unit
 ) {
     val context = LocalContext.current
     // Имя: карточка арендатора по tenant_id; для действующей привязки —
@@ -290,7 +290,7 @@ private fun TenantBookingCard(
                 if (activeLink) {
                     com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton(
                         text = "Открепить арендатора",
-                        onClick = onDetach
+                        onClick = { onDetach(booking) }
                     )
                 }
             }

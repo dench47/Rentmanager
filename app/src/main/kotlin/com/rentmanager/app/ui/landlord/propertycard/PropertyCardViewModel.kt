@@ -166,10 +166,12 @@ class PropertyCardViewModel @Inject constructor(
      * и шахматку с первого числа текущего месяца — иначе карточка уже
      * «готова к аренде», а месяцы остаются зелёными. Затем перезагружаем карточку.
      */
-    fun detachTenant(propertyId: String, onDone: () -> Unit) {
+    /** Открепление арендатора от конкретного периода (баяна): бронь остаётся
+     *  закрашенной, но снова становится неразмеченной; других не затрагивает. */
+    fun detachBookingTenant(propertyId: String, bookingId: String, onDone: () -> Unit) {
         viewModelScope.launch {
             try {
-                val resp = repository.detachTenant(propertyId)
+                val resp = bookingApi.detachBookingTenant(propertyId, bookingId)
                 if (!resp.isSuccessful) {
                     _errorEvents.emit("Не удалось открепить арендатора (${resp.code()})")
                     return@launch

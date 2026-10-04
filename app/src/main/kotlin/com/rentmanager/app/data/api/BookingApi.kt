@@ -44,4 +44,12 @@ interface BookingApi {
         @Path("id") propertyId: String,
         @Path("bookingId") bookingId: String
     ): Response<Unit>
+
+    /** Открепить арендатора от КОНКРЕТНОГО периода: бронь остаётся (период
+     * закрашен), но снова становится неразмеченной. */
+    @POST("properties/{id}/bookings/{bookingId}/detach")
+    suspend fun detachBookingTenant(
+        @Path("id") propertyId: String,
+        @Path("bookingId") bookingId: String
+    ): Response<MessageResponse>
 }

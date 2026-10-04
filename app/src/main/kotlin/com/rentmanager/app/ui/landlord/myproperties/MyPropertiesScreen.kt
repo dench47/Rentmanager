@@ -280,6 +280,7 @@ fun MyPropertiesScreen(
                     },
                     onOverdueMark = { confirmPaidPropertyId = it },
                     attachSuggestion = attachSuggestion,
+                    onSelectionStarted = { viewModel.clearAttachSuggestion() },
                     onAttachTenant = onAttachTenant
                 )
             }
@@ -375,7 +376,9 @@ private fun TabsRow(activeTab: Int, onSelect: (Int) -> Unit) {
             TabLabel("Объекты", active = activeTab == 0, onSize = { w0 = it }) { onSelect(0) }
             TabLabel("Шахматка", active = activeTab == 1, onSize = { w1 = it }) { onSelect(1) }
         }
-        // Зона 12dp: разделитель по центру, волна активного таба поверх
+        // Зона 12dp: разделитель по центру, волна активного таба поверх;
+        // зазор 6 между подписями и линией — макет 3089:45523 (22 + 6 + 12)
+        Spacer(Modifier.height(6.dp))
         Box(
             Modifier
                 .fillMaxWidth()
@@ -703,6 +706,9 @@ private fun ChessTab(
     // Подсказка «Добавить арендатора» приходит из ViewModel: живёт, пока у
     // объекта есть покраски и арендатор не прикреплён (тапы её не сбрасывают)
     attachSuggestion: AttachSuggestion?,
+    // Новый выбор в шахматке сбрасывает кнопку-подсказку (макет: «Кнопка
+    // появляется при выборе периода») — она вернётся после следующей покраски
+    onSelectionStarted: () -> Unit,
     onAttachTenant: (String, LocalDate, LocalDate) -> Unit
 ) {
     // Выбор диапазона: строка объекта + индекс первой ячейки; по второму
@@ -718,10 +724,11 @@ private fun ChessTab(
             .fillMaxWidth()
     ) {
         // ---- Сегмент «Месяцы / Сутки» ----
+        // 12 сверху (от табов) и 20 снизу (до дропдауна) — макет 2949:45028
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp)
         ) {
             Row(
                 modifier = Modifier
@@ -748,7 +755,8 @@ private fun ChessTab(
 
         // ---- Дропдаун периода: год (месяцы) или месяц (сутки) ----
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp),
+            // 12 до таблицы — макет 2949:45028
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             MonthDropdown(
@@ -867,6 +875,7 @@ private fun ChessTab(
                                         if (!rowSelected || start == null) {
                                             selPropertyId = property.id
                                             selStart = index
+                                            onSelectionStarted()
                                         } else {
                                             val lo = minOf(start, index)
                                             val hi = maxOf(start, index)
@@ -896,15 +905,15 @@ private fun ChessTab(
     }
 
 
-    // Статичная градиентная кнопка: у объекта есть покраски без арендатора —
-    // предлагаем прикрепить его на этот период. Состояние живёт в ViewModel,
-    // поэтому тапы по ячейкам и диалоги оплаты кнопку не сбрасывают.
+    // Кнопка «Добавить арендатора» — по макету (2949:45028, заметка 2950:45816):
+    // появляется при выборе периода, стоит на белом фоне экрана с отступом
+    // 20 по краям и 20 от таблицы, без серой подложки. Состояние — из ViewModel,
+    // поэтому refresh и диалоги оплаты её не гасят; новый выбор её сбрасывает.
     attachSuggestion?.let { suggestion ->
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFEDEDED))
-                .padding(horizontal = 20.dp, vertical = 10.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 10.dp)
         ) {
             com.rentmanager.app.ui.landlord.createproperty.GradientCtaButton(
                 text = "Добавить арендатора",

@@ -7,9 +7,7 @@ import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreateBookingRequest
 import com.rentmanager.app.data.api.PropertyApi
 import com.rentmanager.app.data.api.TenantApi
-import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.model.TenantDto
-import com.rentmanager.app.util.DD_MM_YYYY
 import com.rentmanager.app.util.PhoneUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -102,13 +100,12 @@ class AttachTenantViewModel @Inject constructor(
                         propertyId,
                         current.copy(
                             tenantInfo = tenant.fullName,
-                            phone = tenant.phone,
-                            rentEndDate = rentEndFor(current, end)
+                            phone = tenant.phone
                         )
                     )
                 }
                 bookingApi.createBooking(
-                    propertyId, CreateBookingRequest(start.toString(), end.toString())
+                    propertyId, CreateBookingRequest(start.toString(), end.toString(), tenantId = tenant.id)
                 )
                 _uiState.update { it.copy(isAttaching = false) }
                 onSuccess()
@@ -136,15 +133,26 @@ class AttachTenantViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isAttaching = true, failed = false) }
             try {
-                val tenantResp = tenantApi.createTenant(
-                    TenantDto(id = "", fullName = name, phone = normalizedPhone)
-                )
-                if (!tenantResp.isSuccessful || tenantResp.body() == null) {
-                    _uiState.update { it.copy(isAttaching = false, failed = true) }
-                    return@launch
+                // Один номер = один арендатор: если он уже есть у владельца,
+                // привязываем существующего и дубль не создаём (сервер делает так же)
+                val found = runCatching { tenantApi.getTenants().body().orEmpty() }
+                    .getOrDefault(emptyList())
+                    .firstOrNull { PhoneUtils.normalize(it.phone) == normalizedPhone }
+                val tenant: TenantDto
+                if (found != null) {
+                    tenant = found
+                } else {
+                    val tenantResp = tenantApi.createTenant(
+                        TenantDto(id = "", fullName = name, phone = normalizedPhone)
+                    )
+                    if (!tenantResp.isSuccessful || tenantResp.body() == null) {
+                        _uiState.update { it.copy(isAttaching = false, failed = true) }
+                        return@launch
+                    }
+                    tenant = tenantResp.body()!!
                 }
                 val attachResp = propertyApi.attachTenant(
-                    propertyId, AttachTenantRequest(tenantId = tenantResp.body()!!.id)
+                    propertyId, AttachTenantRequest(tenantId = tenant.id)
                 )
                 if (!attachResp.isSuccessful) {
                     _uiState.update { it.copy(isAttaching = false, failed = true) }
@@ -158,14 +166,13 @@ class AttachTenantViewModel @Inject constructor(
                     propertyApi.updateProperty(
                         propertyId,
                         current.copy(
-                            tenantInfo = name,
-                            phone = normalizedPhone,
-                            rentEndDate = rentEndFor(current, end)
+                            tenantInfo = tenant.fullName,
+                            phone = tenant.phone
                         )
                     )
                 }
                 bookingApi.createBooking(
-                    propertyId, CreateBookingRequest(start.toString(), end.toString())
+                    propertyId, CreateBookingRequest(start.toString(), end.toString(), tenantId = tenant.id)
                 )
                 _uiState.update { it.copy(isAttaching = false) }
                 onSuccess()
@@ -194,13 +201,3 @@ class AttachTenantViewModel @Inject constructor(
     }
 }
 
-/**
- * «Срок аренды» при прикреплении арендатора: для длительной аренды пишем
- * конец периода в поле объекта — то же значение, что теперь лежит в брони.
- * Так карточка объекта, список «Моя недвижимость» и шит «Аренда и платежи»
- * показывают одну и ту же дату (см. util/Lease.kt).
- * Посуточно: поле не трогаем — срок считается из броней.
- */
-private fun rentEndFor(property: PropertyDto, end: LocalDate): String? =
-    if ((property.rentType ?: "посуточно") == "длительно") end.format(DD_MM_YYYY)
-    else property.rentEndDate

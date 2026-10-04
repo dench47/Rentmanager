@@ -205,6 +205,7 @@ fun PropertyCardScreen(
     // Открепление арендатора (Figma 2936:41556/41570): шит-подтверждение
     // и окно «Арендатор откреплен» после
     var showDetachSheet by remember { mutableStateOf(false) }
+    var detachBookingId by remember { mutableStateOf<String?>(null) }
     var tenantDetached by remember { mutableStateOf(false) }
     var readingMeter by remember { mutableStateOf<MeterDto?>(null) }
     var showPhotosSheet by remember { mutableStateOf(false) }
@@ -375,7 +376,7 @@ fun PropertyCardScreen(
                     onToggleBooking = { expandedBookingId = it },
                     onEditBooking = { sheetBooking = it },
                     onAttachTenant = { onAttachTenant(propertyId) },
-                    onDetachTenant = { showDetachSheet = true }
+                    onDetachTenant = { booking -> detachBookingId = booking.id; showDetachSheet = true }
                 )
                 // Об объекте (Figma: заголовок → контент gap 12; карточки полей gap 6)
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -613,7 +614,7 @@ fun PropertyCardScreen(
             DetachTenantSheet(
                 onConfirm = {
                     showDetachSheet = false
-                    viewModel.detachTenant(propertyId) { tenantDetached = true }
+                    detachBookingId?.let { viewModel.detachBookingTenant(propertyId, it) { tenantDetached = true } }
                 },
                 onDismiss = { showDetachSheet = false }
             )
