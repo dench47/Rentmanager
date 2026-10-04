@@ -73,12 +73,12 @@ import coil.request.ImageRequest
 import com.rentmanager.app.R
 import com.rentmanager.app.ui.components.IconNotificationDialog
 import com.rentmanager.app.ui.components.ScheduleDialog
+import com.rentmanager.app.util.DD_MM_YYYY
 import com.rentmanager.app.util.hasPropertyName
+import com.rentmanager.app.util.leaseEnd
 import com.rentmanager.app.util.propertyTitle
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 // Палитра канваса «Моя недвижимость» 2 вариант (2949:45807)
 private val White = Color.White
@@ -90,7 +90,6 @@ private val CellBusy = Color(0xFFE5F2E7)
 private val BusyGreen = Color(0xFF2F7D4D)
 private val OverdueRed = Color(0xFFFF4249)
 
-private val RuMonthGenitive = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
 private val MonthNames = listOf(
     "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
     "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
@@ -630,8 +629,10 @@ private fun ObjectCard(
             }
         ) {
             val tenantLine = property.tenantInfo?.let { tenant ->
-                val lastEnd = property.bookings.maxOfOrNull { it.end }
-                if (lastEnd != null) "$tenant · до ${lastEnd.format(RuMonthGenitive)}"
+                // Срок аренды — то же правило, что в карточке объекта:
+                // поле объекта, иначе последняя бронь (util/Lease.kt). ДД.ММ.ГГГГ
+                val lastEnd = leaseEnd(property.rentEndDate, property.bookings.map { it.end })
+                if (lastEnd != null) "$tenant · до ${lastEnd.format(DD_MM_YYYY)}"
                 else tenant
             } ?: "Арендатор не добавлен · готова к аренде"
             Text(

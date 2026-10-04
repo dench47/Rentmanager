@@ -7,7 +7,9 @@ import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreateBookingRequest
 import com.rentmanager.app.data.api.PropertyApi
 import com.rentmanager.app.data.api.TenantApi
+import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.model.TenantDto
+import com.rentmanager.app.util.DD_MM_YYYY
 import com.rentmanager.app.util.PhoneUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -98,7 +100,11 @@ class AttachTenantViewModel @Inject constructor(
                 if (current != null) {
                     propertyApi.updateProperty(
                         propertyId,
-                        current.copy(tenantInfo = tenant.fullName, phone = tenant.phone)
+                        current.copy(
+                            tenantInfo = tenant.fullName,
+                            phone = tenant.phone,
+                            rentEndDate = rentEndFor(current, end)
+                        )
                     )
                 }
                 bookingApi.createBooking(
@@ -151,7 +157,11 @@ class AttachTenantViewModel @Inject constructor(
                 if (current != null) {
                     propertyApi.updateProperty(
                         propertyId,
-                        current.copy(tenantInfo = name, phone = normalizedPhone)
+                        current.copy(
+                            tenantInfo = name,
+                            phone = normalizedPhone,
+                            rentEndDate = rentEndFor(current, end)
+                        )
                     )
                 }
                 bookingApi.createBooking(
@@ -183,3 +193,14 @@ class AttachTenantViewModel @Inject constructor(
         }
     }
 }
+
+/**
+ * «Срок аренды» при прикреплении арендатора: для длительной аренды пишем
+ * конец периода в поле объекта — то же значение, что теперь лежит в брони.
+ * Так карточка объекта, список «Моя недвижимость» и шит «Аренда и платежи»
+ * показывают одну и ту же дату (см. util/Lease.kt).
+ * Посуточно: поле не трогаем — срок считается из броней.
+ */
+private fun rentEndFor(property: PropertyDto, end: LocalDate): String? =
+    if ((property.rentType ?: "посуточно") == "длительно") end.format(DD_MM_YYYY)
+    else property.rentEndDate

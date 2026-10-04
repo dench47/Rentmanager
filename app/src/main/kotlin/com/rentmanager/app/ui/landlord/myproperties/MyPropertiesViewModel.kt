@@ -49,8 +49,10 @@ data class MyPropertyItem(
     val rentAmount: Double? = null,
     val year: Int = LocalDate.now().year,
     val month: Int = LocalDate.now().monthValue, // 1..12
-    /** Арендатор объекта — для строки «Имя · до N» в списке (вариант 2) */
-    val tenantInfo: String? = null
+    /** Режим отображения арендатора в списке: «Эля Цап · до 21.11.2026» */
+    val tenantInfo: String? = null,
+    /** Срок аренды из поля объекта — фолбэк, когда броней ещё нет */
+    val rentEndDate: String? = null
 )
 
 /**
@@ -335,7 +337,8 @@ private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
     photoUrl = photos?.firstOrNull()?.url,
     rentType = rentType ?: "посуточно",
     rentAmount = rentAmount,
-    tenantInfo = tenantInfo?.takeIf { it.isNotBlank() }
+    tenantInfo = tenantInfo?.takeIf { it.isNotBlank() },
+    rentEndDate = rentEndDate
 )
 
 

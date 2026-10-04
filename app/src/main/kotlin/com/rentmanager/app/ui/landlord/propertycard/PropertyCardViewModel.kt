@@ -16,7 +16,11 @@ import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PhotoUploader
 import com.rentmanager.app.data.repository.PropertyRepository
+import com.rentmanager.app.util.DD_MM_YYYY
 import com.rentmanager.app.util.PaymentOverdue
+import com.rentmanager.app.util.formatDdMmYyyy
+import com.rentmanager.app.util.leaseEnd
+import com.rentmanager.app.util.parseAnyDate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +30,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 data class PropertyCardUiState(
@@ -114,17 +117,14 @@ class PropertyCardViewModel @Inject constructor(
                 } catch (_: Exception) {
                     emptyList()
                 }
-                // Посуточно: «Срок аренды» — дата последней брони в календаре
-                val lastBookingEnd = if ((body?.rentType ?: "посуточно") == "посуточно") {
-                    bookings
-                        .mapNotNull { b ->
-                            runCatching { java.time.LocalDate.parse(b.endDate) }.getOrNull()
-                        }
-                        .maxOrNull()
-                        ?.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-                } else {
-                    null
-                }
+                // «Срок аренды» — один источник для всех экранов: поле объекта
+                // (его правит шит «Аренда и платежи»), иначе последняя бронь.
+                // Раньше для «длительно» смотрели только поле, поэтому при
+                // прикреплённом арендаторе с бронью срок был пустым.
+                val lastBookingEnd = leaseEnd(
+                    body?.rentEndDate,
+                    bookings.mapNotNull { parseAnyDate(it.endDate) }
+                )?.format(DD_MM_YYYY)
                 // Карточки арендаторов по id — имя/компания/аватар в аккордеонах
                 val tenants = try {
                     tenantApi.getTenants().body().orEmpty().associateBy { it.id }
@@ -268,18 +268,16 @@ class PropertyCardViewModel @Inject constructor(
     /** Шит «Аренда и платежи»: ставка и дата окончания аренды. */
     fun saveRentInfo(rentAmount: String, rentEndDate: String) {
         val current = _uiState.value.property ?: return
-        val rentEndDateChanged = current.rentEndDate != rentEndDate.takeIf { it.isNotBlank() }
-        // Посуточно: «Срок аренды» = дата из шита — обновляем сразу,
-        // не дожидаясь перезагрузки экрана
-        val instantRentEnd = if ((current.rentType ?: "посуточно") == "посуточно" && rentEndDate.isNotBlank()) {
-            rentEndDate
-        } else {
-            null
-        }
+        // Даты сравниваем как даты: в поле приходит «21.11.2026», а в объекте
+        // могло лежать ISO «2026-11-21» — иначе считалось бы «изменилось»
+        val normalized = formatDdMmYyyy(rentEndDate)
+        val rentEndDateChanged = parseAnyDate(current.rentEndDate) != parseAnyDate(normalized)
+        // «Срок аренды» обновляем сразу, не дожидаясь перезагрузки экрана
+        val instantRentEnd = normalized.takeIf { it.isNotBlank() }
         saveProperty(
             current.copy(
                 rentAmount = parseAmount(rentAmount),
-                rentEndDate = rentEndDate.takeIf { it.isNotBlank() }
+                rentEndDate = normalized.takeIf { it.isNotBlank() }
             ),
             "Изменения сохранены",
             onSaved = { saved ->
@@ -324,12 +322,10 @@ class PropertyCardViewModel @Inject constructor(
      */
     private suspend fun syncBookingsToRentEnd(property: PropertyDto) {
         try {
-            val ddMMyyyy = DateTimeFormatter.ofPattern("dd.MM.yyyy")
             val today = LocalDate.now()
             val monthStart = today.withDayOfMonth(1)
-            val target = property.rentEndDate?.let {
-                runCatching { LocalDate.parse(it, ddMMyyyy) }.getOrNull()
-            }
+            // Дата могла быть сохранена и как «21.11.2026», и как ISO «2026-11-21»
+            val target = parseAnyDate(property.rentEndDate)
             val existing = bookingApi.getBookings(property.id).body().orEmpty()
             // Снимаем брони текущего и будущих месяцев (прошлые не трогаем)
             existing.forEach { b ->

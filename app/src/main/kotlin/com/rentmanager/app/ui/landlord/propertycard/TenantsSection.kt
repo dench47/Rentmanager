@@ -44,7 +44,8 @@ import com.rentmanager.app.ui.theme.Graphite
 import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.SectionTitleStyle
-import java.time.LocalDate
+import com.rentmanager.app.util.DD_MM_YYYY
+import com.rentmanager.app.util.parseAnyDate
 
 private val TenantTitleStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp)
 private val TenantSubtitleStyle = CardSubtitleStyle.copy(lineHeight = 15.7.sp)
@@ -345,25 +346,13 @@ private fun TenantAvatar(url: String?) {
 }
 
 
-// «18-24 сентября» / «25 сентября - 24 октября»; при аренде через границу
-// лет обе даты пишутся с годом
+// Период брони в баяне: всегда ДД.ММ.ГГГГ («18.09.2026 - 24.09.2026»),
+// одинаково с карточкой арендатора и остальными экранами.
 internal fun bookingRangeTitle(startIso: String, endIso: String): String {
-    val months = arrayOf(
-        "января", "февраля", "марта", "апреля", "мая", "июня",
-        "июля", "августа", "сентября", "октября", "ноября", "декабря"
-    )
-    val s = runCatching { LocalDate.parse(startIso) }.getOrNull() ?: return startIso
-    val e = runCatching { LocalDate.parse(endIso) }.getOrNull() ?: return endIso
-    return when {
-        s == e -> "${s.dayOfMonth} ${months[s.monthValue - 1]}"
-        s.year == e.year && s.monthValue == e.monthValue ->
-            "${s.dayOfMonth}-${e.dayOfMonth} ${months[s.monthValue - 1]}"
-        s.year == e.year ->
-            "${s.dayOfMonth} ${months[s.monthValue - 1]} - ${e.dayOfMonth} ${months[e.monthValue - 1]}"
-        else ->
-            "${s.dayOfMonth} ${months[s.monthValue - 1]} ${s.year} - " +
-                "${e.dayOfMonth} ${months[e.monthValue - 1]} ${e.year}"
-    }
+    val s = parseAnyDate(startIso) ?: return startIso
+    val e = parseAnyDate(endIso) ?: return endIso
+    return if (s == e) s.format(DD_MM_YYYY)
+    else "${s.format(DD_MM_YYYY)} - ${e.format(DD_MM_YYYY)}"
 }
 
 // 1 гость / 2 гостя / 5 гостей

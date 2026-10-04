@@ -339,16 +339,12 @@ fun PropertyCardScreen(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
                         ) {
                             InfoPair("Арендная плата", property?.let { rentText(it, uiState.schedule) } ?: "", Modifier.weight(1f))
-                            // Посуточно: срок = дата последней брони в календаре;
-                            // длительно — rentEndDate объекта; нет даты → пусто
+                            // «Срок аренды» — одно значение на все экраны: поле
+                            // объекта, иначе последняя бронь (см. util/Lease.kt).
+                            // Всегда ДД.ММ.ГГГГ, ISO в интерфейс не попадает.
                             InfoPair(
                                 "Срок аренды",
-                                when {
-                                    property?.rentType == "посуточно" ->
-                                        uiState.lastBookingEnd?.let { "до $it" }.orEmpty()
-                                    else ->
-                                        property?.rentEndDate?.takeIf { it.isNotBlank() }?.let { "до $it" }.orEmpty()
-                                },
+                                uiState.lastBookingEnd?.let { "до $it" }.orEmpty(),
                                 Modifier.weight(1f)
                             )
                         }

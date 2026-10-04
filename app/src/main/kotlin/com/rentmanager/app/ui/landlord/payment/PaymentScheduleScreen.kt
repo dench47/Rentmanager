@@ -216,7 +216,6 @@ data class VariablePayment(
     val amount: String
 )
 
-private val RuDateFormat = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
 private val DdMmYyyy = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
 @Composable
@@ -579,7 +578,7 @@ fun PaymentScheduleScreen(
                     // Колбэк асинхронный: persist() в конце addPayment уже
                     // отработал без этой строки — черновик обязан сохраниться тут
                     persist()
-                    paymentAddedText = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен"
+                    paymentAddedText = "Платёж на ${paymentDate.format(DdMmYyyy)} добавлен"
                 } else {
                     // Бронь не создалась (нет связи с сервером) — окно
                     // «Нет связи» с пояснением действия (2872-34883)
@@ -597,7 +596,7 @@ fun PaymentScheduleScreen(
             variableAmount = ""
             variableDateError = null
             variableAmountError = null
-            paymentAddedText = "Платёж на ${paymentDate.format(RuDateFormat)} добавлен"
+            paymentAddedText = "Платёж на ${paymentDate.format(DdMmYyyy)} добавлен"
         }
         persist()
     }
@@ -1018,7 +1017,7 @@ fun PaymentScheduleScreen(
     conflictDate?.let { date ->
         ScheduleDialog(
             iconRes = R.drawable.ic_calendar_warning,
-            title = "На ${date.format(RuDateFormat)} уже запланирован платёж",
+            title = "На ${date.format(DdMmYyyy)} уже запланирован платёж",
             body = null,
             confirmText = "Изменить платёж",
             onConfirm = {

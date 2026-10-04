@@ -67,6 +67,7 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobPlaceholderStyle
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.ToolbarTitleStyle
+import com.rentmanager.app.util.formatDdMmYyyy
 
 private val GreyIcon = Color(0xFFEFEFEF)
 // 40% от Graphite #212121 — разделитель в шите фотографий
@@ -140,7 +141,10 @@ fun RentEditSheet(
         property.rentAmount.toFieldText()
     }
     var rentAmount by remember(property.id) { mutableStateOf(formatAmount(prefilledAmount)) }
-    var rentEndDate by remember(property.id) { mutableStateOf(property.rentEndDate.orEmpty()) }
+    var rentEndDate by remember(property.id) {
+        // Поле всегда показывает ДД.ММ.ГГГГ, даже если в объекте лежит ISO
+        mutableStateOf(formatDdMmYyyy(property.rentEndDate))
+    }
     var dateErrorHint by remember(property.id) { mutableStateOf<String?>(null) }
     EditSheetScaffold(title = "Аренда и платежи", onDismiss = onDismiss) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

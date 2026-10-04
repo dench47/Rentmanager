@@ -47,6 +47,7 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.InterFontFamily
 import com.rentmanager.app.ui.theme.SectionTitleStyle
+import com.rentmanager.app.util.DD_MM_YYYY
 import androidx.compose.ui.text.style.TextAlign
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -56,7 +57,7 @@ private val CardGrey = Color(0xFFEFEFEF)
 private val GreenOk = Color(0xFF2F7D4D)
 private val RedError = Color(0xFFFF4249)
 
-private val RuMonthGenitive = DateTimeFormatter.ofPattern("d MMMM", Locale("ru"))
+private val MonthHeader = DateTimeFormatter.ofPattern("LLLL yyyy", Locale("ru"))
 
 /**
  * «История операций» подписки (канвас 2990:50668): фильтры-чипы
@@ -169,7 +170,7 @@ fun OperationsHistoryScreen(
                 grouped.forEach { (month, ops) ->
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
-                            month.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale("ru")))
+                            month.format(MonthHeader)
                                 .replaceFirstChar { it.uppercase(Locale("ru")) },
                             style = SectionTitleStyle
                         )
@@ -261,7 +262,8 @@ private fun OperationRow(op: SubscriptionOperationDto) {
                 runCatching {
                     val dt = java.time.Instant.parse(op.createdAt)
                         .atZone(java.time.ZoneId.systemDefault())
-                    dt.toLocalDate().format(RuMonthGenitive) + ", " +
+                    // Дата всегда ДД.ММ.ГГГГ (время — отдельно)
+                    dt.toLocalDate().format(DD_MM_YYYY) + ", " +
                         dt.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))
                 }.getOrDefault(""),
                 fontSize = 13.sp,
