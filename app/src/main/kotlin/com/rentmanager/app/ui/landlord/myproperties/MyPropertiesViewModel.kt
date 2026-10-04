@@ -237,11 +237,13 @@ class MyPropertiesViewModel @Inject constructor(
                     // Вырезаем только выделенный диапазон: нераскрашенные
                     // остатки брони пересоздаём, иначе снятие одного месяца
                     // сносило бы всю многомесячную бронь целиком
+                    // Остатки сохраняют арендатора исходного периода: иначе при
+                    // стирании части периода связь с арендатором терялась
                     if (b.start.isBefore(start)) {
                         runCatching {
                             bookingApi.createBooking(
                                 propertyId,
-                                CreateBookingRequest(b.start.toString(), start.minusDays(1).toString())
+                                CreateBookingRequest(b.start.toString(), start.minusDays(1).toString(), tenantId = b.tenantId)
                             )
                         }
                     }
@@ -249,7 +251,7 @@ class MyPropertiesViewModel @Inject constructor(
                         runCatching {
                             bookingApi.createBooking(
                                 propertyId,
-                                CreateBookingRequest(end.plusDays(1).toString(), b.end.toString())
+                                CreateBookingRequest(end.plusDays(1).toString(), b.end.toString(), tenantId = b.tenantId)
                             )
                         }
                     }
@@ -304,10 +306,16 @@ class MyPropertiesViewModel @Inject constructor(
                     propertyRepository.updateProperty(propertyId, updated)
                     runCatching { detailCache.saveProperty(updated) }
                 }
-                // Даты платежей = брони (слитые, чтобы пересекающиеся периоды
-                // не задваивали сутки), сумма = ставка × сутки
+                // Даты платежей = брони, сгруппированные ПО АРЕНДАТОРУ: периоды
+                // разных арендаторов не сливаются (иначе в одну запись графика
+                // попадают чужие сутки и «долг» объекта суммирует арендаторов),
+                // а внутри группы пересечение не задваивает сутки.
+                // Сумма записи = ставка × сутки периода; день передачи
+                // (один выехал, другой заехал) считают оба.
                 val rate = dto.rentAmount ?: 0.0
-                val merged = mergeRanges(bookings.map { it.start to it.end })
+                val merged = bookings.groupBy { it.tenantId ?: "" }
+                    .flatMap { (_, group) -> mergeRanges(group.map { it.start to it.end }) }
+                    .sortedBy { it.first }
                 val customJson = if (merged.isEmpty()) null else Gson().toJson(
                     merged.map { (s, e) ->
                         mapOf(

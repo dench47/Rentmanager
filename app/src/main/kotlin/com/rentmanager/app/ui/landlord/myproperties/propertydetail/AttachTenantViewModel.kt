@@ -94,16 +94,6 @@ class AttachTenantViewModel @Inject constructor(
                     _uiState.update { it.copy(isAttaching = false, failed = true) }
                     return@launch
                 }
-                val current = propertyApi.getProperties().body()?.firstOrNull { it.id == propertyId }
-                if (current != null) {
-                    propertyApi.updateProperty(
-                        propertyId,
-                        current.copy(
-                            tenantInfo = tenant.fullName,
-                            phone = tenant.phone
-                        )
-                    )
-                }
                 bookingApi.createBooking(
                     propertyId, CreateBookingRequest(start.toString(), end.toString(), tenantId = tenant.id)
                 )
@@ -160,17 +150,6 @@ class AttachTenantViewModel @Inject constructor(
                 }
                 // Карточка и бронь периода: данные объекта могли не грузиться —
                 // читаем текущие и обновляем нужные поля
-                val propResp = propertyApi.getProperties()
-                val current = propResp.body()?.firstOrNull { it.id == propertyId }
-                if (current != null) {
-                    propertyApi.updateProperty(
-                        propertyId,
-                        current.copy(
-                            tenantInfo = tenant.fullName,
-                            phone = tenant.phone
-                        )
-                    )
-                }
                 bookingApi.createBooking(
                     propertyId, CreateBookingRequest(start.toString(), end.toString(), tenantId = tenant.id)
                 )

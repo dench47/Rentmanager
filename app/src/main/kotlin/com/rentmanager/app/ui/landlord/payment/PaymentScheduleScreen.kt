@@ -412,10 +412,26 @@ fun PaymentScheduleScreen(
             val rateStr = rate?.let {
                 if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
             } ?: "0"
+            // Накрытие записей: amount = ставка × сутки периода, поэтому запись
+            // накрывает round(сумма / ставка) суток от своей даты. Сутки внутри
+            // накрытия отдельными строками НЕ дописываем — иначе период
+            // считается дважды (04.10 -> 23400 и рядом 05.10, 06.10 по 7800).
+            val covered = if (rate != null && rate > 0) {
+                payments.mapNotNull { p ->
+                    val sum = p.amount.toDoubleOrNull() ?: return@mapNotNull null
+                    val days = Math.round(sum / rate)
+                    if (days < 1) null else p.date to p.date.plusDays(days - 1)
+                }
+            } else {
+                emptyList()
+            }
             uiState.bookings.forEach { (s, e) ->
                 var d = maxOf(s, today)
                 while (!d.isAfter(e)) {
-                    if (known.add(d)) payments.add(VariablePayment(d, rateStr))
+                    val insideEntry = covered.any { (from, to) ->
+                        !d.isBefore(from) && !d.isAfter(to)
+                    }
+                    if (!insideEntry && known.add(d)) payments.add(VariablePayment(d, rateStr))
                     d = d.plusDays(1)
                 }
             }

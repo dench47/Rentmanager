@@ -203,14 +203,20 @@ class RoleViewModel @Inject constructor(
                         }
                     } else {
                         val rate = p.rentAmount ?: 0.0
-                        // Слитые периоды: пересекающиеся брони не задваивают сутки
-                        val ranges = mergeRanges(
-                            bookings.mapNotNull { b ->
-                                val s = runCatching { LocalDate.parse(b.startDate) }.getOrNull()
-                                val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
-                                if (s != null && e != null) s to e else null
+                        // Периоды — ПО АРЕНДАТОРАМ: чужие периоды не сливаются
+                        // (день передачи считают оба), внутри группы
+                        // пересечение не задваивает сутки
+                        val ranges = bookings.groupBy { it.tenantId ?: "" }
+                            .flatMap { (_, group) ->
+                                mergeRanges(
+                                    group.mapNotNull { b ->
+                                        val s = runCatching { LocalDate.parse(b.startDate) }.getOrNull()
+                                        val e = runCatching { LocalDate.parse(b.endDate) }.getOrNull()
+                                        if (s != null && e != null) s to e else null
+                                    }
+                                )
                             }
-                        )
+                            .sortedBy { it.first }
                         var days = 0L
                         for ((s, e) in ranges) {
                             days += overlapDays(s, e, monthStart, monthEnd)

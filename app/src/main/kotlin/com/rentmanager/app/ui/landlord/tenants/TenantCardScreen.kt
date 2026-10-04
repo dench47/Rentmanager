@@ -332,8 +332,8 @@ fun TenantCardScreen(
 
             // ---- Арендует + История аренды (канвас «14», 3005:51020):
             // без фонов, тонкая черта под каждой записью, объекты — ссылки ----
-            val currentBooking = state.currentBooking
-            if (currentBooking != null || state.pastBookings.isNotEmpty() || true) {
+            val currentBookings = state.currentBookings
+            if (currentBookings.isNotEmpty() || state.pastBookings.isNotEmpty() || true) {
                 // Между карточками «Арендует» и «История аренды» — 6 (3694:32913)
                 Column(
                     modifier = Modifier.onGloballyPositioned { c ->
@@ -341,7 +341,7 @@ fun TenantCardScreen(
                     },
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    if (currentBooking == null) {
+                    if (currentBookings.isEmpty()) {
                         // ---- «Нет активной аренды» (правка Вики 2026-09-24, 3677:31762):
                         // «Арендует» 22 → 12 → блок 55 (15/600 + 4 + 13/400 #727272)
                         // → 12 → контурная CTA 55 «Прикрепить к объекту» ----
@@ -372,17 +372,21 @@ fun TenantCardScreen(
                             )
                         }
                     }
-                    if (currentBooking != null) {
+                    if (currentBookings.isNotEmpty()) {
                         Text("Арендует", style = SectionTitleStyle)
                         Spacer(Modifier.height(6.dp))
-                        BookingEntry(
-                            period = "с ${currentBooking.startDate.format(RuDate)} " +
-                                "до ${currentBooking.endDate.format(RuDate)}",
-                            propertyName = currentBooking.propertyName,
-                            propertyAddress = currentBooking.propertyAddress,
-                            photoUrl = currentBooking.propertyPhoto,
-                            onClick = { onPropertyClick(currentBooking.propertyId) }
-                        )
+                        // Все НЕзавершённые аренды: каждая — записью как в истории
+                        // (паддинги 10/12 + тонкая черта снизу), 3694:32913
+                        currentBookings.forEach { b ->
+                            BookingEntry(
+                                period = "с ${b.startDate.format(RuDate)} " +
+                                    "до ${b.endDate.format(RuDate)}",
+                                propertyName = b.propertyName,
+                                propertyAddress = b.propertyAddress,
+                                photoUrl = b.propertyPhoto,
+                                onClick = { onPropertyClick(b.propertyId) }
+                            )
+                        }
                     }
                     val historyScope = rememberCoroutineScope()
                     var historyAnchorBottom by remember { mutableStateOf<Float?>(null) }

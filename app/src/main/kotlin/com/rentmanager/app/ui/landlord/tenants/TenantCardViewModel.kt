@@ -26,8 +26,8 @@ data class BookingEntryUi(
 data class TenantCardUiState(
     val isLoading: Boolean = true,
     val tenant: TenantDto? = null,
-    /** Текущая/будущая аренда (пересекается с сегодняшним днём или позже) */
-    val currentBooking: BookingEntryUi? = null,
+    /** НЕзавершённые аренды (конец >= сегодня): текущие и будущие — их может быть несколько */
+    val currentBookings: List<BookingEntryUi> = emptyList(),
     /** Прошлые аренды, новые сверху */
     val pastBookings: List<BookingEntryUi> = emptyList(),
     /** Служебная информация развёрнута (аккордеон) */
@@ -93,11 +93,19 @@ class TenantCardViewModel @Inject constructor(
             }.getOrNull()
         }
         val today = LocalDate.now()
+        // «Арендует» — ВСЕ незавершённые аренды (конец >= сегодня): и текущая, и
+        // будущая. У арендатора их может быть несколько (Эля: Выборг 22.09-21.11 и
+        // БЦ 06.10-08.10) — каждая рисуется отдельной записью в той же отрисовке,
+        // что и записи истории. «История аренды» — ТОЛЬКО завершённые (конец <
+        // сегодня), новые сверху; будущая бронь в историю не попадает.
         return state.copy(
             isLoading = false,
             tenant = dto,
-            currentBooking = entries.lastOrNull { !it.endDate.isBefore(today) },
-            pastBookings = entries.filter { it.endDate.isBefore(today) }
+            currentBookings = entries
+                .filter { !it.endDate.isBefore(today) }
+                .sortedBy { it.startDate },
+            pastBookings = entries
+                .filter { it.endDate.isBefore(today) }
                 .sortedByDescending { it.startDate }
         )
     }

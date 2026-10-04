@@ -337,9 +337,11 @@ class PropertyCardViewModel @Inject constructor(
                 }
             }
             if (target != null && !target.isBefore(today)) {
+                // Пересоздаём период с текущим арендатором объекта: без tenant_id
+                // месячная аренда теряла связь с арендатором
                 bookingApi.createBooking(
                     property.id,
-                    CreateBookingRequest(monthStart.toString(), target.toString())
+                    CreateBookingRequest(monthStart.toString(), target.toString(), tenantId = property.tenantId)
                 )
             }
         } catch (_: Exception) { }

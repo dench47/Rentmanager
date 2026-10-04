@@ -55,12 +55,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -281,6 +285,7 @@ fun MyPropertiesScreen(
                     onOverdueMark = { confirmPaidPropertyId = it },
                     attachSuggestion = attachSuggestion,
                     onSelectionStarted = { viewModel.clearAttachSuggestion() },
+                    onAttachFromDate = { pid, date -> onAttachTenant(pid, date, null) },
                     onAttachTenant = onAttachTenant
                 )
             }
@@ -364,17 +369,29 @@ fun MyPropertiesScreen(
  *  под всей строкой — разделитель #DBDBDB (2949:45807). */
 @Composable
 private fun TabsRow(activeTab: Int, onSelect: (Int) -> Unit) {
+    // Макет 3089:45496: подписи ЦЕНТРИРОВАНЫ как группа с зазором 109,
+    // «волна» активного таба — 142 шириной и по центру СВОЕЙ подписи.
+    var x0 by remember { mutableIntStateOf(0) }
+    var x1 by remember { mutableIntStateOf(0) }
     var w0 by remember { mutableIntStateOf(0) }
     var w1 by remember { mutableIntStateOf(0) }
+    var lineX by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-            TabLabel("Объекты", active = activeTab == 0, onSize = { w0 = it }) { onSelect(0) }
-            TabLabel("Шахматка", active = activeTab == 1, onSize = { w1 = it }) { onSelect(1) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(109.dp, Alignment.CenterHorizontally)
+        ) {
+            TabLabel("Объекты", active = activeTab == 0, onPosition = { c ->
+                x0 = c.positionInRoot().x.toInt(); w0 = c.size.width
+            }) { onSelect(0) }
+            TabLabel("Шахматка", active = activeTab == 1, onPosition = { c ->
+                x1 = c.positionInRoot().x.toInt(); w1 = c.size.width
+            }) { onSelect(1) }
         }
         // Зона 12dp: разделитель по центру, волна активного таба поверх;
         // зазор 6 между подписями и линией — макет 3089:45523 (22 + 6 + 12)
@@ -383,25 +400,22 @@ private fun TabsRow(activeTab: Int, onSelect: (Int) -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .height(12.dp)
+                .onGloballyPositioned { lineX = it.positionInRoot().x.toInt() }
         ) {
             HorizontalDivider(
                 color = DividerGrey,
                 thickness = 1.dp,
                 modifier = Modifier.align(Alignment.Center)
             )
-            val gapPx = with(density) { 13.dp.roundToPx() }
-            val widthDp = with(density) {
-                (if (activeTab == 0) w0 else w1).toDp()
-            }
-            val offsetDp = with(density) {
-                (if (activeTab == 0) 0 else w0 + gapPx).toDp()
-            }
-            if (w0 > 0 || w1 > 0) {
+            val labelX = if (activeTab == 0) x0 else x1
+            val labelW = if (activeTab == 0) w0 else w1
+            if (labelW > 0) {
+                val waveW = with(density) { 142.dp.roundToPx() }
                 Box(
                     Modifier
-                        .align(Alignment.TopStart)
-                        .offset(x = offsetDp)
-                        .width(widthDp)
+                        .align(Alignment.CenterStart)
+                        .offset { IntOffset(labelX + labelW / 2 - waveW / 2 - lineX, 0) }
+                        .width(142.dp)
                         .height(4.dp)
                         .clip(RoundedCornerShape(24.dp))
                         .background(TextPrimary)
@@ -415,7 +429,7 @@ private fun TabsRow(activeTab: Int, onSelect: (Int) -> Unit) {
 private fun TabLabel(
     text: String,
     active: Boolean,
-    onSize: (Int) -> Unit,
+    onPosition: (LayoutCoordinates) -> Unit,
     onClick: () -> Unit
 ) {
     Text(
@@ -426,7 +440,7 @@ private fun TabLabel(
         color = if (active) TextPrimary else TextGray,
         modifier = Modifier
             .clickable { onClick() }
-            .onSizeChanged { onSize(it.width) }
+            .onGloballyPositioned(onPosition)
     )
 }
 
@@ -709,6 +723,9 @@ private fun ChessTab(
     // Новый выбор в шахматке сбрасывает кнопку-подсказку (макет: «Кнопка
     // появляется при выборе периода») — она вернётся после следующей покраски
     onSelectionStarted: () -> Unit,
+    // Долгий тап по ЗАНЯТОМУ (зелёному) дню — быстрый старт нового периода
+    // с этой даты: переезд «А съезд до 12, Б заезд после 14»
+    onAttachFromDate: (String, LocalDate) -> Unit,
     onAttachTenant: (String, LocalDate, LocalDate) -> Unit
 ) {
     // Выбор диапазона: строка объекта + индекс первой ячейки; по второму
@@ -892,7 +909,15 @@ private fun ChessTab(
                                         }
                                     },
                                     onLongClick = {
+                                        // Просроченный день — ручное гашение оплаты.
+                                        // Занятый (зелёный) — только ДЕНЬ ВЫЕЗДА (последний
+                                        // день периода; одиночный день тоже): именно в этот
+                                        // день может заехать другой арендатор («А съезд до
+                                        // 12, Б заезд после 14»). Средние дни — без реакции.
                                         if (state == "expired") onOverdueMark(property.id)
+                                        else if (state == "fullness" && isCheckoutDay(property.bookings, date)) {
+                                            onAttachFromDate(property.id, date)
+                                        }
                                     }
                                 )
                             }
@@ -924,6 +949,12 @@ private fun ChessTab(
         }
     }
 }
+
+/** Дата — последний день какого-то периода аренды (день выезда). Одиночный
+ *  день (start == end) тоже подходит: в день выезда на объект может заехать
+ *  другой арендатор («А съезд до 12, Б заезд после 14»). */
+private fun isCheckoutDay(bookings: List<BookingRange>, date: java.time.LocalDate): Boolean =
+    bookings.any { it.end == date }
 
 /** Строка таблицы: закреплённая подпись слева + прокручиваемые ячейки. */
 @Composable
