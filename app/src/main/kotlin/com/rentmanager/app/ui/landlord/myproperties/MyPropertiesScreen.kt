@@ -36,6 +36,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -54,6 +57,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -61,6 +65,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -134,6 +139,19 @@ fun MyPropertiesScreen(
     val viewMode by viewModel.viewMode.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val attachSuggestion by viewModel.attachSuggestion.collectAsState()
+    val lastEdit by viewModel.lastEdit.collectAsState()
+
+    // Снекбар правки шахматки: «07.10.2026 — снято · Отменить». Случайный тап
+    // по дню лечится одним тапом (в шахматке второй тап сразу применяет правку)
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(lastEdit) {
+        val edit = lastEdit ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message = edit.label, duration = SnackbarDuration.Long)
+        viewModel.dismissEdit()
+    }
+
+    // Шит «Как работает шахматка» (иконка «?» в тулбаре): жесты неочевидны
+    var showChessHelp by remember { mutableStateOf(false) }
 
     // Обновление списка при возврате на экран / из фона
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -194,6 +212,17 @@ fun MyPropertiesScreen(
     Scaffold(
         containerColor = White,
         contentWindowInsets = WindowInsets.systemBars,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                UndoSnackbar(
+                    message = data.visuals.message,
+                    onUndo = {
+                        data.dismiss()
+                        viewModel.undoLastEdit()
+                    }
+                )
+            }
+        },
         bottomBar = {
             CompactTabBar(
                 onFinanceClick = onFinanceClick,
@@ -237,14 +266,34 @@ fun MyPropertiesScreen(
                         color = TextPrimary
                     )
                 }
-                Icon(
-                    painter = painterResource(R.drawable.ic_sort_transfer),
-                    contentDescription = "Сортировка",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable { showSortSheet = true },
-                    tint = Color.Unspecified
-                )
+                if (activeTab == 0) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_sort_transfer),
+                        contentDescription = "Сортировка",
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable { showSortSheet = true },
+                        tint = Color.Unspecified
+                    )
+                } else {
+                    // Своя вёрстка (в макете такого элемента нет): подсказка по
+                    // жестам шахматки — тапы и долгие тапы неочевидны
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(100.dp))
+                            .border(1.5.dp, TextPrimary, RoundedCornerShape(100.dp))
+                            .clickable { showChessHelp = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "?",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
+                    }
+                }
             }
 
             // ---- Табы «Объекты | Шахматка» с волной активной вкладки ----
@@ -333,6 +382,11 @@ fun MyPropertiesScreen(
             },
             onDismiss = { showSortSheet = false }
         )
+    }
+
+    // Подсказка по жестам шахматки (иконка «?» в тулбаре на вкладке «Шахматка»)
+    if (showChessHelp) {
+        ChessHelpSheet(onDismiss = { showChessHelp = false })
     }
 
     if (showMonthPicker) {
@@ -735,10 +789,25 @@ private fun ChessTab(
     var selStart by remember { mutableStateOf<Int?>(null) }
 
     val currentOnAttachTenant by rememberUpdatedState(onAttachTenant)
+    val haptics = LocalHapticFeedback.current
+
+    // Снять выделение: тап вне сетки (пустое место, сегменты, тулбар) или
+    // системная «Назад». Раньше выделение снималось только вторым тапом по той
+    // же клетке — а он уже применял правку (и мог стереть день арендатора).
+    fun clearSelection() {
+        selPropertyId = null
+        selStart = null
+    }
+
+    androidx.activity.compose.BackHandler(enabled = selStart != null) { clearSelection() }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { clearSelection() }
     ) {
         // ---- Сегмент «Месяцы / Сутки» ----
         // 12 сверху (от табов) и 20 снизу (до дропдауна) — макет 2949:45028
@@ -889,6 +958,7 @@ private fun ChessTab(
                                     highlighted = inSelection,
                                     onClick = {
                                         val start = selStart
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                         if (!rowSelected || start == null) {
                                             selPropertyId = property.id
                                             selStart = index
@@ -1107,6 +1177,119 @@ private fun CompactTab(
 // ===================== Общие шиты =====================
 
 /** Простой лист выбора одной опции (сортировка). */
+/** Снекбар правки шахматки: тёмная плашка + «Отменить» (своя вёрстка). */
+@Composable
+private fun UndoSnackbar(message: String, onUndo: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(TextPrimary)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            message,
+            fontSize = 13.sp,
+            letterSpacing = (-0.4).sp,
+            color = Color.White,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            "Отменить",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.4).sp,
+            color = Color.White,
+            modifier = Modifier
+                .clickable { onUndo() }
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+        )
+    }
+}
+
+/**
+ * Шит «Как работает шахматка» — жесты неочевидны: тап = выделение, второй тап =
+ * правка, долгие тапы = прикрепление арендатора и отметка оплаты.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChessHelpSheet(onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        containerColor = Color.White
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                "Как работает шахматка",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            )
+            ChessHelpRow(
+                "Нажатие по дню",
+                "Отметьте занятые дни: первое нажатие — начало, второе — конец периода"
+            )
+            ChessHelpRow(
+                "Нажатие по занятому периоду",
+                "Второе нажатие снимает отметку — дни становятся свободными"
+            )
+            ChessHelpRow(
+                "Долгое нажатие по зелёному дню",
+                "Откроется «Добавить арендатора» с этой даты — если день последний в периоде (день выезда)"
+            )
+            ChessHelpRow(
+                "Долгое нажатие по красному дню",
+                "Отметить просроченный платёж полученным"
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "День выезда — последний день периода: в этот день предыдущий арендатор " +
+                    "уже уехал, а следующий может заехать (А съезд до 12:00, Б заезд после 14:00).",
+                fontSize = 13.sp,
+                lineHeight = 15.7.sp,
+                letterSpacing = (-0.4).sp,
+                color = TextGray
+            )
+        }
+    }
+}
+
+/** Строка подсказки жеста: заголовок 15/600 + пояснение 13/400. */
+@Composable
+private fun ChessHelpRow(title: String, body: String) {
+    Column(modifier = Modifier.padding(bottom = 14.dp)) {
+        Text(
+            title,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.4).sp,
+            color = TextPrimary
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            body,
+            fontSize = 13.sp,
+            lineHeight = 15.7.sp,
+            letterSpacing = (-0.4).sp,
+            color = TextGray
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OptionSheet(

@@ -71,6 +71,21 @@ data class AttachSuggestion(
 )
 
 /**
+ * Последняя правка шахматки — для кнопки «Отменить» в снекбаре. Модель выбора
+ * «первый тап — выделение, второй — действие» делает правку необратимой, а
+ * случайный тап по занятому дню разрывает период арендатора. Поэтому каждое
+ * действие обратимо одним тапом: снимок броней ДО правки + подпись.
+ */
+@Immutable
+data class BookingEdit(
+    val propertyId: String,
+    /** Подпись снекбара: «07.10.2026 — снято» */
+    val label: String,
+    /** Брони объекта ДО правки */
+    val before: List<BookingRange>
+)
+
+/**
  * Статус занятости на дату: попадание в диапазон брони — занято
  * («fullness»), а на занятом текущем месяце при просрочке — «expired»
  * (красная рамка: месяц арендуется, но платёж не получен).
@@ -131,6 +146,81 @@ class MyPropertiesViewModel @Inject constructor(
      */
     val attachSuggestion: StateFlow<AttachSuggestion?> = _attachSuggestion.asStateFlow()
 
+    private val _lastEdit = MutableStateFlow<BookingEdit?>(null)
+
+    /** Последняя правка шахматки — для кнопки «Отменить» в снекбаре */
+    val lastEdit: StateFlow<BookingEdit?> = _lastEdit.asStateFlow()
+
+    /** Снекбар ушёл — правку больше не откатить */
+    fun dismissEdit() {
+        _lastEdit.value = null
+    }
+
+    /** Подпись правки для снекбара: «07.10.2026 — снято» */
+    private fun editLabel(start: LocalDate, end: LocalDate, verb: String): String {
+        val dd = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+        val from = start.format(dd)
+        return if (start == end) "$from — $verb" else "$from–${end.format(dd)} — $verb"
+    }
+
+    /**
+     * Откат последней правки: состояние броней объекта возвращаем к снимку ДО
+     * неё. Серверного restore для броней нет, поэтому появившиеся брони убираем,
+     * пропавшие пересоздаём С ТЕМ ЖЕ арендатором (стирание обязано сохранять
+     * арендатора), а изменённые (сервер мог склеить период с соседним) — правим
+     * обратно по границам снимка.
+     */
+    fun undoLastEdit() {
+        val edit = _lastEdit.value ?: return
+        _lastEdit.value = null
+        viewModelScope.launch {
+            try {
+                val current = bookingApi.getBookings(edit.propertyId).body().orEmpty()
+                    .map { it.toBookingRange() }
+                val beforeIds = edit.before.mapNotNull { it.id }.toSet()
+                val currentById = current.mapNotNull { b -> b.id?.let { it to b } }.toMap()
+                // 1) появившееся после правки — убираем
+                current.filter { it.id != null && it.id !in beforeIds }.forEach { b ->
+                    bookingApi.deleteBooking(edit.propertyId, b.id!!)
+                }
+                // 2) пропавшее — возвращаем с его арендатором
+                edit.before.filter { it.id == null || it.id !in currentById.keys }.forEach { b ->
+                    runCatching {
+                        bookingApi.createBooking(
+                            edit.propertyId,
+                            CreateBookingRequest(
+                                b.start.toString(),
+                                b.end.toString(),
+                                tenantId = b.tenantId
+                            )
+                        )
+                    }
+                }
+                // 3) изменённое — возвращаем границы из снимка
+                edit.before.forEach { b ->
+                    val id = b.id ?: return@forEach
+                    val now = currentById[id] ?: return@forEach
+                    if (now.start != b.start || now.end != b.end) {
+                        runCatching {
+                            bookingApi.updateBooking(
+                                edit.propertyId,
+                                id,
+                                CreateBookingRequest(
+                                    b.start.toString(),
+                                    b.end.toString(),
+                                    tenantId = b.tenantId
+                                )
+                            )
+                        }
+                    }
+                }
+                syncAfterBookingChange(edit.propertyId)
+            } catch (_: Exception) {
+            }
+            refresh()
+        }
+    }
+
     init {
         refresh()
     }
@@ -188,6 +278,8 @@ class MyPropertiesViewModel @Inject constructor(
     }
 
     fun saveBooking(propertyId: String, start: LocalDate, end: LocalDate) {
+        // Снимок ДО правки — для «Отменить» в снекбаре
+        val before = _properties.value.find { it.id == propertyId }?.bookings.orEmpty()
         viewModelScope.launch {
             try {
                 val resp = bookingApi.createBooking(
@@ -198,6 +290,7 @@ class MyPropertiesViewModel @Inject constructor(
                     // Подсказку прикрепления держим до привязки арендатора:
                     // её больше не сбрасывают тапы по ячейкам
                     _attachSuggestion.value = AttachSuggestion(propertyId, start, end)
+                    _lastEdit.value = BookingEdit(propertyId, editLabel(start, end, "отмечено"), before)
                     syncAfterBookingChange(propertyId)
                     refresh()
                 } else {
@@ -214,6 +307,8 @@ class MyPropertiesViewModel @Inject constructor(
     }
 
     fun deleteBookings(propertyId: String, start: LocalDate, end: LocalDate) {
+        // Снимок ДО правки — для «Отменить» в снекбаре
+        val before = _properties.value.find { it.id == propertyId }?.bookings.orEmpty()
         viewModelScope.launch {
             try {
                 val item = _properties.value.find { it.id == propertyId } ?: return@launch
@@ -234,6 +329,7 @@ class MyPropertiesViewModel @Inject constructor(
                         _errorMessage.value = "Не удалось снять период (${del.code()})"
                         break
                     }
+                    _lastEdit.value = BookingEdit(propertyId, editLabel(start, end, "снято"), before)
                     // Вырезаем только выделенный диапазон: нераскрашенные
                     // остатки брони пересоздаём, иначе снятие одного месяца
                     // сносило бы всю многомесячную бронь целиком
