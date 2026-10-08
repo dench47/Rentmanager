@@ -28,6 +28,10 @@ enum class VerificationMethod(val label: String) {
 
 data class SecurityUiState(
     val localPinEnabled: Boolean = true,
+    // Серверный PIN существует (синхронизируется с getMe). Гейт входа
+    // требует localPinEnabled && hasPassword — тумблер без PIN не включается,
+    // а ведёт на создание кода
+    val hasPassword: Boolean = false,
     val useBiometric: Boolean = false,
     val trustedDevices: List<TrustedDeviceDto> = emptyList(),
     val telegramLinked: Boolean = false,
@@ -52,6 +56,7 @@ class SecurityViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(
         SecurityUiState(
             localPinEnabled = tokenManager.localPinEnabled,
+            hasPassword = tokenManager.hasPassword,
             useBiometric = tokenManager.useBiometric
         )
     )
@@ -76,7 +81,26 @@ class SecurityViewModel @Inject constructor(
                 val resp = authApi.getMe()
                 if (resp.isSuccessful) {
                     val user = resp.body()!!
-                    _uiState.update { it.copy(email = user.email, emailVerified = user.emailVerified == true, email2faEnabled = user.email2faEnabled == true) }
+                    // Self-heal: серверный PIN мог исчезнуть мимо этого устройства
+                    // (например, стёрт защитой после 5 неверных попыток ввода).
+                    // Локальный тумблер при этом врёт: гейт требует
+                    // hasPassword && localPinEnabled и молча не спрашивает PIN.
+                    val serverHasPassword = user.hasPassword == true
+                    tokenManager.hasPassword = serverHasPassword
+                    if (!serverHasPassword && tokenManager.localPinEnabled) {
+                        tokenManager.localPinEnabled = false
+                        cryptoManager.clearPin()
+                    }
+                    _uiState.update {
+                        it.copy(
+                            email = user.email,
+                            emailVerified = user.emailVerified == true,
+                            email2faEnabled = user.email2faEnabled == true,
+                            hasPassword = serverHasPassword,
+                            localPinEnabled = tokenManager.localPinEnabled,
+                            useBiometric = if (tokenManager.localPinEnabled) it.useBiometric else false
+                        )
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -122,6 +146,10 @@ class SecurityViewModel @Inject constructor(
 
     fun onTogglePin(enabled: Boolean) {
         if (enabled) {
+            // Включение требует серверного PIN. Если его нет, экран не вызывает
+            // этот метод, а уводит на создание кода (onChangePin); раньше при
+            // hasPassword == false здесь был молчаливый no-op — тот самый
+            // «тумблер невозможно включить»
             if (tokenManager.hasPassword) {
                 tokenManager.localPinEnabled = true
                 _uiState.update { it.copy(localPinEnabled = true) }
@@ -130,6 +158,18 @@ class SecurityViewModel @Inject constructor(
             tokenManager.localPinEnabled = false
             cryptoManager.clearPin()
             _uiState.update { it.copy(localPinEnabled = false, useBiometric = false) }
+        }
+    }
+
+    /** Пересинхронизация флагов при возврате на экран: после создания PIN
+     *  в отдельном флоу тумблер должен ожить без перезахода. */
+    fun syncLocalFlags() {
+        _uiState.update {
+            it.copy(
+                hasPassword = tokenManager.hasPassword,
+                localPinEnabled = tokenManager.localPinEnabled,
+                useBiometric = tokenManager.useBiometric
+            )
         }
     }
 

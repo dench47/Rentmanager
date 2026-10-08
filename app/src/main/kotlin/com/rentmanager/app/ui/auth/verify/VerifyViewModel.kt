@@ -110,7 +110,10 @@ class VerifyViewModel @Inject constructor(
                             body.token?.let { tokenManager.accessToken = it }
                             body.user?.name?.let { tokenManager.userName = it }
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
-                            tokenManager.hasPassword = false
+                            // Сервер выдаёт токены сразу только аккаунтам без PIN,
+                            // но берём значение из ответа, а не предполагаем:
+                            // безусловный false однажды затирал факт «PIN есть»
+                            tokenManager.hasPassword = body.hasPassword ?: false
                             registerFcm()
                             _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false, canTelegram = false) }
                             onSuccess(phone)

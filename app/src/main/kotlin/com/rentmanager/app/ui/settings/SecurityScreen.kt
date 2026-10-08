@@ -48,6 +48,17 @@ fun SecurityScreen(
     var showDevicesSheet by remember { mutableStateOf(false) }
     var showInfoDialog by remember { mutableStateOf(false) }
 
+    // Возврат из флоу создания/смены PIN — подтянуть свежие флаги,
+    // чтобы тумблер ожил без перезахода на экран
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.syncLocalFlags()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // ===== Email: диалог активации (шаг 0 — ввод почты, шаг 1 — ввод кода) =====
     var showEmailDialog by remember { mutableStateOf(false) }
     var emailStep by remember { mutableIntStateOf(0) }
@@ -98,7 +109,13 @@ fun SecurityScreen(
                             "PIN-код при входе",
                             if (uiState.localPinEnabled) "PIN запрашивается при каждом открытии" else "Приложение открывается без PIN-кода",
                             uiState.localPinEnabled,
-                            onToggle = { viewModel.onTogglePin(it) }
+                            onToggle = { enabled ->
+                                // Серверного PIN нет — включить нельзя, но и молчать
+                                // нельзя: уводим на создание кода (после сохранения
+                                // флоу сам включит оба флага)
+                                if (enabled && !uiState.hasPassword) onChangePin()
+                                else viewModel.onTogglePin(enabled)
+                            }
                         )
                         HorizontalDivider(Modifier.padding(horizontal = 16.dp), thickness = 1.dp, color = Color.Black.copy(alpha = 0.06f))
                         ToggleRow(
