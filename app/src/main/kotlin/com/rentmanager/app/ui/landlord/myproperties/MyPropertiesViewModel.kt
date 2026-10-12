@@ -102,10 +102,6 @@ fun MyPropertyItem.statusAt(date: LocalDate): String {
     else "fullness"
 }
 
-enum class ViewMode { MONTHS, DAYS }
-
-enum class DisplayMode { CARDS, TABLE }
-
 @HiltViewModel
 class MyPropertiesViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
@@ -123,19 +119,6 @@ class MyPropertiesViewModel @Inject constructor(
     fun clearError() {
         _errorMessage.value = null
     }
-
-    private val _viewMode = MutableStateFlow(ViewMode.MONTHS)
-    val viewMode: StateFlow<ViewMode> = _viewMode.asStateFlow()
-
-    private val _displayMode = MutableStateFlow(DisplayMode.CARDS)
-    val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
-
-    /**
-     * «Моя недвижимость» и шахматка показывают ВСЕ объекты в любом режиме
-     * (месяцы/сутки): раскраска ячеек идёт по броням и графикам платежей,
-     * поэтому фильтр по типу графика не нужен.
-     */
-    val visibleProperties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
 
     private val _attachSuggestion = MutableStateFlow<AttachSuggestion?>(null)
 
@@ -432,14 +415,6 @@ class MyPropertiesViewModel @Inject constructor(
                 )
             }
         } catch (_: Exception) { }
-    }
-
-    fun setViewMode(mode: ViewMode) {
-        _viewMode.value = mode
-    }
-
-    fun setDisplayMode(mode: DisplayMode) {
-        _displayMode.value = mode
     }
 
     fun selectPeriod(propertyId: String, year: Int, month: Int) {
