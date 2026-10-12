@@ -52,13 +52,14 @@ object NetworkModule {
             // Не пытаемся обновить токен для verify_password:
             // 401 там означает неверный пароль, а не протухший токен.
             val path = response.request.url.encodedPath
-            if (path.contains("/auth/verify_password")) {
+            if (path.contains("/auth/verify_password") ||
+                response.request.header("Authorization") == null) {
                 return@Authenticator null
             }
 
             val oldRefreshToken = tokenManager.refreshToken
             if (oldRefreshToken == null) {
-                tokenManager.clear()
+                tokenManager.invalidateSession()
                 return@Authenticator null
             }
 

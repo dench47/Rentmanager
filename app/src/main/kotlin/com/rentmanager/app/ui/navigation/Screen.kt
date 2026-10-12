@@ -13,8 +13,12 @@ sealed class Screen(val route: String) {
     data object Security : Screen("settings/security")
     data object PinChange : Screen("settings/security/pin_change")
     data object PinEntry : Screen("pin/entry")
-    data object PinSetup : Screen("pin/setup?onboarding={onboarding}") {
-        fun createRoute(onboarding: Boolean = false) = "pin/setup?onboarding=$onboarding"
+    // Экран «Не помните код доступа?» (макет 18, 4252:36045) — отдельный экран,
+    // не диалог: полноэкранный фрейм со стрелкой и блоком внизу
+    data object PinForgot : Screen("pin/forgot")
+    data object PinSetup : Screen("pin/setup?onboarding={onboarding}&recovery={recovery}") {
+        fun createRoute(onboarding: Boolean = false, recovery: Boolean = false) =
+            "pin/setup?onboarding=$onboarding&recovery=$recovery"
     }
 
     // Main

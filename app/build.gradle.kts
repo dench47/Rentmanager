@@ -30,8 +30,6 @@ android {
         versionCode = autoVersionCode
         versionName = autoVersionName
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
         buildConfigField("String", "API_BASE_URL", "\"https://менеджераренды.рф/api/v1/\"")
     }
 
@@ -85,7 +83,6 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     // Activity & Lifecycle
     implementation("androidx.activity:activity-compose:1.9.3")
@@ -134,13 +131,6 @@ dependencies {
 
     // EXIF-ориентация фото при сжатии перед загрузкой
     implementation("androidx.exifinterface:exifinterface:1.4.1")
-
-    // Testing
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
-    androidTestImplementation(composeBom)
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }
 
 // ======== Deployment helpers ========

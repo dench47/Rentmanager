@@ -20,6 +20,8 @@ import com.rentmanager.app.ui.home.HomeScreen
 import com.rentmanager.app.ui.role.RoleScreen
 import com.rentmanager.app.ui.role.UserRole
 import com.rentmanager.app.ui.pin.PinEntryScreen
+import com.rentmanager.app.ui.pin.PinForgotScreen
+import com.rentmanager.app.ui.pin.PinForgotViewModel
 import com.rentmanager.app.ui.pin.PinSetupScreen
 import com.rentmanager.app.ui.settings.SecurityScreen
 import com.rentmanager.app.ui.settings.SettingsScreen
@@ -41,6 +43,7 @@ fun RentManagerNavGraph(
 
     val accessToken by tokenManager.accessTokenFlow.collectAsState()
     val requirePin by tokenManager.requirePinFlow.collectAsState()
+    val pinRecovery by tokenManager.pinRecoveryFlow.collectAsState()
 
     // ВАЖНО: startDestination вычисляется ОДИН раз при создании графа.
     // Раньше он реактивно пересчитывался от accessToken — из-за этого после верификации
@@ -48,7 +51,11 @@ fun RentManagerNavGraph(
     // чем срабатывала навигация на PinSetup (баг «пропуск экрана создания PIN»).
     // Последующие переходы выполняются только через navController.navigate(...).
     val startDestination = remember {
-        if (tokenManager.accessToken == null) {
+        if (tokenManager.pinRecovery) {
+            if (tokenManager.accessToken != null && tokenManager.recoveryPasswordReset) {
+                Screen.PinSetup.createRoute(recovery = true)
+            } else Screen.Verify.route
+        } else if (tokenManager.accessToken == null) {
             Screen.Verify.route
         } else if ((requirePin || tokenManager.hasPassword) && tokenManager.localPinEnabled) {
             Screen.PinEntry.route
@@ -61,7 +68,9 @@ fun RentManagerNavGraph(
     LaunchedEffect(navController) {
         navController.currentBackStackEntryFlow.collect { entry ->
             val route = entry.destination.route
-            if (route != null && route != Screen.PinEntry.route && route != Screen.Verify.route) {
+            if (route != null && route != Screen.PinEntry.route && route != Screen.Verify.route &&
+                route != Screen.PinSetup.route && route != Screen.PinForgot.route &&
+                !tokenManager.pinRecovery) {
                 tokenManager.lastRoute = route
             }
         }
@@ -69,7 +78,9 @@ fun RentManagerNavGraph(
 
     // Принудительная навигация на PIN при возврате из фона
     LaunchedEffect(requirePin) {
-        if (requirePin) {
+        if (requirePin && !tokenManager.pinRecovery && tokenManager.accessToken != null &&
+            navController.currentDestination?.route != Screen.Verify.route &&
+            navController.currentDestination?.route != Screen.PinSetup.route) {
             navController.navigate(Screen.PinEntry.route) {
                 launchSingleTop = true
             }
@@ -77,10 +88,29 @@ fun RentManagerNavGraph(
     }
 
     // Принудительный разлогин — FCM push стёр токен → мгновенный переход на Verify
-    LaunchedEffect(accessToken) {
+    LaunchedEffect(accessToken, pinRecovery) {
         if (accessToken == null) {
-            navController.navigate(Screen.Verify.route) {
-                popUpTo(0) { inclusive = true }
+            if (navController.currentDestination?.route != Screen.Verify.route) {
+                navController.navigate(Screen.Verify.route) {
+                    popUpTo(0) { inclusive = true }
+                }
+            }
+        }
+    }
+
+    // Восстановленный Android back stack не может обойти незавершённый recovery.
+    LaunchedEffect(pinRecovery, accessToken) {
+        if (pinRecovery) {
+            navController.currentBackStackEntryFlow.collect { entry ->
+                val recoverySetup = entry.destination.route == Screen.PinSetup.route &&
+                    entry.arguments?.getBoolean("recovery") == true &&
+                    tokenManager.recoveryPasswordReset && tokenManager.accessToken != null
+                if (entry.destination.route != Screen.Verify.route && !recoverySetup) {
+                    val destination = if (tokenManager.recoveryPasswordReset && tokenManager.accessToken != null) {
+                        Screen.PinSetup.createRoute(recovery = true)
+                    } else Screen.Verify.route
+                    navController.navigate(destination) { popUpTo(0) { inclusive = true } }
+                }
             }
         }
     }
@@ -94,6 +124,13 @@ fun RentManagerNavGraph(
             VerifyScreen(
                 onVerified = { isNewUser ->
                     when {
+                        tokenManager.pinRecovery -> {
+                            if (tokenManager.recoveryPasswordReset && tokenManager.accessToken != null) {
+                                navController.navigate(Screen.PinSetup.createRoute(recovery = true)) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            }
+                        }
                         isNewUser -> {
                             navController.navigate(Screen.PinSetup.createRoute(onboarding = true)) {
                                 popUpTo(0) { inclusive = true }
@@ -664,13 +701,29 @@ fun RentManagerNavGraph(
         // ========== Pin Setup ==========
         composable(
             route = Screen.PinSetup.route,
-            arguments = listOf(navArgument("onboarding") { type = NavType.BoolType; defaultValue = false })
+            arguments = listOf(
+                navArgument("onboarding") { type = NavType.BoolType; defaultValue = false },
+                navArgument("recovery") { type = NavType.BoolType; defaultValue = false }
+            )
         ) { backStackEntry ->
             val onboarding = backStackEntry.arguments?.getBoolean("onboarding") ?: false
+            val recovery = backStackEntry.arguments?.getBoolean("recovery") ?: false
             PinSetupScreen(
                 isOnboarding = onboarding,
+                isRecovery = recovery,
+                onForgot = { navController.navigate(Screen.PinForgot.route) },
                 onBack = {
-                    if (onboarding) {
+                    if (recovery) {
+                        tokenManager.cancelRecoverySession()
+                        navController.navigate(Screen.Verify.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    } else if (!onboarding) {
+                        navController.popBackStack()
+                    }
+                },
+                onSuccess = {
+                    if (onboarding || recovery) {
                         navController.navigate(Screen.MainScreen.route) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -685,9 +738,10 @@ fun RentManagerNavGraph(
         composable(Screen.PinEntry.route) {
             PinEntryScreen(
                 tokenManager = tokenManager,
+                onForgot = { navController.navigate(Screen.PinForgot.route) },
                 onPinVerified = {
                     tokenManager.requirePin = false
-                    if (tokenManager.accessToken == null) {
+                    if (tokenManager.accessToken == null || tokenManager.pinRecovery) {
                         // Принудительный разлогин — на верификацию
                         navController.navigate(Screen.Verify.route) {
                             popUpTo(0) { inclusive = true }
@@ -704,6 +758,18 @@ fun RentManagerNavGraph(
                         }
                     }
                 }
+            )
+        }
+
+        // ========== «Не помните код доступа?» ==========
+        // Отдельный экран (макет 18, 4252:36045). «Войти в аккаунт» запускает
+        // восстановление: гейт pinRecovery сам уводит на Verify, после повторного
+        // входа клиент удаляет PIN и открывает создание нового кода.
+        composable(Screen.PinForgot.route) {
+            val forgotViewModel: PinForgotViewModel = hiltViewModel()
+            PinForgotScreen(
+                onBack = { navController.popBackStack() },
+                onLogin = { forgotViewModel.beginRecovery() }
             )
         }
 

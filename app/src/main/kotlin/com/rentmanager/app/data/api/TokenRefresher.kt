@@ -36,13 +36,13 @@ class TokenRefresher @Inject constructor(
         if (expectedOldRefreshToken != null &&
             tokenManager.refreshToken != expectedOldRefreshToken
         ) {
-            // Токен уже обновлён другим потоком
-            return@withLock true
+            // После отмены сессии отсутствие токена не означает успешный refresh.
+            return@withLock tokenManager.refreshToken != null && tokenManager.accessToken != null
         }
 
         val current = tokenManager.refreshToken
         if (current == null) {
-            tokenManager.clear()
+            tokenManager.invalidateSession()
             return@withLock false
         }
 
@@ -50,6 +50,12 @@ class TokenRefresher @Inject constructor(
             refreshApi.refreshToken(RefreshTokenRequest(current))
         } catch (e: Exception) {
             return@withLock false
+        }
+
+        // Logout/recovery могли отменить сессию, пока сервер обрабатывал refresh.
+        // Поздний ответ не должен восстановить отменённые токены или стереть новый вход.
+        if (tokenManager.refreshToken != current) {
+            return@withLock tokenManager.refreshToken != null && tokenManager.accessToken != null
         }
 
         when {
@@ -64,7 +70,7 @@ class TokenRefresher @Inject constructor(
                 }
             }
             resp.code() == 401 || resp.code() == 400 -> {
-                tokenManager.clear()
+                tokenManager.invalidateSession()
                 false
             }
             else -> false

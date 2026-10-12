@@ -8,18 +8,23 @@ import com.rentmanager.app.data.api.EmailLoginVerifyRequest
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.RequestApprovalRequest
 import com.rentmanager.app.data.api.SendCodeRequest
+import com.rentmanager.app.data.api.SetPasswordRequest
 import com.rentmanager.app.data.api.TelegramCodeRequest
 import com.rentmanager.app.data.api.TelegramVerifyRequest
 import com.rentmanager.app.data.local.DeviceIdManager
 import com.rentmanager.app.data.local.TokenManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.coroutines.coroutineContext
 import javax.inject.Inject
 
 data class VerifyUiState(
@@ -43,7 +48,8 @@ data class VerifyUiState(
     val emailCodeSent: Boolean = false,
     val emailAttemptsLeft: Int = 5,
     val emailCodeError: String? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val recovery: Boolean = false
 )
 
 @HiltViewModel
@@ -53,11 +59,21 @@ class VerifyViewModel @Inject constructor(
     private val deviceIdManager: DeviceIdManager
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(VerifyUiState())
+    private val _uiState = MutableStateFlow(
+        VerifyUiState(
+            phone = tokenManager.recoveryPhone ?: "+7",
+            selectedCountry = CountryPhone.availableCountries.firstOrNull {
+                tokenManager.recoveryPhone?.startsWith(it.phonePrefix) == true
+            } ?: CountryPhone.defaultCountry,
+            recovery = tokenManager.pinRecovery
+        )
+    )
     val uiState: StateFlow<VerifyUiState> = _uiState.asStateFlow()
 
     private var callCheckJob: Job? = null
     private var approvalJob: Job? = null
+    private var codeJob: Job? = null
+    private var callRequestJob: Job? = null
 
     /**
      * Принимает чистые цифры (только 0-9), максимум из selectedCountry.maxDigits.
@@ -76,6 +92,7 @@ class VerifyViewModel @Inject constructor(
 
     fun onContinue(onSuccess: (String) -> Unit) {
         val state = _uiState.value
+        if (state.isLoading) return
         val phone = state.phone
         val digits = phone.removePrefix(state.selectedCountry.phonePrefix)
         if (digits.length != state.selectedCountry.maxDigits) {
@@ -88,8 +105,12 @@ class VerifyViewModel @Inject constructor(
             try {
                 // 1. Проверяем пользователя в БД и доверено ли это устройство
                 val loginResp = authApi.login(
-                    SendCodeRequest(phone, tokenManager.fcmToken, deviceIdManager.deviceId, deviceIdManager.deviceName)
+                    // Без идентификатора доверенного устройства login не выдаёт
+                    // recovery-токены и возвращает способы нового подтверждения.
+                    SendCodeRequest(phone, tokenManager.fcmToken,
+                        if (state.recovery) null else deviceIdManager.deviceId, deviceIdManager.deviceName)
                 )
+                coroutineContext.ensureActive()
                 if (loginResp.isSuccessful) {
                     val body = loginResp.body()
                     if (body?.exists == true) {
@@ -97,14 +118,17 @@ class VerifyViewModel @Inject constructor(
                         body.name?.let { tokenManager.userName = it }
                         body.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
 
-                        // Telegram / Email — варианты входа для НЕдоверенного устройства
+                        val recovery = _uiState.value.recovery
+
+                        // В recovery доступны все подтверждения, объявленные сервером.
+                        // Доверенное устройство не может завершить recovery автоматически.
                         _uiState.update { it.copy(
-                            canTelegram = body.canTelegram == true && body.isTrustedDevice == false,
-                            canEmail = body.canEmail == true && body.isTrustedDevice == false
+                            canTelegram = body.canTelegram == true,
+                            canEmail = body.canEmail == true
                         ) }
 
                         // Доверенное устройство без PIN — сервер сразу выдал токены
-                        if (body.accessToken != null) {
+                        if (!recovery && body.accessToken != null) {
                             tokenManager.accessToken = body.accessToken
                             body.refreshToken?.let { tokenManager.refreshToken = it }
                             body.token?.let { tokenManager.accessToken = it }
@@ -114,14 +138,14 @@ class VerifyViewModel @Inject constructor(
                             // но берём значение из ответа, а не предполагаем:
                             // безусловный false однажды затирал факт «PIN есть»
                             tokenManager.hasPassword = body.hasPassword ?: false
-                            registerFcm()
-                            _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false, canTelegram = false) }
-                            onSuccess(phone)
+                            if (finishConfirmation(isNewUser = false)) onSuccess(phone)
                             return@launch
                         }
 
                         // Новое устройство + есть доверенные → push-подтверждение входа
-                        if (body.isTrustedDevice == false && body.canPush == true) {
+                        if (body.canPush == true &&
+                            ((!recovery && body.isTrustedDevice == false) ||
+                                (recovery && tokenManager.recoveryHasOtherDevice && phone == tokenManager.recoveryPhone))) {
                             tokenManager.hasPassword = body.hasPassword ?: true
                             startApprovalFlow(phone)
                             return@launch
@@ -130,12 +154,18 @@ class VerifyViewModel @Inject constructor(
                         // Новое устройство, PIN не установлен, подтверждать нечем —
                         // единственный путь: звонок (владение SIM). Иначе пользователь
                         // попал бы на экран PIN, который заведомо не пройдёт.
-                        if (body.isTrustedDevice == false && body.hasPassword != true) {
+                        if ((body.isTrustedDevice == false && body.hasPassword != true) ||
+                            (recovery && !tokenManager.recoveryHasOtherDevice && body.canPush != true)) {
                             fallbackToCall()
                             return@launch
                         }
 
-                        // Доверенное устройство с PIN / нет push-возможности — ввод PIN или звонок
+                        // Обычный доверенный вход с PIN переходит к PinEntry.
+                        // Recovery не имеет ветки «ввести старый PIN».
+                        if (recovery) {
+                            fallbackToCall()
+                            return@launch
+                        }
                         tokenManager.hasPassword = body.hasPassword ?: true
                         _uiState.update { it.copy(isLoading = false, isVerified = true, isNewUser = false, canTelegram = false) }
                         onSuccess(phone)
@@ -145,6 +175,7 @@ class VerifyViewModel @Inject constructor(
 
                 // 2. Пользователя нет (или login упал) — инициируем звонок
                 val callResp = authApi.callCheckAdd(SendCodeRequest(phone))
+                        coroutineContext.ensureActive()
                 if (callResp.isSuccessful) {
                     val callBody = callResp.body()
                     if (callBody?.status == "OK") {
@@ -162,6 +193,8 @@ class VerifyViewModel @Inject constructor(
                 } else {
                     _uiState.update { it.copy(isLoading = false, errorMessage = "Сервер недоступен") }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Нет связи с сервером") }
             }
@@ -173,11 +206,17 @@ class VerifyViewModel @Inject constructor(
      * Push уходит на все доверенные устройства; пользователь тапает «Подтвердить».
      */
     fun startApprovalFlow(phone: String) {
+        if (_uiState.value.recovery &&
+            (!tokenManager.recoveryHasOtherDevice || phone != tokenManager.recoveryPhone)) {
+            fallbackToCall()
+            return
+        }
         viewModelScope.launch {
             try {
                 val resp = authApi.requestLoginApproval(
                     RequestApprovalRequest(phone, deviceIdManager.deviceId, deviceIdManager.deviceName)
                 )
+                coroutineContext.ensureActive()
                 val requestId = resp.body()?.requestId
                 if (!resp.isSuccessful || requestId == null) {
                     // Не удалось запросить одобрение — откатываемся на звонок
@@ -186,6 +225,8 @@ class VerifyViewModel @Inject constructor(
                 }
                 _uiState.update { it.copy(awaitingApproval = true, isLoading = false) }
                 pollApprovalStatus(requestId, phone)
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Нет связи с сервером") }
             }
@@ -201,6 +242,7 @@ class VerifyViewModel @Inject constructor(
                 attempts++
                 try {
                     val resp = authApi.loginStatus(requestId, deviceIdManager.deviceId)
+                    coroutineContext.ensureActive()
                     val body = resp.body()
                     when (body?.status) {
                         "approved" -> {
@@ -210,8 +252,7 @@ class VerifyViewModel @Inject constructor(
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                             tokenManager.phone = phone
                             tokenManager.hasPassword = body.hasPassword ?: true
-                            registerFcm()
-                            _uiState.update { it.copy(awaitingApproval = false, isVerified = true, isNewUser = false, canTelegram = false) }
+                            finishConfirmation(isNewUser = false)
                             return@launch
                         }
                         "denied" -> {
@@ -223,6 +264,8 @@ class VerifyViewModel @Inject constructor(
                             return@launch
                         }
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) { /* сеть мигнула — продолжаем поллинг */ }
             }
             if (_uiState.value.awaitingApproval) {
@@ -250,9 +293,14 @@ class VerifyViewModel @Inject constructor(
      */
     fun fallbackToCall() {
         cancelApproval()
-        viewModelScope.launch {
+        callCheckJob?.cancel()
+        codeJob?.cancel()
+        callRequestJob?.cancel()
+        _uiState.update { it.copy(isLoading = true, isCalling = false, telegramCodeSent = false, emailCodeSent = false) }
+        callRequestJob = viewModelScope.launch {
             try {
                 val callResp = authApi.callCheckAdd(SendCodeRequest(_uiState.value.phone))
+                coroutineContext.ensureActive()
                 val callBody = callResp.body()
                 if (callResp.isSuccessful && callBody?.status == "OK") {
                     _uiState.update {
@@ -267,6 +315,8 @@ class VerifyViewModel @Inject constructor(
                 } else {
                     _uiState.update { it.copy(isLoading = false, errorMessage = "Ошибка сервиса звонков") }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Сервер недоступен") }
             }
@@ -293,6 +343,7 @@ class VerifyViewModel @Inject constructor(
                     val resp = authApi.callCheckStatus(
                         SendCodeRequest(phone, tokenManager.fcmToken, deviceIdManager.deviceId, deviceIdManager.deviceName)
                     )
+                    coroutineContext.ensureActive()
                     if (resp.isSuccessful) {
                         val body = resp.body()
                         if (body?.verified == true) {
@@ -303,16 +354,12 @@ class VerifyViewModel @Inject constructor(
                             body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                             tokenManager.phone = phone
                             tokenManager.hasPassword = body.hasPassword ?: false
-                            // Регистрируем FCM-токен
-                            registerFcm()
-                            // isNewUser приходит с сервера — клиент больше не угадывает
-                            _uiState.update {
-                                it.copy(isVerified = true, isCalling = false, isNewUser = body.isNewUser ?: false, canTelegram = false)
-                            }
-                            onSuccess(phone)
+                            if (finishConfirmation(body.isNewUser ?: false)) onSuccess(phone)
                             return@launch
                         }
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) { }
             }
             _uiState.update { it.copy(isCalling = false, errorMessage = "Время истекло. Попробуйте снова.") }
@@ -324,13 +371,17 @@ class VerifyViewModel @Inject constructor(
     /** Отправляет код входа в Telegram (для недоверенного устройства). */
     fun onTelegramLogin() {
         val phone = _uiState.value.phone
+        callCheckJob?.cancel()
+        callRequestJob?.cancel()
+        codeJob?.cancel()
         // Уходим с экрана ожидания push-одобрения: останавливаем поллинг,
         // но держим экран, пока идёт запрос кода (без мигания).
         stopApprovalPolling()
-        _uiState.update { it.copy(telegramCodeError = null, telegramCodeSent = false) }
-        viewModelScope.launch {
+        _uiState.update { it.copy(telegramCodeError = null, telegramCodeSent = false, emailCodeSent = false, isCalling = false) }
+        codeJob = viewModelScope.launch {
             try {
                 val resp = authApi.telegramCode(TelegramCodeRequest(phone))
+                coroutineContext.ensureActive()
                 val body = resp.body()
                 if (resp.isSuccessful && body != null) {
                     _uiState.update { it.copy(telegramCodeSent = true, telegramAttemptsLeft = body.attemptsLeft, awaitingApproval = false) }
@@ -338,6 +389,8 @@ class VerifyViewModel @Inject constructor(
                     val err = resp.errorBody()?.string()
                     _uiState.update { it.copy(telegramCodeError = err ?: "Не удалось отправить код", awaitingApproval = false) }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(telegramCodeError = "Нет связи с сервером", awaitingApproval = false) }
             }
@@ -346,13 +399,14 @@ class VerifyViewModel @Inject constructor(
 
     /** Проверяет введённый код из Telegram. */
     fun onVerifyTelegramCode(code: String, onSuccess: (String) -> Unit) {
+        if (codeJob?.isActive == true || _uiState.value.isVerified) return
         val phone = _uiState.value.phone
         if (code.length != 8) {
             _uiState.update { it.copy(telegramCodeError = "Введите 8 цифр кода") }
             return
         }
         _uiState.update { it.copy(telegramCodeError = null) }
-        viewModelScope.launch {
+        codeJob = viewModelScope.launch {
             try {
                 val resp = authApi.telegramVerify(
                     TelegramVerifyRequest(
@@ -363,6 +417,7 @@ class VerifyViewModel @Inject constructor(
                         deviceName = deviceIdManager.deviceName
                     )
                 )
+                coroutineContext.ensureActive()
                 val body = resp.body()
                 if (resp.isSuccessful && body?.verified == true) {
                     body.accessToken?.let { tokenManager.accessToken = it }
@@ -372,14 +427,12 @@ class VerifyViewModel @Inject constructor(
                     body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                     tokenManager.phone = phone
                     tokenManager.hasPassword = body.hasPassword ?: false
-                    registerFcm()
-                    _uiState.update {
-                        it.copy(isVerified = true, isNewUser = false, telegramCodeSent = false, canTelegram = false)
-                    }
-                    onSuccess(phone)
+                    if (finishConfirmation(isNewUser = false)) onSuccess(phone)
                 } else {
                     _uiState.update { it.copy(telegramCodeError = "Неверный или истёкший код") }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(telegramCodeError = "Нет связи с сервером") }
             }
@@ -388,7 +441,7 @@ class VerifyViewModel @Inject constructor(
 
     /** Закрывает окно ввода Telegram-кода. */
     fun cancelTelegramCode() {
-        _uiState.update { it.copy(telegramCodeSent = false, telegramCodeError = null) }
+        reset()
     }
 
     // ===== Email-вход =====
@@ -396,13 +449,17 @@ class VerifyViewModel @Inject constructor(
     /** Отправляет код входа на подтверждённую почту (для недоверенного устройства). */
     fun onEmailLogin() {
         val phone = _uiState.value.phone
+        callCheckJob?.cancel()
+        callRequestJob?.cancel()
+        codeJob?.cancel()
         // Уходим с экрана ожидания push-одобрения: останавливаем поллинг,
         // но держим экран, пока идёт запрос кода (без мигания).
         stopApprovalPolling()
-        _uiState.update { it.copy(emailCodeError = null, emailCodeSent = false) }
-        viewModelScope.launch {
+        _uiState.update { it.copy(emailCodeError = null, emailCodeSent = false, telegramCodeSent = false, isCalling = false) }
+        codeJob = viewModelScope.launch {
             try {
                 val resp = authApi.emailLoginCode(EmailLoginCodeRequest(phone))
+                coroutineContext.ensureActive()
                 val body = resp.body()
                 if (resp.isSuccessful && body != null) {
                     _uiState.update { it.copy(emailCodeSent = true, emailAttemptsLeft = body.attemptsLeft, awaitingApproval = false) }
@@ -410,6 +467,8 @@ class VerifyViewModel @Inject constructor(
                     val err = resp.errorBody()?.string()
                     _uiState.update { it.copy(emailCodeError = err ?: "Не удалось отправить код", awaitingApproval = false) }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(emailCodeError = "Нет связи с сервером", awaitingApproval = false) }
             }
@@ -418,13 +477,14 @@ class VerifyViewModel @Inject constructor(
 
     /** Проверяет введённый код из письма. */
     fun onVerifyEmailCode(code: String, onSuccess: (String) -> Unit) {
+        if (codeJob?.isActive == true || _uiState.value.isVerified) return
         val phone = _uiState.value.phone
         if (code.length != 6) {
             _uiState.update { it.copy(emailCodeError = "Введите 6 цифр кода") }
             return
         }
         _uiState.update { it.copy(emailCodeError = null) }
-        viewModelScope.launch {
+        codeJob = viewModelScope.launch {
             try {
                 val resp = authApi.emailLoginVerify(
                     EmailLoginVerifyRequest(
@@ -435,6 +495,7 @@ class VerifyViewModel @Inject constructor(
                         deviceName = deviceIdManager.deviceName
                     )
                 )
+                coroutineContext.ensureActive()
                 val body = resp.body()
                 if (resp.isSuccessful && body?.verified == true) {
                     body.accessToken?.let { tokenManager.accessToken = it }
@@ -444,14 +505,12 @@ class VerifyViewModel @Inject constructor(
                     body.user?.defaultStartScreen?.let { tokenManager.defaultStartScreen = it }
                     tokenManager.phone = phone
                     tokenManager.hasPassword = body.hasPassword ?: false
-                    registerFcm()
-                    _uiState.update {
-                        it.copy(isVerified = true, isNewUser = false, emailCodeSent = false, canEmail = false)
-                    }
-                    onSuccess(phone)
+                    if (finishConfirmation(isNewUser = false)) onSuccess(phone)
                 } else {
                     _uiState.update { it.copy(emailCodeError = "Неверный или истёкший код") }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 _uiState.update { it.copy(emailCodeError = "Нет связи с сервером") }
             }
@@ -460,14 +519,55 @@ class VerifyViewModel @Inject constructor(
 
     /** Закрывает окно ввода Email-кода. */
     fun cancelEmailCode() {
-        _uiState.update { it.copy(emailCodeSent = false, emailCodeError = null) }
+        reset()
     }
 
     fun reset() {
+        viewModelScope.coroutineContext.cancelChildren()
         callCheckJob?.cancel()
         callCheckJob = null
         approvalJob?.cancel()
         approvalJob = null
-        _uiState.value = VerifyUiState()
+        codeJob = null
+        callRequestJob = null
+        if (tokenManager.pinRecovery) tokenManager.cancelRecoverySession()
+        _uiState.value = VerifyUiState(recovery = tokenManager.pinRecovery)
+    }
+
+    /** Вызывается только после звонка, кода или одобрения другого устройства. */
+    private suspend fun finishConfirmation(isNewUser: Boolean): Boolean {
+        coroutineContext.ensureActive()
+        if (_uiState.value.recovery) {
+            _uiState.update { it.copy(isLoading = true) }
+            val reset = try {
+                tokenManager.accessToken != null && authApi.setPassword(SetPasswordRequest("")).isSuccessful
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                false
+            }
+            coroutineContext.ensureActive()
+            if (!reset) {
+                tokenManager.cancelRecoverySession()
+                _uiState.update { it.copy(
+                    isLoading = false, isCalling = false, awaitingApproval = false,
+                    telegramCodeSent = false, emailCodeSent = false,
+                    errorMessage = "Не удалось сбросить код. Подтвердите вход ещё раз"
+                ) }
+                return false
+            }
+            tokenManager.hasPassword = false
+            tokenManager.pinLockedUntil = 0L
+            tokenManager.requirePin = false
+            tokenManager.recoveryPasswordReset = true
+        }
+        registerFcm()
+        _uiState.update { it.copy(
+            isLoading = false, isVerified = true, isNewUser = isNewUser,
+            isCalling = false, awaitingApproval = false,
+            telegramCodeSent = false, emailCodeSent = false,
+            canTelegram = false, canEmail = false
+        ) }
+        return true
     }
 }

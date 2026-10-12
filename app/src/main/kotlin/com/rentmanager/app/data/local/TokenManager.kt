@@ -105,10 +105,67 @@ class TokenManager @Inject constructor(
         get() = prefs.getString("fcm_token", null)
         set(value) = prefs.edit { putString("fcm_token", value) }
 
+    var pinLockedUntil: Long
+        get() = prefs.getLong("pin_locked_until", 0L)
+        set(value) = prefs.edit(commit = true) { putLong("pin_locked_until", value) }
+
+    private val _pinRecovery = MutableStateFlow(prefs.getBoolean("pin_recovery", false))
+    val pinRecoveryFlow: StateFlow<Boolean> = _pinRecovery.asStateFlow()
+    val pinRecovery: Boolean get() = _pinRecovery.value
+
+    var recoveryPasswordReset: Boolean
+        get() = prefs.getBoolean("recovery_password_reset", false)
+        set(value) = prefs.edit(commit = true) { putBoolean("recovery_password_reset", value) }
+
+    var recoveryHasOtherDevice: Boolean
+        get() = prefs.getBoolean("recovery_other_device", false)
+        set(value) = prefs.edit(commit = true) { putBoolean("recovery_other_device", value) }
+
+    val recoveryPhone: String? get() = prefs.getString("recovery_phone", null)
+
+    /** Выход только из сессии: настройки и зашифрованный PIN не удаляются. */
+    fun beginPinRecovery(hasOtherDevice: Boolean) {
+        prefs.edit(commit = true) {
+            putBoolean("pin_recovery", true)
+            putString("recovery_phone", phone)
+            putBoolean("recovery_other_device", hasOtherDevice)
+            putBoolean("recovery_password_reset", false)
+            remove("last_route")
+        }
+        _pinRecovery.value = true
+        cancelRecoverySession()
+    }
+
+    fun cancelRecoverySession() {
+        requirePin = false
+        recoveryPasswordReset = false
+        refreshToken = null
+        accessToken = null
+        lastPauseTimestamp = 0L
+    }
+
+    fun finishPinRecovery() {
+        prefs.edit(commit = true) {
+            remove("pin_recovery")
+            remove("recovery_phone")
+            remove("recovery_other_device")
+            remove("recovery_password_reset")
+        }
+        requirePin = false
+        lastPauseTimestamp = 0L
+        _pinRecovery.value = false
+    }
+
+    /** Истёкшая recovery-сессия не отменяет обязательное подтверждение и настройки устройства. */
+    fun invalidateSession() {
+        if (pinRecovery) cancelRecoverySession() else clear()
+    }
+
     fun clear() {
         val savedFcmToken = fcmToken // сохраняем FCM-токен, чтобы не потерять при логауте
         _accessToken.value = null
         _requirePin.value = false
+        _pinRecovery.value = false
         prefs.edit { clear() }
         if (savedFcmToken != null) {
             prefs.edit { putString("fcm_token", savedFcmToken) }

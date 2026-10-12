@@ -2,8 +2,6 @@ package com.rentmanager.app.ui.pin
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.Gson
-import android.util.Log
 import com.rentmanager.app.data.api.AuthApi
 import com.rentmanager.app.data.api.RegisterDeviceRequest
 import com.rentmanager.app.data.api.VerifyPasswordRequest
@@ -16,6 +14,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import javax.inject.Inject
 
 data class PinUiState(
@@ -23,13 +24,10 @@ data class PinUiState(
     val errorMessage: String? = null,
     val isLoading: Boolean = false,
     val isVerified: Boolean = false,
-    val attemptsLeft: Int? = null  // null = ещё загружаем с сервера
-)
-
-data class VerifyPasswordErrorResponse(
-    val error: String? = null,
-    @com.google.gson.annotations.SerializedName("attempts_left")
-    val attemptsLeft: Int? = null
+    val attemptsLeft: Int? = null,
+    val lockSeconds: Long = 0L,
+    val isErrorAnimating: Boolean = false,
+    val errorId: Int = 0
 )
 
 @HiltViewModel
@@ -40,11 +38,21 @@ class PinViewModel @Inject constructor(
     private val deviceIdManager: com.rentmanager.app.data.local.DeviceIdManager
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(PinUiState())
+    private val _uiState = MutableStateFlow(PinUiState(
+        lockSeconds = remainingLockSeconds(tokenManager.pinLockedUntil, System.currentTimeMillis())
+    ))
     val uiState: StateFlow<PinUiState> = _uiState.asStateFlow()
+    private var feedbackJob: Job? = null
+    private var verifyJob: Job? = null
 
     init {
         fetchAttempts()
+        viewModelScope.launch {
+            while (true) {
+                refreshLockout()
+                delay(250)
+            }
+        }
     }
 
     private fun fetchAttempts() {
@@ -64,9 +72,22 @@ class PinViewModel @Inject constructor(
         }
     }
 
+    fun refreshLockout() {
+        val until = tokenManager.pinLockedUntil
+        val seconds = remainingLockSeconds(until, System.currentTimeMillis())
+        if (seconds == 0L) {
+            if (until != 0L) tokenManager.pinLockedUntil = 0L
+            _uiState.update { it.copy(lockSeconds = 0L, attemptsLeft = if (it.lockSeconds > 0) 5 else it.attemptsLeft) }
+        } else {
+            _uiState.update { it.copy(lockSeconds = seconds) }
+        }
+    }
+
     fun onDigitEntered(digit: String) {
+        if (!canEnter() || digit.length != 1 || digit[0] !in '0'..'9') return
         val current = _uiState.value.pin
         if (current.length < 4) {
+            feedbackJob?.cancel()
             _uiState.update { it.copy(pin = current + digit, errorMessage = null) }
             if (current.length == 3) {
                 verifyPin(current + digit)
@@ -75,6 +96,7 @@ class PinViewModel @Inject constructor(
     }
 
     fun onDeleteDigit() {
+        if (!canEnter()) return
         val current = _uiState.value.pin
         if (current.isNotEmpty()) {
             _uiState.update { it.copy(pin = current.dropLast(1), errorMessage = null) }
@@ -83,49 +105,44 @@ class PinViewModel @Inject constructor(
 
     private fun verifyPin(pin: String) {
         val phone = tokenManager.phone ?: run {
-            tokenManager.clear()
-            _uiState.update { it.copy(pin = "", isLoading = false, isVerified = true) }
+            _uiState.update { it.copy(pin = "", isLoading = false, errorMessage = "Номер телефона не найден") }
             return
         }
 
         _uiState.update { it.copy(isLoading = true) }
-        viewModelScope.launch {
+        verifyJob = viewModelScope.launch {
             try {
                 val resp = authApi.verifyPassword(VerifyPasswordRequest(phone, pin, tokenManager.fcmToken))
                 if (resp.isSuccessful) {
                     val body = resp.body()!!
                     tokenManager.accessToken = body.accessToken
                     tokenManager.refreshToken = body.refreshToken
+                    tokenManager.pinLockedUntil = 0L
                     // Сохраняем PIN в зашифрованное хранилище для входа по отпечатку
                     cryptoManager.savePin(pin)
                     // Регистрируем FCM-токен, если сохранён ранее
                     tokenManager.fcmToken?.let { fcm ->
                         launch { try { authApi.registerDevice(RegisterDeviceRequest(fcm, deviceIdManager.deviceId)) } catch (_: Exception) {} }
                     }
-                    _uiState.update { it.copy(isLoading = false, isVerified = true, attemptsLeft = 5) }
+                    _uiState.update { it.copy(isLoading = false, isVerified = true, attemptsLeft = 5, errorMessage = null) }
                 } else {
-                    // Парсим attemptsLeft из тела ошибки
-                    var serverAttemptsLeft: Int? = null
-                    try {
-                        val errorBody = resp.errorBody()?.string()
-                        val errorResp = Gson().fromJson(errorBody, VerifyPasswordErrorResponse::class.java)
-                        serverAttemptsLeft = errorResp.attemptsLeft
-                    } catch (_: Exception) {}
-
-                    val remaining = serverAttemptsLeft ?: ((_uiState.value.attemptsLeft ?: 5) - 1)
-                    if (remaining <= 0) {
-                        // Полный разлогин на всех устройствах + сброс PIN
-                        try { authApi.logoutAll() } catch (_: Exception) {}
-                        tokenManager.clear()
-                        cryptoManager.clearPin()
-                        tokenManager.hasPassword = false
-                        _uiState.update { it.copy(pin = "", isLoading = false, isVerified = true, attemptsLeft = 0, errorMessage = null) }
+                    val parsed = parsePinError(resp.errorBody()?.string())
+                    if (resp.code() == 429 || parsed?.retryAfterSeconds != null) {
+                        val seconds = parsed?.retryAfterSeconds ?: 1L
+                        tokenManager.pinLockedUntil = System.currentTimeMillis() + seconds * 1000L
+                        refreshLockout()
+                        showError(message = null, attemptsLeft = 0, animate = true)
+                    } else if (resp.code() == 401) {
+                        val remaining = parsed?.attemptsLeft
+                        showError(pinErrorText(remaining), remaining, animate = true)
                     } else {
-                        _uiState.update { it.copy(pin = "", isLoading = false, errorMessage = "Неверный код. Осталось попыток: $remaining", attemptsLeft = remaining) }
+                        showError("Не удалось проверить код", animate = false)
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
-                _uiState.update { it.copy(pin = "", isLoading = false, errorMessage = "Нет связи с сервером") }
+                showError("Нет связи с сервером", animate = false)
             }
         }
     }
@@ -151,8 +168,47 @@ class PinViewModel @Inject constructor(
     }
 
     fun onBiometricSuccess(pin: String) {
+        if (!canEnter() || tokenManager.pinRecovery) return
         // Биометрия подтверждена — имитируем ввод PIN через клавиатуру
         _uiState.update { it.copy(pin = pin, isLoading = true, errorMessage = null) }
         verifyPin(pin)
+    }
+
+    fun onBiometricError(message: String) = showError(message, animate = false)
+
+    private fun canEnter(): Boolean = !_uiState.value.isLoading && !_uiState.value.isErrorAnimating &&
+        !_uiState.value.isVerified && !tokenManager.pinRecovery &&
+        tokenManager.pinLockedUntil <= System.currentTimeMillis()
+
+    private fun showError(message: String?, attemptsLeft: Int? = _uiState.value.attemptsLeft, animate: Boolean) {
+        feedbackJob?.cancel()
+        _uiState.update { it.copy(
+            isLoading = false, errorMessage = message, attemptsLeft = attemptsLeft,
+            isErrorAnimating = animate, errorId = it.errorId + 1,
+            pin = if (animate) it.pin else ""
+        ) }
+        feedbackJob = viewModelScope.launch {
+            if (animate) delay(PIN_SHAKE_MS)
+            _uiState.update { it.copy(pin = "", isErrorAnimating = false) }
+            delay(PIN_ERROR_MS - if (animate) PIN_SHAKE_MS else 0L)
+            _uiState.update { it.copy(errorMessage = null) }
+        }
+    }
+
+    fun beginRecovery() {
+        if (_uiState.value.isLoading) return
+        verifyJob?.cancel()
+        feedbackJob?.cancel()
+        _uiState.update { it.copy(isLoading = true) }
+        viewModelScope.launch {
+            val otherDevice = withTimeoutOrNull(3000) {
+                try {
+                    authApi.listDevices(deviceIdManager.deviceId).body()?.any { !it.currentDevice } == true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) { false }
+            } ?: false
+            tokenManager.beginPinRecovery(otherDevice)
+        }
     }
 }

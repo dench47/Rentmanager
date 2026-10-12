@@ -18,8 +18,7 @@ class BiometricAuthManager @Inject constructor(
 
     fun canAuthenticate(): Boolean {
         val result = BiometricManager.from(context).canAuthenticate(
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            BiometricManager.Authenticators.BIOMETRIC_STRONG
         )
         return result == BiometricManager.BIOMETRIC_SUCCESS
     }
@@ -41,6 +40,7 @@ class BiometricAuthManager @Inject constructor(
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .setNegativeButtonText("Ввести код")
             .build()
 
@@ -57,12 +57,19 @@ class BiometricAuthManager @Inject constructor(
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     Log.w("BiometricAuth", "error=$errorCode msg=$errString")
-                    // Не показываем ошибку пользователю — системный диалог сам обрабатывает
-                    // Только если это не "отмена пользователем" или "нет биометрии"
+                    when (errorCode) {
+                        BiometricPrompt.ERROR_NEGATIVE_BUTTON -> onFallback()
+                        BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_CANCELED -> Unit
+                        BiometricPrompt.ERROR_LOCKOUT, BiometricPrompt.ERROR_LOCKOUT_PERMANENT,
+                        BiometricPrompt.ERROR_HW_UNAVAILABLE, BiometricPrompt.ERROR_NO_BIOMETRICS,
+                        BiometricPrompt.ERROR_HW_NOT_PRESENT ->
+                            onError("Биометрия временно недоступна. Введите код доступа")
+                        else -> onError("Не удалось распознать. Введите код доступа")
+                    }
                 }
 
                 override fun onAuthenticationFailed() {
-                    // Отпечаток не распознан — системный диалог сам предложит повторить
+                    onError("Не удалось распознать. Введите код доступа")
                 }
             }
         )

@@ -115,7 +115,7 @@ class MainActivity : FragmentActivity() {
         // Сходимость гарантирована — см. DesignWidth.kt
         ensureDesignWidth()
         // Фоновая блокировка PIN'ом — только если локально включён запрос PIN
-        if (tokenManager.hasPassword && tokenManager.localPinEnabled && tokenManager.accessToken != null) {
+        if (!tokenManager.pinRecovery && tokenManager.accessToken != null && tokenManager.hasPassword && tokenManager.localPinEnabled) {
             val now = System.currentTimeMillis()
             val elapsed = now - tokenManager.lastPauseTimestamp
             if (tokenManager.lastPauseTimestamp > 0L && elapsed > BACKGROUND_TIMEOUT_MS) {

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -213,6 +214,11 @@ fun VerifyScreen(
     val context = LocalContext.current
     var showCountryPicker by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    BackHandler(enabled = !showCountryPicker && (uiState.recovery || uiState.isCalling ||
+        uiState.awaitingApproval || uiState.telegramCodeSent || uiState.emailCodeSent || uiState.isLoading)) {
+        viewModel.reset()
+    }
 
     val mask = remember(uiState.selectedCountry) {
         PhoneMaskTransformation.forCountry(uiState.selectedCountry)
