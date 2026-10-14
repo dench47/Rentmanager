@@ -175,7 +175,7 @@ class VerifyViewModel @Inject constructor(
 
                 // 2. Пользователя нет (или login упал) — инициируем звонок
                 val callResp = authApi.callCheckAdd(SendCodeRequest(phone))
-                        coroutineContext.ensureActive()
+                coroutineContext.ensureActive()
                 if (callResp.isSuccessful) {
                     val callBody = callResp.body()
                     if (callBody?.status == "OK") {
