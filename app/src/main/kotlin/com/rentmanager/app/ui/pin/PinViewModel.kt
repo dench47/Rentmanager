@@ -188,10 +188,12 @@ class PinViewModel @Inject constructor(
             pin = if (animate) it.pin else ""
         ) }
         feedbackJob = viewModelScope.launch {
-            if (animate) delay(PIN_SHAKE_MS)
-            _uiState.update { it.copy(pin = "", isErrorAnimating = false) }
-            delay(PIN_ERROR_MS - if (animate) PIN_SHAKE_MS else 0L)
-            _uiState.update { it.copy(errorMessage = null) }
+            // Текст ошибки и «осталось N попыток» держим до следующего ввода,
+            // успешного входа или разлогина (раньше сообщение гасло через 5 секунд)
+            if (animate) {
+                delay(PIN_SHAKE_MS)
+                _uiState.update { it.copy(pin = "", isErrorAnimating = false) }
+            }
         }
     }
 

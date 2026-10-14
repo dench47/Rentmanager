@@ -1,5 +1,7 @@
 package com.rentmanager.app.ui.pin
 
+import android.os.Build
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.Image
@@ -37,8 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -102,8 +103,15 @@ internal fun PinContent(
     loading: Boolean = false
 ) {
     val shake = remember { Animatable(0f) }
+    val hapticView = LocalView.current
     LaunchedEffect(errorId) {
         if (isErrorAnimating) {
+            // Вибрация отказа вместе с тряской: REJECT с API 30, иначе LONG_PRESS
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                hapticView.performHapticFeedback(HapticFeedbackConstants.REJECT)
+            } else {
+                hapticView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            }
             shake.animateTo(0f, keyframes {
                 durationMillis = PIN_SHAKE_MS.toInt()
                 0f at 0
@@ -255,7 +263,9 @@ internal fun PinContent(
             }
         }
     }
-}/** Пин-пэд: 4 ряда по 84 с зазором 20 (шаг колонок 104); 4-й ряд — [отпечаток] 0 [удалить]. */
+}
+
+/** Пин-пэд: 4 ряда по 84 с зазором 20 (шаг колонок 104); 4-й ряд — [отпечаток] 0 [удалить]. */
 @Composable
 private fun PinKeypad(
     enabled: Boolean,
@@ -264,7 +274,7 @@ private fun PinKeypad(
     onDelete: () -> Unit,
     onBiometric: () -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
+    val view = LocalView.current
     val rows = listOf(
         listOf("1", "2", "3"),
         listOf("4", "5", "6"),
@@ -279,7 +289,9 @@ private fun PinKeypad(
                         key = key,
                         enabled = enabled,
                         onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            // VIRTUAL_KEY — системная вибрация нажатия клавиши
+                            // (раньше был почти незаметный TextHandleMove)
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                             when (key) {
                                 "biometric" -> onBiometric()
                                 "delete" -> onDelete()

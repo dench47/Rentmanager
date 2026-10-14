@@ -76,6 +76,16 @@ object PaymentOverdue {
             .sumOf { it.second }
     }
 
+    /** Даты платежей переменного графика (custom_dates): «дд.ММ.гггг» → дата и сумма. */
+    fun dueDatesFromCustom(json: String): List<Pair<LocalDate, Double>> {
+        val ddMMyyyy = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
+        return parseCustomDates(json)
+            .mapNotNull { entry ->
+                runCatching { LocalDate.parse(entry.date, ddMMyyyy) }.getOrNull()
+                    ?.let { it to (entry.amount.toDoubleOrNull() ?: 0.0) }
+            }
+    }
+
     /** Сумма просроченного к оплате (для плашки «Задолженность X ₽» на дашборде). */
     fun overdueAmount(
         schedule: PaymentScheduleDto?,

@@ -61,7 +61,7 @@ import com.rentmanager.app.util.propertyTitle
 import java.time.LocalDate
 import java.time.YearMonth
 
-// Р СџР В°Р В»Р С‘РЎвЂљРЎР‚Р В° Р С”Р В°Р Р…Р Р†Р В°РЎРѓР В° Р’В«Р СљР С•РЎРЏ Р Р…Р ВµР Т‘Р Р†Р С‘Р В¶Р С‘Р СР С•РЎРѓРЎвЂљРЎРЉР’В» 2 Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ (2949:45807)
+// Палитра канваса «Моя недвижимость» 2 вариант (2949:45807)
 private val White = Color.White
 private val TextPrimary = Color(0xFF212121)
 private val TextGray = Color(0xFF717171)
@@ -73,10 +73,10 @@ private val OverdueRed = Color(0xFFFF4249)
 
 
 /**
- * Р’В«Р СљР С•РЎРЏ Р Р…Р ВµР Т‘Р Р†Р С‘Р В¶Р С‘Р СР С•РЎРѓРЎвЂљРЎРЉР’В», 2 Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ РЎР‚Р ВµР Т‘Р С‘Р В·Р В°Р в„–Р Р…Р В° (Р С”Р В°Р Р…Р Р†Р В°РЎРѓ 2949:45807):
- * РЎвЂљР В°Р В±РЎвЂ№ Р’В«Р С›Р В±РЎР‰Р ВµР С”РЎвЂљРЎвЂ№ | Р РЃР В°РЎвЂ¦Р СР В°РЎвЂљР С”Р В°Р’В», Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р С‘-Р С•Р В±РЎР‰Р ВµР С”РЎвЂљРЎвЂ№ РЎРѓ Р В»Р ВµР Р…РЎвЂљР С•Р в„– Р В±Р В»Р С‘Р В¶Р В°Р в„–РЎв‚¬Р ВµР в„– Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р С‘
- * Р С‘ РЎРѓРЎвЂљРЎР‚Р С•Р С”Р С•Р в„– Р В°РЎР‚Р ВµР Р…Р Т‘Р В°РЎвЂљР С•РЎР‚Р В°, РЎв‚¬Р В°РЎвЂ¦Р СР В°РЎвЂљР С”Р В°-РЎвЂљР В°Р В±Р В»Р С‘РЎвЂ Р В° РЎРѓ Р В·Р В°Р С”РЎР‚Р ВµР С—Р В»РЎвЂР Р…Р Р…Р С•Р в„– Р С”Р С•Р В»Р С•Р Р…Р С”Р С•Р в„– Р С•Р В±РЎР‰Р ВµР С”РЎвЂљР С•Р Р†,
- * Р С”Р С•Р СР С—Р В°Р С”РЎвЂљР Р…РЎвЂ№Р в„– Р Р…Р С‘Р В¶Р Р…Р С‘Р в„– РЎвЂљР В°Р В±Р В±Р В°РЎР‚ (Р В¤Р С‘Р Р…Р В°Р Р…РЎРѓРЎвЂ№ / Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С•Р В±РЎР‰Р ВµР С”РЎвЂљ / Р СњР В° Р С–Р В»Р В°Р Р†Р Р…РЎС“РЎР‹).
+ * «Моя недвижимость», 2 вариант редизайна (канвас 2949:45807):
+ * табы «Объекты | Шахматка», карточки-объекты с лентой ближайшей загрузки
+ * и строкой арендатора, шахматка-таблица с закреплённой колонкой объектов,
+ * компактный нижний таббар (Финансы / Создать объект / На главную).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,22 +91,16 @@ fun MyPropertiesScreen(
 ) {
     val propertiesRaw by viewModel.properties.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
-    val lastEdit by viewModel.lastEdit.collectAsState()
+    val tenantsById by viewModel.tenantsById.collectAsState()
 
-    // Р РЋР Р…Р ВµР С”Р В±Р В°РЎР‚ Р С—РЎР‚Р В°Р Р†Р С”Р С‘ РЎв‚¬Р В°РЎвЂ¦Р СР В°РЎвЂљР С”Р С‘: Р’В«07.10.2026 РІР‚вЂќ РЎРѓР Р…РЎРЏРЎвЂљР С• Р’В· Р С›РЎвЂљР СР ВµР Р…Р С‘РЎвЂљРЎРЉР’В». Р РЋР В»РЎС“РЎвЂЎР В°Р в„–Р Р…РЎвЂ№Р в„– РЎвЂљР В°Р С—
-    // Р С—Р С• Р Т‘Р Р…РЎР‹ Р В»Р ВµРЎвЂЎР С‘РЎвЂљРЎРѓРЎРЏ Р С•Р Т‘Р Р…Р С‘Р С РЎвЂљР В°Р С—Р С•Р С (Р Р† РЎв‚¬Р В°РЎвЂ¦Р СР В°РЎвЂљР С”Р Вµ Р Р†РЎвЂљР С•РЎР‚Р С•Р в„– РЎвЂљР В°Р С— РЎРѓРЎР‚Р В°Р В·РЎС“ Р С—РЎР‚Р С‘Р СР ВµР Р…РЎРЏР ВµРЎвЂљ Р С—РЎР‚Р В°Р Р†Р С”РЎС“)
-    val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(lastEdit) {
-        val edit = lastEdit ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message = edit.label, duration = SnackbarDuration.Long)
-        viewModel.dismissEdit()
-    }
+    // Снекбар правки шахматки: «07.10.2026 — снято · Отменить». Случайный тап
+    // по дню лечится одним тапом (в шахматке второй тап сразу применяет правку)
 
-    // Р РЃР С‘РЎвЂљ Р’В«Р С™Р В°Р С” РЎС“РЎРѓРЎвЂљРЎР‚Р С•Р ВµР Р… Р С”Р В°Р В»Р ВµР Р…Р Т‘Р В°РЎР‚РЎРЉР’В» (Р С‘Р С”Р С•Р Р…Р С”Р В° Р’В«?Р’В» Р Р† РЎвЂљРЎС“Р В»Р В±Р В°РЎР‚Р Вµ) Р С‘ РЎвЂћР С‘Р В»РЎРЉРЎвЂљРЎР‚ Р С•Р В±РЎР‰Р ВµР С”РЎвЂљР С•Р Р†
+    // Шит «Как устроен календарь» (иконка «?» в тулбаре) и фильтр объектов
     var showChessHelp by remember { mutableStateOf(false) }
     var showObjectsFilter by remember { mutableStateOf(false) }
 
-    // Р С›Р В±Р Р…Р С•Р Р†Р В»Р ВµР Р…Р С‘Р Вµ РЎРѓР С—Р С‘РЎРѓР С”Р В° Р С—РЎР‚Р С‘ Р Р†Р С•Р В·Р Р†РЎР‚Р В°РЎвЂљР Вµ Р Р…Р В° РЎРЊР С”РЎР‚Р В°Р Р… / Р С‘Р В· РЎвЂћР С•Р Р…Р В°
+    // Обновление списка при возврате на экран / из фона
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -116,30 +110,46 @@ fun MyPropertiesScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Р СџР ВµРЎР‚Р С‘Р С•Р Т‘ Р С”Р В°Р В»Р ВµР Р…Р Т‘Р В°РЎР‚Р ВµР в„–: Р С—РЎР‚Р С‘Р СР ВµР Р…РЎвЂР Р…Р Р…РЎвЂ№Р в„– (Р Р†РЎРѓР Вµ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р С‘) Р С‘ РЎвЂЎР ВµРЎР‚Р Р…Р С•Р Р†Р С‘Р С” Р Р† РЎв‚¬Р С‘РЎвЂљР Вµ
+    // Период календарей: применённый (все карточки) и черновик в шите
     val today = remember { LocalDate.now() }
     var selectedYear by remember { mutableIntStateOf(today.year) }
     var selectedMonth by remember { mutableIntStateOf(today.monthValue) }
     var draftPeriod by remember { mutableStateOf(YearMonth.of(today.year, today.monthValue)) }
     var showPeriodSheet by remember { mutableStateOf(false) }
-    var objectsFilter by remember { mutableStateOf(ObjectsFilter.ALL) }
 
-    // Р вЂ™РЎвЂ№Р В±Р С•РЎР‚ Р Р…Р С•Р Р†Р С•Р С–Р С• Р С—Р ВµРЎР‚Р С‘Р С•Р Т‘Р В° Р Р† Р С”Р В°Р В»Р ВµР Р…Р Т‘Р В°РЎР‚Р Вµ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р С‘ (РЎвЂЎРЎвЂРЎР‚Р Р…РЎвЂ№Р Вµ РЎРЏРЎвЂЎР ВµР в„–Р С”Р С‘) Р С‘ Р С—Р В°Р Р…Р ВµР В»РЎРЉ card_inf
+    // Выбор нового периода в календаре карточки (чёрные ячейки) и панель card_inf
     var selectionPropertyId by remember { mutableStateOf<String?>(null) }
     var selectionStart by remember { mutableStateOf<LocalDate?>(null) }
     var selectionEnd by remember { mutableStateOf<LocalDate?>(null) }
+    /** Второй тап сделан — период закрыт (можно «Добавить арендатора») */
+    var selectionComplete by remember { mutableStateOf(false) }
     var infoPropertyId by remember { mutableStateOf<String?>(null) }
     var infoRange by remember { mutableStateOf<ClosedRange<LocalDate>?>(null) }
 
-    // Р вЂќР С•Р В»Р С–Р С•Р Вµ Р Р…Р В°Р В¶Р В°РЎвЂљР С‘Р Вµ Р Р…Р В° Р С”РЎР‚Р В°РЎРѓР Р…Р С•Р в„– РЎРЏРЎвЂЎР ВµР в„–Р С”Р Вµ РІР‚вЂќ РЎР‚РЎС“РЎвЂЎР Р…Р С•Р Вµ Р С–Р В°РЎв‚¬Р ВµР Р…Р С‘Р Вµ Р С—РЎР‚Р С•РЎРѓРЎР‚Р С•РЎвЂЎР С”Р С‘
-    var confirmPaidPropertyId by remember { mutableStateOf<String?>(null) }
-
-    // Р В¤Р С‘Р В»РЎРЉРЎвЂљРЎР‚ Р’В«Р вЂ™РЎРѓР Вµ Р С•Р В±РЎР‰Р ВµР С”РЎвЂљРЎвЂ№ / Р СџР С•РЎРѓРЎС“РЎвЂљР С•РЎвЂЎР Р…Р С• / Р СџР С•Р СР ВµРЎРѓРЎРЏРЎвЂЎР Р…Р С•Р’В» Р С‘Р В· Р С—Р С‘Р В»РЎР‹Р В»Р С‘ CalendarToolbar
-    val properties = remember(propertiesRaw, objectsFilter) {
-        propertiesRaw.filter { objectsFilter.matches(it.rentType) }
+    /** Поиск по названию и адресу объекта: регистр не важен (канвас 4390:92591). */
+    fun matchesSearch(property: MyPropertyItem, query: String): Boolean {
+        val q = query.trim()
+        if (q.isEmpty()) return true
+        return property.name.contains(q, ignoreCase = true) ||
+            property.address.contains(q, ignoreCase = true)
     }
 
-    // Р СџРЎР‚Р С•Р С–РЎР‚Р ВµР Р† Р С”РЎРЊРЎв‚¬Р В° РЎвЂћР С•РЎвЂљР С• 40dp РІР‚вЂќ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р С‘ Р Р…Р Вµ Р СР С‘Р С–Р В°РЎР‹РЎвЂљ Р С—РЎС“РЎРѓРЎвЂљРЎвЂ№Р С Р С”Р Р†Р В°Р Т‘РЎР‚Р В°РЎвЂљР С•Р С Р С—РЎР‚Р С‘ РЎРѓР С”РЎР‚Р С•Р В»Р В»Р Вµ
+    // Фильтр «Все объекты / Посуточно / Помесячно» из пилюли CalendarToolbar
+    var objectsFilter by remember { mutableStateOf(ObjectsFilter.ALL) }
+
+    // Поиск по объектам (канвас 4390:92591): лупа в тулбаре включает строку поиска,
+    // список фильтруется по названию и адресу
+    var searchActive by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Фильтр «Все объекты / Посуточно / Помесячно» + поиск
+    val properties = remember(propertiesRaw, objectsFilter, searchQuery) {
+        propertiesRaw
+            .filter { objectsFilter.matches(it.rentType) }
+            .filter { matchesSearch(it, searchQuery) }
+    }
+
+    // Прогрев кэша фото 40dp — карточки не мигают пустым квадратом при скролле
     val prefetchContext = LocalContext.current
     val prefetchDensity = LocalDensity.current
     LaunchedEffect(properties) {
@@ -156,70 +166,57 @@ fun MyPropertiesScreen(
         }
     }
 
-    /** Р вЂњРЎР‚Р В°Р Р…Р С‘РЎвЂ РЎвЂ№ Р С—Р ВµРЎР‚Р С‘Р С•Р Т‘Р В° РЎвЂљР С•РЎвЂЎР С”Р С‘: Р С—Р С•РЎРѓРЎС“РЎвЂљР С•РЎвЂЎР Р…Р С• РІР‚вЂќ Р С•Р Т‘Р С‘Р Р… Р Т‘Р ВµР Р…РЎРЉ, Р С—Р С•Р СР ВµРЎРѓРЎРЏРЎвЂЎР Р…Р С• РІР‚вЂќ Р Р†Р ВµРЎРѓРЎРЉ Р СР ВµРЎРѓРЎРЏРЎвЂ . */
+    /** Границы периода точки: посуточно — один день, помесячно — весь месяц. */
     fun periodBounds(property: MyPropertyItem, date: LocalDate): ClosedRange<LocalDate> {
-        if (property.rentType == "Р С—Р С•РЎРѓРЎС“РЎвЂљР С•РЎвЂЎР Р…Р С•") return date..date
+        if (property.rentType == "посуточно") return date..date
         val month = YearMonth.from(date)
         return month.atDay(1)..month.atEndOfMonth()
     }
 
     /**
-     * Р СћР В°Р С— Р С—Р С• Р Т‘Р В°РЎвЂљР Вµ: РЎРѓР Р†Р С•Р В±Р С•Р Т‘Р Р…Р В°РЎРЏ РІР‚вЂќ Р Р…Р В°РЎвЂЎР В°Р В»Р С•/Р С”Р С•Р Р…Р ВµРЎвЂ  Р Р…Р С•Р Р†Р С•Р С–Р С• Р С—Р ВµРЎР‚Р С‘Р С•Р Т‘Р В° (Р Р†РЎвЂљР С•РЎР‚Р С•Р в„– РЎвЂљР В°Р С— РЎРѓРЎР‚Р В°Р В·РЎС“
-     * Р С—РЎР‚Р С‘Р СР ВµР Р…РЎРЏР ВµРЎвЂљ Р С—Р С•Р С”РЎР‚Р В°РЎРѓР С”РЎС“), Р В·Р В°Р Р…РЎРЏРЎвЂљР В°РЎРЏ РІР‚вЂќ Р С—Р В°Р Р…Р ВµР В»РЎРЉ `card_inf` РЎРѓ Р В°РЎР‚Р ВµР Р…Р Т‘Р В°РЎвЂљР С•РЎР‚Р С•Р С Р С‘ Р Т‘Р С•Р В»Р С–Р С•Р С.
+     * Тап по куску ячейки. Куски аренды несут бронь ([CalPiece.key]) — открываем
+     * `card_inf` этого периода; свободные куски (в том числе серая половина месяца
+     * после выезда 21.11) начинают/закрывают новый период.
+     *
+     * Выбор работает в обе стороны: тап 20-го, потом 10-го = период 10–20, как и
+     * 10-го, потом 20-го. Долгих нажатий на шахматке нет: день выезда/заезда уже
+     * нарисован отдельной половинкой (канвас 4393:107371), а гашение долга живёт
+     * в «Графике платежей».
      */
-    fun onCalendarDayTap(property: MyPropertyItem, date: LocalDate) {
-        if (property.calStateAt(date) != CalState.FREE) {
-            val range = property.bookings
-                .firstOrNull { !date.isBefore(it.start) && !date.isAfter(it.end) }
+    fun onCalendarDayTap(property: MyPropertyItem, piece: CalPiece) {
+        val booking = piece.key.takeIf { it.isNotBlank() }?.let { key ->
+            property.bookings.firstOrNull { (it.id ?: "${it.start}..${it.end}") == key }
+        }
+        if (booking != null) {
             infoPropertyId = property.id
-            infoRange = range?.let { it.start..it.end }
+            infoRange = booking.start..booking.end
             return
         }
+        val today = LocalDate.now()
+        val bounds = piece.range
+        if (bounds.endInclusive.isBefore(today)) return
         val start = selectionStart
-        if (selectionPropertyId != property.id || start == null) {
+        val end = selectionEnd
+        if (selectionPropertyId != property.id || start == null || end == null || selectionComplete) {
+            // Первый тап: период = период нажатого куска (день или месяц-половинка)
             selectionPropertyId = property.id
-            selectionStart = periodBounds(property, date).start
-            selectionEnd = null
+            selectionStart = bounds.start.coerceAtLeast(today)
+            selectionEnd = bounds.endInclusive
+            selectionComplete = false
             infoPropertyId = null
             infoRange = null
             return
         }
-        val bounds = periodBounds(property, date)
-        val lo = minOf(start, bounds.start)
-        val hi = maxOf(start, bounds.endInclusive)
-        selectionEnd = hi
-        // Р СџР С•Р В»Р Р…Р С•РЎРѓРЎвЂљРЎРЉРЎР‹ Р В·Р В°Р Р…РЎРЏРЎвЂљРЎвЂ№Р в„– Р Т‘Р С‘Р В°Р С—Р В°Р В·Р С•Р Р… РІР‚вЂќ РЎРѓР Р…РЎРЏРЎвЂљР С‘Р Вµ Р С—Р С•Р С”РЎР‚Р В°РЎРѓР С”Р С‘, Р С‘Р Р…Р В°РЎвЂЎР Вµ Р Р…Р С•Р Р†Р В°РЎРЏ Р В°РЎР‚Р ВµР Р…Р Т‘Р В°
-        val fullyBusy = !lo.isAfter(hi) && generateSequence(lo) { it.plusDays(1) }
-            .takeWhile { !it.isAfter(hi) }
-            .all { property.calStateAt(it) != CalState.FREE }
-        if (fullyBusy) viewModel.deleteBookings(property.id, lo, hi)
-        else viewModel.saveBooking(property.id, lo, hi)
+        // Второй тап: объединяем периоды — порядок нажатий не важен
+        selectionStart = minOf(start, bounds.start).coerceAtLeast(today)
+        selectionEnd = maxOf(end, bounds.endInclusive)
+        selectionComplete = true
         viewModel.clearAttachSuggestion()
-    }
-
-    /** Р вЂќР С•Р В»Р С–Р С‘Р в„– РЎвЂљР В°Р С—: Р С—РЎР‚Р С•РЎРѓРЎР‚Р С•РЎвЂЎР С”Р В° РІР‚вЂќ Р С–Р В°РЎв‚¬Р ВµР Р…Р С‘Р Вµ, Р В·Р В°Р Р…РЎРЏРЎвЂљР В°РЎРЏ Р Т‘Р В°РЎвЂљР В° РІР‚вЂќ Р Р…Р С•Р Р†РЎвЂ№Р в„– Р С—Р ВµРЎР‚Р С‘Р С•Р Т‘ РЎРѓ РЎРЊРЎвЂљР С•Р в„– Р Т‘Р В°РЎвЂљРЎвЂ№. */
-    fun onCalendarDayLongTap(property: MyPropertyItem, date: LocalDate) {
-        when (property.calStateAt(date)) {
-            CalState.OVERDUE -> confirmPaidPropertyId = property.id
-            CalState.BUSY, CalState.PLANNED -> onAttachTenant(property.id, date, null)
-            else -> Unit
-        }
     }
 
     Scaffold(
         containerColor = White,
         contentWindowInsets = WindowInsets.systemBars,
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
-                UndoSnackbar(
-                    message = data.visuals.message,
-                    onUndo = {
-                        data.dismiss()
-                        viewModel.undoLastEdit()
-                    }
-                )
-            }
-        },
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -228,55 +225,68 @@ fun MyPropertiesScreen(
                 .background(White)
         ) {
             Spacer(Modifier.height(27.dp))
-            // ---- Р СћРЎС“Р В»Р В±Р В°РЎР‚: Р Р…Р В°Р В·Р В°Р Т‘ + Р В·Р В°Р С–Р С•Р В»Р С•Р Р†Р С•Р С” + РЎРѓР С•РЎР‚РЎвЂљР С‘РЎР‚Р С•Р Р†Р С”Р В° ----
+            // ---- Тулбар: назад + заголовок + сортировка ----
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 20.dp, end = 20.dp, bottom = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onBack() },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                if (searchActive) {
+                    // Канвас 4390:92590 — поиск занимает место названия экрана
+                    // и обеих иконок, строка «Выбрать период» остаётся на месте
+                    CalendarSearchToolbar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        onBack = {
+                            searchActive = false
+                            searchQuery = ""
+                        }
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onBack() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_arrow_left),
+                            contentDescription = "Назад",
+                            modifier = Modifier.size(24.dp),
+                            tint = TextPrimary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Моя недвижимость",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = (-0.3).sp,
+                            color = TextPrimary
+                        )
+                    }
+                    // Канвас 19: в тулбаре две иконки 24×24 с зазором 8 — поиск и справка
                     Icon(
-                        painter = painterResource(R.drawable.ic_arrow_left),
-                        contentDescription = "Р СњР В°Р В·Р В°Р Т‘",
-                        modifier = Modifier.size(24.dp),
-                        tint = TextPrimary
+                        painter = painterResource(R.drawable.ic_myprops_search),
+                        contentDescription = "Поиск",
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable { searchActive = true },
+                        tint = Color.Unspecified
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Р СљР С•РЎРЏ Р Р…Р ВµР Т‘Р Р†Р С‘Р В¶Р С‘Р СР С•РЎРѓРЎвЂљРЎРЉ",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = (-0.3).sp,
-                        color = TextPrimary
+                    Icon(
+                        painter = painterResource(R.drawable.ic_myprops_help),
+                        contentDescription = "Как устроен календарь",
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable { showChessHelp = true },
+                        tint = Color.Unspecified
                     )
                 }
-                // Р С™Р В°Р Р…Р Р†Р В°РЎРѓ 19: Р Р† РЎвЂљРЎС“Р В»Р В±Р В°РЎР‚Р Вµ Р Т‘Р Р†Р Вµ Р С‘Р С”Р С•Р Р…Р С”Р С‘ 24Р“вЂ”24 РЎРѓ Р В·Р В°Р В·Р С•РЎР‚Р С•Р С 8 РІР‚вЂќ Р С—Р С•Р С‘РЎРѓР С” Р С‘ РЎРѓР С—РЎР‚Р В°Р Р†Р С”Р В°
-                Icon(
-                    painter = painterResource(R.drawable.ic_myprops_search),
-                    contentDescription = "Р СџР С•Р С‘РЎРѓР С”",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable { showObjectsFilter = true },
-                    tint = Color.Unspecified
-                )
-                Spacer(Modifier.width(8.dp))
-                Icon(
-                    painter = painterResource(R.drawable.ic_myprops_help),
-                    contentDescription = "Р С™Р В°Р С” РЎС“РЎРѓРЎвЂљРЎР‚Р С•Р ВµР Р… Р С”Р В°Р В»Р ВµР Р…Р Т‘Р В°РЎР‚РЎРЉ",
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clickable { showChessHelp = true },
-                    tint = Color.Unspecified
-                )
             }
 
-            // ---- Р СџР В°Р Р…Р ВµР В»РЎРЉ Р С”Р В°Р В»Р ВµР Р…Р Т‘Р В°РЎР‚РЎРЏ: Р’В«Р вЂ™РЎвЂ№Р В±РЎР‚Р В°РЎвЂљРЎРЉ Р С—Р ВµРЎР‚Р С‘Р С•Р Т‘Р’В» + РЎвЂћР С‘Р В»РЎРЉРЎвЂљРЎР‚ Р С•Р В±РЎР‰Р ВµР С”РЎвЂљР С•Р Р† (Р С”Р В°Р Р…Р Р†Р В°РЎРѓ 19) ----
+            // ---- Панель календаря: «Выбрать период» + фильтр объектов (канвас 19) ----
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -326,14 +336,15 @@ fun MyPropertiesScreen(
                                 property = property,
                                 anchor = YearMonth.of(selectedYear, selectedMonth),
                                 selection = selection,
-                                onDayClick = { date -> onCalendarDayTap(property, date) },
-                                onDayLongClick = { date -> onCalendarDayLongTap(property, date) },
-                                onOpenProperty = { onPropertyClick(property.id) }
+                                onDayClick = { piece -> onCalendarDayTap(property, piece) },
+                                onOpenProperty = { onPropertyClick(property.id) },
+                                // 2px — только у периода, по которому открыта карточка
+                                emphasized = if (infoPropertyId == property.id) infoRange else null
                             )
                         }
                     }
 
-                    // Р СњР С‘Р В¶Р Р…Р С‘Р Вµ Р С—Р В°Р Р…Р ВµР В»Р С‘ Р С—Р С•Р Р†Р ВµРЎР‚РЎвЂ¦ РЎРѓР С—Р С‘РЎРѓР С”Р В°: card_inf Р С—РЎР‚Р С‘Р С•РЎР‚Р С‘РЎвЂљР ВµРЎвЂљР Р…Р ВµР Вµ Р Р†РЎвЂ№Р В±Р С•РЎР‚Р В°
+                    // Нижние панели поверх списка: card_inf приоритетнее выбора
                     val infoProperty = infoPropertyId?.let { id -> properties.find { it.id == id } }
                     val infoDates = infoRange
                     val selProperty = selectionPropertyId?.let { id -> properties.find { it.id == id } }
@@ -344,42 +355,55 @@ fun MyPropertiesScreen(
                             .padding(bottom = 13.dp)
                     ) {
                         when {
-                            infoProperty != null && infoDates != null -> PeriodInfoPanel(
-                                periodText = formatCalendarPeriod(
-                                    infoDates.start,
-                                    infoDates.endInclusive,
-                                    infoProperty.rentType == "Р С—Р С•РЎРѓРЎС“РЎвЂљР С•РЎвЂЎР Р…Р С•"
-                                ),
-                                overdueText = if (infoProperty.overdue && infoProperty.overdueAmount > 0.0) {
-                                    "Р вЂ”Р В°Р Т‘Р С•Р В»Р В¶Р ВµР Р…Р Р…Р С•РЎРѓРЎвЂљРЎРЉ " + String.format(
-                                        java.util.Locale.US,
-                                        "%,.0f РІвЂљР…",
-                                        infoProperty.overdueAmount
-                                    ).replace(',', ' ')
-                                } else null,
-                                tenantName = infoProperty.tenantInfo?.substringBefore(" Р’В·"),
-                                onClose = {
-                                    infoPropertyId = null
-                                    infoRange = null
-                                },
-                                onEmail = { onWriteClick() },
-                                onCall = { }
-                            )
+                            infoProperty != null && infoDates != null -> {
+                                // Арендатор берётся из брони (tenant_id), фолбэк — поле объекта
+                                val infoBooking = infoProperty.bookings.firstOrNull {
+                                    it.start == infoDates.start && it.end == infoDates.endInclusive
+                                }
+                                val infoTenant = infoBooking?.tenantId?.let { tenantsById[it] }
+                                PeriodInfoPanel(
+                                    periodText = formatCalendarPeriod(
+                                        infoDates.start,
+                                        infoDates.endInclusive,
+                                        infoProperty.rentType == "посуточно"
+                                    ),
+                                    // Долг считаем только по этому периоду: у нового
+                                    // будущего периода долга нет (было 46 800 по объекту)
+                                    overdueText = (infoBooking?.debtAmount ?: 0.0)
+                                        .takeIf { it > 0.0 }
+                                        ?.let {
+                                            "Задолженность " + String.format(
+                                                java.util.Locale.US,
+                                                "%,.0f ₽",
+                                                it
+                                            ).replace(',', ' ')
+                                        },
+                                    tenantName = infoTenant?.name
+                                        ?: infoProperty.tenantInfo?.substringBefore(" ·"),
+                                    tenantPhone = infoTenant?.phone ?: infoProperty.tenantPhone,
+                                    onClose = {
+                                        infoPropertyId = null
+                                        infoRange = null
+                                    },
+                                    onEmail = { onWriteClick() }
+                                )
+                            }
 
                             selProperty != null -> SelectionPanel(
                                 propertyName = propertyTitle(selProperty.name, selProperty.address),
                                 periodText = formatSelectionPeriod(
                                     selectionStart,
                                     selectionEnd,
-                                    selProperty.rentType == "Р С—Р С•РЎРѓРЎС“РЎвЂљР С•РЎвЂЎР Р…Р С•"
+                                    selProperty.rentType == "посуточно"
                                 ),
-                                periodComplete = selectionEnd != null,
+                                periodComplete = selectionComplete,
                                 onAddTenant = {
                                     val startDate = selectionStart
                                     val endDate = selectionEnd ?: selectionStart
                                     selectionPropertyId = null
                                     selectionStart = null
                                     selectionEnd = null
+                                    selectionComplete = false
                                     if (startDate != null && endDate != null) {
                                         onAttachTenant(selProperty.id, startDate, endDate)
                                     }
@@ -388,6 +412,7 @@ fun MyPropertiesScreen(
                                     selectionPropertyId = null
                                     selectionStart = null
                                     selectionEnd = null
+                                    selectionComplete = false
                                 }
                             )
                         }
@@ -397,7 +422,7 @@ fun MyPropertiesScreen(
         }
     }
 
-    // Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р С‘ РІР‚вЂќ Р С•Р С”Р Р…Р С•Р С-РЎС“Р Р†Р ВµР Т‘Р С•Р СР В»Р ВµР Р…Р С‘Р ВµР С, Р В·Р В°Р С”РЎР‚РЎвЂ№РЎвЂљР С‘Р Вµ РЎвЂљР В°Р С—Р С•Р С Р Р†Р Р…Р Вµ
+    // Ошибка загрузки — окном-уведомлением, закрытие тапом вне
     errorMessage?.let {
         IconNotificationDialog(
             iconRes = R.drawable.ic_globe_warning_vec,
@@ -406,32 +431,17 @@ fun MyPropertiesScreen(
         )
     }
 
-    // Р В РЎС“РЎвЂЎР Р…Р С•Р Вµ Р С–Р В°РЎв‚¬Р ВµР Р…Р С‘Р Вµ Р С—РЎР‚Р С•РЎРѓРЎР‚Р С•РЎвЂЎР С”Р С‘ (Р Т‘Р С•Р В»Р С–Р С•Р Вµ Р Р…Р В°Р В¶Р В°РЎвЂљР С‘Р Вµ Р Р…Р В° Р С”РЎР‚Р В°РЎРѓР Р…Р С•Р в„– РЎРЏРЎвЂЎР ВµР в„–Р С”Р Вµ РЎв‚¬Р В°РЎвЂ¦Р СР В°РЎвЂљР С”Р С‘)
-    confirmPaidPropertyId?.let { id ->
-        val item = properties.find { it.id == id }
-        if (item != null) {
-            ScheduleDialog(
-                iconRes = null,
-                title = "Р С›РЎвЂљР СР ВµРЎвЂљР С‘РЎвЂљРЎРЉ Р С—Р В»Р В°РЎвЂљРЎвЂР В¶ Р С—Р С•Р В»РЎС“РЎвЂЎР ВµР Р…Р Р…РЎвЂ№Р С?",
-                body = "Р СџР В»Р В°РЎвЂљРЎвЂР В¶ " + String.format(java.util.Locale.US, "%,.0f РІвЂљР…", item.overdueAmount).replace(',', ' ') +
-                    " Р В±РЎС“Р Т‘Р ВµРЎвЂљ Р С•РЎвЂљР СР ВµРЎвЂЎР ВµР Р… Р С”Р В°Р С” Р С—Р С•Р В»РЎС“РЎвЂЎР ВµР Р…Р Р…РЎвЂ№Р в„– РЎРѓР ВµР С–Р С•Р Т‘Р Р…РЎРЏ РІР‚вЂќ Р Р…Р В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚, Р С•Р С—Р В»Р В°РЎвЂЎР ВµР Р…Р Р…РЎвЂ№Р в„– Р Р…Р В°Р В»Р С‘РЎвЂЎР Р…РЎвЂ№Р СР С‘",
-                confirmText = "Р С›РЎвЂљР СР ВµРЎвЂљР С‘РЎвЂљРЎРЉ Р С•Р С—Р В»Р В°РЎвЂљРЎС“",
-                onConfirm = {
-                    confirmPaidPropertyId = null
-                    viewModel.markOverduePaid(id)
-                },
-                onDismiss = { confirmPaidPropertyId = null }
-            )
-        }
-    }
-
     if (showPeriodSheet) {
         CalendarPeriodSheet(
             draft = draftPeriod,
             onDraftChange = { draftPeriod = it },
             onApply = {
-                selectedYear = draftPeriod.year
-                selectedMonth = draftPeriod.monthValue
+                // Прошлый период не открываем: подтягиваем к текущему месяцу
+                val min = YearMonth.now()
+                val safe = if (draftPeriod < min) min else draftPeriod
+                draftPeriod = safe
+                selectedYear = safe.year
+                selectedMonth = safe.monthValue
                 showPeriodSheet = false
             },
             onCurrentMonth = {
@@ -445,7 +455,7 @@ fun MyPropertiesScreen(
         )
     }
 
-    // Р РЃР С‘РЎвЂљ Р’В«Р СџР С•Р С”Р В°Р В·Р В°РЎвЂљРЎРЉ Р С•Р В±РЎР‰Р ВµР С”РЎвЂљРЎвЂ№Р’В» РІР‚вЂќ РЎвЂћР С‘Р В»РЎРЉРЎвЂљРЎР‚ РЎРѓР С—Р С‘РЎРѓР С”Р В° (Р С—РЎР‚Р С‘Р СР ВµР Р…РЎРЏР ВµРЎвЂљРЎРѓРЎРЏ РЎРѓРЎР‚Р В°Р В·РЎС“ Р С—Р С•РЎРѓР В»Р Вµ Р Р†РЎвЂ№Р В±Р С•РЎР‚Р В°)
+    // Шит «Показать объекты» — фильтр списка (применяется сразу после выбора)
     if (showObjectsFilter) {
         ObjectsFilterSheet(
             selected = objectsFilter,
@@ -457,15 +467,15 @@ fun MyPropertiesScreen(
         )
     }
 
-    // Р РЃР С‘РЎвЂљ Р’В«Р С™Р В°Р С” РЎС“РЎРѓРЎвЂљРЎР‚Р С•Р ВµР Р… Р С”Р В°Р В»Р ВµР Р…Р Т‘Р В°РЎР‚РЎРЉР’В» РІР‚вЂќ Р В»Р ВµР С–Р ВµР Р…Р Т‘Р В° Р С‘Р В· 5 РЎРѓРЎвЂљРЎР‚Р С•Р С” Р С‘ Р С—Р С•Р Т‘РЎРѓР С”Р В°Р В·Р С”Р С‘
+    // Шит «Как устроен календарь» — легенда из 5 строк и подсказки
     if (showChessHelp) {
         CalendarLegendSheet(onDismiss = { showChessHelp = false })
     }
 }
 
-// ===================== Р С›Р В±РЎвЂ°Р С‘Р Вµ РЎв‚¬Р С‘РЎвЂљРЎвЂ№ =====================
+// ===================== Общие шиты =====================
 
-/** Р РЋР Р…Р ВµР С”Р В±Р В°РЎР‚ Р С—РЎР‚Р В°Р Р†Р С”Р С‘ РЎв‚¬Р В°РЎвЂ¦Р СР В°РЎвЂљР С”Р С‘: РЎвЂљРЎвЂР СР Р…Р В°РЎРЏ Р С—Р В»Р В°РЎв‚¬Р С”Р В° + Р’В«Р С›РЎвЂљР СР ВµР Р…Р С‘РЎвЂљРЎРЉР’В» (РЎРѓР Р†Р С•РЎРЏ Р Р†РЎвЂРЎР‚РЎРѓРЎвЂљР С”Р В°). */
+/** Снекбар правки шахматки: тёмная плашка + «Отменить» (своя вёрстка). */
 @Composable
 private fun UndoSnackbar(message: String, onUndo: () -> Unit) {
     Row(
@@ -486,7 +496,7 @@ private fun UndoSnackbar(message: String, onUndo: () -> Unit) {
         )
         Spacer(Modifier.width(12.dp))
         Text(
-            "Р С›РЎвЂљР СР ВµР Р…Р С‘РЎвЂљРЎРЉ",
+            "Отменить",
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = (-0.4).sp,

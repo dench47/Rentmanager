@@ -7,13 +7,17 @@ import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreateBookingRequest
 import com.rentmanager.app.data.api.CreatePaymentRequest
 import com.rentmanager.app.data.api.FinanceApi
+import com.rentmanager.app.data.api.TenantApi
 import com.rentmanager.app.data.local.PropertyDetailCache
+import com.rentmanager.app.data.local.TenantsListCache
 import com.rentmanager.app.data.model.BookingDto
+import com.rentmanager.app.data.model.PaymentDto
 import com.rentmanager.app.data.model.PaymentScheduleDto
 import com.rentmanager.app.data.model.forProperty
 import com.rentmanager.app.data.model.PropertyDto
 import com.rentmanager.app.data.repository.PropertyRepository
 import com.rentmanager.app.util.PaymentOverdue
+import com.rentmanager.app.util.parseAnyDate
 import com.rentmanager.app.util.shortAddress
 import com.rentmanager.app.util.mergeRanges
 import com.google.gson.Gson
@@ -34,8 +38,16 @@ data class BookingRange(
     val end: LocalDate,
     val source: String = "manual",
     /** Арендатор периода; null = покраска без арендатора (неразмеченный период) */
-    val tenantId: String? = null
+    val tenantId: String? = null,
+    /**
+     * Непогашенный долг внутри этого периода (сумма прошедших дат платежей без
+     * оплаты). 0 = долга нет: красную обводку рисуем только там, где он есть.
+     */
+    val debtAmount: Double = 0.0
 )
+
+/** Арендатор для панели card_inf: имя и телефон по tenant_id брони */
+data class TenantBrief(val name: String, val phone: String?)
 
 @Immutable
 data class MyPropertyItem(
@@ -53,6 +65,9 @@ data class MyPropertyItem(
     val month: Int = LocalDate.now().monthValue, // 1..12
     /** Режим отображения арендатора в списке: «Эля Цап · до 21.11.2026» */
     val tenantInfo: String? = null,
+    /** Арендатор объекта — фолбэк, когда у брони нет tenant_id */
+    val tenantId: String? = null,
+    val tenantPhone: String? = null,
     /** Срок аренды из поля объекта — фолбэк, когда броней ещё нет */
     val rentEndDate: String? = null
 )
@@ -107,10 +122,17 @@ class MyPropertiesViewModel @Inject constructor(
     private val propertyRepository: PropertyRepository,
     private val bookingApi: BookingApi,
     private val financeApi: FinanceApi,
+    private val tenantApi: TenantApi,
+    private val tenantsListCache: TenantsListCache,
     private val detailCache: PropertyDetailCache
 ) : ViewModel() {
     private val _properties = MutableStateFlow<List<MyPropertyItem>>(emptyList())
     val properties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
+
+    private val _tenantsById = MutableStateFlow<Map<String, TenantBrief>>(emptyMap())
+
+    /** Справочник арендаторов для панели card_inf (имя и телефон по tenant_id брони) */
+    val tenantsById: StateFlow<Map<String, TenantBrief>> = _tenantsById.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -227,6 +249,7 @@ class MyPropertiesViewModel @Inject constructor(
                     val withBookings = items.map { loadBookings(it) }
                     _properties.value = withBookings.map { loadOverdue(it, schedules) }
                     validateAttachSuggestion(_properties.value)
+                    loadTenants()
                 } else {
                     _errorMessage.value = "Ошибка загрузки"
                 }
@@ -261,6 +284,11 @@ class MyPropertiesViewModel @Inject constructor(
     }
 
     fun saveBooking(propertyId: String, start: LocalDate, end: LocalDate) {
+        // Прошлое не бронируем: старые дни нельзя ни выбрать, ни сохранить
+        if (start.isBefore(LocalDate.now())) {
+            _errorMessage.value = "Прошедшие даты забронировать нельзя"
+            return
+        }
         // Снимок ДО правки — для «Отменить» в снекбаре
         val before = _properties.value.find { it.id == propertyId }?.bookings.orEmpty()
         viewModelScope.launch {
@@ -365,26 +393,15 @@ class MyPropertiesViewModel @Inject constructor(
             else (schedule?.type ?: "manual")
             val dd = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
-            if (scheduleType == "auto") {
-                val last = bookings.maxByOrNull { it.end }
-                val newRentEnd = if (last != null) {
-                    val day = schedule?.dayOfMonth ?: last.end.dayOfMonth
-                    val lastMonth = YearMonth.from(last.end)
-                    lastMonth.atDay(day.coerceIn(1, lastMonth.lengthOfMonth())).format(dd)
-                } else null
-                if (dto.rentEndDate != newRentEnd) {
-                    val updated = dto.copy(rentEndDate = newRentEnd)
-                    propertyRepository.updateProperty(propertyId, updated)
-                    runCatching { detailCache.saveProperty(updated) }
-                }
-            } else {
-                // Суточный режим: последняя дата брони — в «Срок аренды»
-                val newRentEnd = bookings.maxByOrNull { it.end }?.end?.format(dd)
-                if (dto.rentEndDate != newRentEnd) {
-                    val updated = dto.copy(rentEndDate = newRentEnd)
-                    propertyRepository.updateProperty(propertyId, updated)
-                    runCatching { detailCache.saveProperty(updated) }
-                }
+            // «Срок аренды» — всегда конец аренды (последняя бронь), а не дата
+            // следующего платежа: карточка объекта показывает срок договора
+            val newRentEnd = bookings.maxByOrNull { it.end }?.end?.format(dd)
+            if (dto.rentEndDate != newRentEnd) {
+                val updated = dto.copy(rentEndDate = newRentEnd)
+                propertyRepository.updateProperty(propertyId, updated)
+                runCatching { detailCache.saveProperty(updated) }
+            }
+            if (scheduleType != "auto") {
                 // Даты платежей = брони, сгруппированные ПО АРЕНДАТОРУ: периоды
                 // разных арендаторов не сливаются (иначе в одну запись графика
                 // попадают чужие сутки и «долг» объекта суммирует арендаторов),
@@ -442,18 +459,90 @@ class MyPropertiesViewModel @Inject constructor(
             emptyList()
         }
 
+    /** Справочник арендаторов: сначала кэш (мгновенный кадр), затем сервер. */
+    private suspend fun loadTenants() {
+        try {
+            val cached = tenantsListCache.get().orEmpty()
+            if (cached.isNotEmpty()) {
+                _tenantsById.value = cached.associate {
+                    it.id to TenantBrief(it.fullName, it.phone.takeIf { p -> p.isNotBlank() })
+                }
+            }
+            val resp = tenantApi.getTenants()
+            if (resp.isSuccessful) {
+                val list = resp.body().orEmpty()
+                tenantsListCache.put(list)
+                _tenantsById.value = list.associate {
+                    it.id to TenantBrief(it.fullName, it.phone.takeIf { p -> p.isNotBlank() })
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
+    /**
+     * Долг и просрочка считаются по ДАТАМ ПЛАТЕЖЕЙ, а не «в целом по объекту»:
+     * у каждого периода своя сумма, поэтому карточка периода показывает только
+     * его долг (новый будущий период — 0, а не долг всего объекта).
+     */
     private suspend fun loadOverdue(item: MyPropertyItem, schedules: List<PaymentScheduleDto>): MyPropertyItem =
         try {
             val schedule = schedules.forProperty(item.id)
             val payments = financeApi.listPayments(item.id).body() ?: emptyList()
-            val overdue = PaymentOverdue.isOverdue(schedule, payments)
+            val today = LocalDate.now()
+            val unpaidPast = unpaidDueDates(item.bookings, schedule, payments)
+                .filter { it.first.isBefore(today) }
             item.copy(
-                overdue = overdue,
-                overdueAmount = if (overdue) PaymentOverdue.overdueAmount(schedule, payments) else 0.0
+                overdue = unpaidPast.isNotEmpty(),
+                overdueAmount = unpaidPast.sumOf { it.second },
+                bookings = item.bookings.map { b ->
+                    val debt = unpaidPast
+                        .filter { (d, _) -> !d.isBefore(b.start) && !d.isAfter(b.end) }
+                        .sumOf { it.second }
+                    if (debt > 0.0) b.copy(debtAmount = debt) else b
+                }
             )
         } catch (_: Exception) {
             item
         }
+
+    /**
+     * Даты платежей объекта. Помесячно — от начала первой аренды до конца
+     * последней по дню из графика (аренда продлилась — даты появились сами,
+     * график руками править не нужно); посуточно — даты переменного графика,
+     * которые пересобираются из броней при каждой правке.
+     */
+    private fun dueDatesOf(
+        bookings: List<BookingRange>,
+        schedule: PaymentScheduleDto?
+    ): List<Pair<LocalDate, Double>> {
+        val s = schedule ?: return emptyList()
+        s.dayOfMonth?.let { day ->
+            val first = bookings.minOfOrNull { it.start } ?: return emptyList()
+            val last = bookings.maxOfOrNull { it.end } ?: return emptyList()
+            val amount = s.amount ?: 0.0
+            val out = ArrayList<Pair<LocalDate, Double>>()
+            var month = YearMonth.from(first)
+            val endMonth = YearMonth.from(last)
+            while (!month.isAfter(endMonth)) {
+                val date = month.atDay(day.coerceIn(1, month.lengthOfMonth()))
+                if (!date.isBefore(first) && !date.isAfter(last)) out += date to amount
+                month = month.plusMonths(1)
+            }
+            return out
+        }
+        s.customDates?.let { return PaymentOverdue.dueDatesFromCustom(it) }
+        return emptyList()
+    }
+
+    /** Непогашенное: дата прошла (или предстоит), а платежа «paid» на неё и позже нет. */
+    private fun unpaidDueDates(
+        bookings: List<BookingRange>,
+        schedule: PaymentScheduleDto?,
+        payments: List<PaymentDto>
+    ): List<Pair<LocalDate, Double>> {
+        val paid = payments.filter { it.status == "paid" }.mapNotNull { parseAnyDate(it.date) }
+        return dueDatesOf(bookings, schedule).filter { (due, _) -> paid.none { !it.isBefore(due) } }
+    }
 
     /**
      * Ручное гашение просрочки с шахматки (долгое нажатие на красной ячейке):
@@ -461,11 +550,12 @@ class MyPropertiesViewModel @Inject constructor(
      * подтверждения. Записываем платёж со статусом «paid» и сегодняшней
      * датой — просрочка гаснет в шахматке, на дашборде и в карточке.
      */
-    fun markOverduePaid(propertyId: String) {
+    fun markOverduePaid(propertyId: String, amount: Double = -1.0) {
         viewModelScope.launch {
             try {
                 val item = _properties.value.find { it.id == propertyId } ?: return@launch
-                financeApi.createPayment(propertyId, CreatePaymentRequest(item.overdueAmount))
+                val sum = if (amount > 0.0) amount else item.overdueAmount
+                financeApi.createPayment(propertyId, CreatePaymentRequest(sum))
                 refresh()
             } catch (_: Exception) { }
         }
@@ -481,6 +571,8 @@ private fun PropertyDto.toMyPropertyItem(): MyPropertyItem = MyPropertyItem(
     rentType = rentType ?: "посуточно",
     rentAmount = rentAmount,
     tenantInfo = tenantInfo?.takeIf { it.isNotBlank() },
+    tenantId = tenantId,
+    tenantPhone = phone?.takeIf { it.isNotBlank() },
     rentEndDate = rentEndDate
 )
 

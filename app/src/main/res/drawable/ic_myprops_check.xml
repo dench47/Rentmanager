@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Канвас 19, узел I4390:95678;2635:24411 — галочка выбранного пункта (18×13 в 24×24) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M8.79922,15.8998L4.59922,11.6998L3.19922,13.0998L8.79922,18.6998L20.7992,6.6998L19.3992,5.2998Z"
+        android:fillColor="#212121" />
+</vector>

@@ -1,5 +1,7 @@
 package com.rentmanager.app.ui.landlord.myproperties
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,8 +24,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -30,23 +36,34 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import com.rentmanager.app.R
 import com.rentmanager.app.util.hasPropertyName
 import com.rentmanager.app.util.propertyTitle
@@ -61,6 +78,9 @@ import java.time.YearMonth
 
 private val ObjectsDivider = Color(0xFFDBDBDB)
 private val ObjectsWhite = Color(0xFFFFFFFF)
+
+/** Шаг пункта пикера периода: пункт 30 + зазор 6 (канвас 4390:95317). */
+private const val PickerItemStep = 36f
 
 /** Фильтр списка объектов: подпись в пилюле и правило отбора. */
 internal enum class ObjectsFilter(val label: String) {
@@ -118,9 +138,12 @@ internal fun CalendarToolbar(
         Row(
             modifier = Modifier
                 .height(42.dp)
+                // Канвас 4390:94065: обводка #212121 при 40% (1px, r100),
+                // отступы 11 по краям, зазор иконка↔подпись 6
                 .clip(RoundedCornerShape(100.dp))
+                .border(1.dp, CalInk.copy(alpha = 0.40f), RoundedCornerShape(100.dp))
                 .clickable { onFilterClick() }
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -142,6 +165,89 @@ internal fun CalendarToolbar(
 }
 
 /**
+ * Строка поиска вместо панели календаря (канвас 4390:92591): стрелка назад,
+ * плашка #EFEFEF r20 (h50) с лупой 20, введённым текстом 15/600 и крестиком
+ * «очистить» в круге 16×16 справа.
+ */
+@Composable
+internal fun CalendarSearchToolbar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    val shape = RoundedCornerShape(20.dp)
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(24.dp)
+                .height(50.dp)
+                .clickable { onBack() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_arrow_left),
+                contentDescription = "Назад",
+                modifier = Modifier.size(24.dp),
+                tint = CalInk
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .height(50.dp)
+                .clip(shape)
+                .background(Color(0xFFEFEFEF))
+                .padding(start = 10.dp, end = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_myprops_search),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = Color.Unspecified
+            )
+            Spacer(Modifier.width(6.dp))
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = TextStyle(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.4).sp,
+                    color = CalInk
+                ),
+                cursorBrush = SolidColor(CalInk),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester)
+            )
+            if (query.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clickable { onQueryChange("") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_myprops_clear),
+                        contentDescription = "Очистить",
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.Unspecified
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * Карточка объекта: 372×173 r20 (обводка #DBDBDB), пад top 10 / bottom 16,
  * шапка `Namecard_2` 370×51 (пад 10/5) и полоса-календарь 82 (c19_canon.md §1, §3).
  */
@@ -150,9 +256,10 @@ internal fun CalendarObjectCard(
     property: MyPropertyItem,
     anchor: YearMonth,
     selection: ClosedRange<LocalDate>?,
-    onDayClick: (LocalDate) -> Unit,
-    onDayLongClick: (LocalDate) -> Unit,
-    onOpenProperty: () -> Unit
+    onDayClick: (CalPiece) -> Unit,
+    onOpenProperty: () -> Unit,
+    /** Период, по которому открыта карточка: его полоса рисуется 2px (4390:95386) */
+    emphasized: ClosedRange<LocalDate>? = null
 ) {
     val shape = RoundedCornerShape(20.dp)
     val daily = property.rentType == "посуточно"
@@ -171,11 +278,28 @@ internal fun CalendarObjectCard(
         val blocks = remember(property, anchor, selection, daily) {
             buildCalBlocks(property, anchor, monthly = !daily, selection = selection)
         }
+        // Помесячный вид открывается НА выбранном месяце (пояснение 4390:95394:
+        // «помесячные — на соответствующем месяце»): первый блок — год якоря,
+        // поэтому сдвигаем скролл на (месяц − 1) × шаг месяца. Посуточно первый
+        // блок уже начинается с 1-го числа выбранного месяца, сдвиг 0.
+        val density = LocalDensity.current
+        val offsetPx = remember(anchor, daily, density) {
+            if (daily) 0
+            else with(density) {
+                ((anchor.monthValue - 1) * (CAL_CELL_W + CAL_GAP)).dp.roundToPx()
+            }
+        }
+        val scrollState = rememberScrollState(initial = offsetPx)
+        // Перезапускаем установку скролла на каждую смену периода: посуточный
+        // встаёт на 1-е число выбранного месяца, помесячный — на свой месяц
+        LaunchedEffect(anchor, daily) {
+            scrollState.animateScrollTo(offsetPx)
+        }
         PropertyCalendar(
             blocks = blocks,
             onDayClick = onDayClick,
-            onDayLongClick = onDayLongClick,
-            scrollState = rememberScrollState(),
+            scrollState = scrollState,
+            emphasized = emphasized,
             modifier = Modifier.padding(start = 1.dp)
         )
     }
@@ -282,23 +406,32 @@ internal fun SelectionPanel(
             .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
             Text(
                 propertyName,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.4).sp,
                 color = CalInk,
-                maxLines = 1
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(6.dp))
+            // Подпись периода в канвасе приглушена: прозрачность 0.85
             Text(
                 periodText,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.4).sp,
-                color = CalInk,
-                maxLines = 1
+                color = CalInk.copy(alpha = 0.85f),
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -320,7 +453,8 @@ internal fun SelectionPanel(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = (-0.4).sp,
-                    color = CalInk
+                    // Пока период не закрыт — подпись кнопки серая (прозрачность 0.40 по канвасу)
+                    color = if (periodComplete) CalInk else CalInk.copy(alpha = 0.40f)
                 )
             }
             Box(
@@ -353,9 +487,9 @@ internal fun PeriodInfoPanel(
     periodText: String,
     overdueText: String?,
     tenantName: String?,
+    tenantPhone: String? = null,
     onClose: () -> Unit,
-    onEmail: () -> Unit,
-    onCall: () -> Unit
+    onEmail: () -> Unit
 ) {
     val shape = RoundedCornerShape(20.dp)
     Column(
@@ -364,7 +498,7 @@ internal fun PeriodInfoPanel(
             .shadow(6.dp, shape)
             .clip(shape)
             .background(Color(0xFFEFEFEF))
-            .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(
@@ -401,24 +535,29 @@ internal fun PeriodInfoPanel(
                 .background(ObjectsDivider)
         )
         if (overdueText != null) {
+            // Плашка долга по канвасу 4390:91653: 336×38, фон #FBEAEC, r10,
+            // текст #FF4249 15/600 по центру
             Box(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFFBEAEC))
-                    .padding(10.dp)
+                    .background(Color(0xFFFBEAEC)),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     overdueText,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = (-0.4).sp,
-                    color = Color(0xFFFF4249)
+                    color = Color(0xFFFF4249),
+                    textAlign = TextAlign.Center
                 )
             }
         }
         if (tenantName != null) {
             Row(
-                modifier = Modifier.padding(10.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -440,7 +579,17 @@ internal fun PeriodInfoPanel(
                 Spacer(Modifier.width(10.dp))
                 ActionCircle(R.drawable.ic_myprops_email, "Написать", onEmail)
                 Spacer(Modifier.width(8.dp))
-                ActionCircle(R.drawable.ic_myprops_call, "Позвонить", onCall)
+                val context = LocalContext.current
+                ActionCircle(R.drawable.ic_myprops_call, "Позвонить") {
+                    val digits = tenantPhone?.filter { it.isDigit() || it == '+' }
+                    if (!digits.isNullOrBlank()) {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_DIAL, Uri.parse("tel:$digits"))
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -481,16 +630,35 @@ internal fun CalendarPeriodSheet(
     onCurrentMonth: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val years = remember { (2024..2036).toList() }
+    // Годы только текущий и вперёд: прошлые месяцы бронировать нельзя
+    val currentYear = remember { YearMonth.now().year }
+    val years = remember(currentYear) { (currentYear..currentYear + 12).toList() }
+    // Подписи годов считаем один раз: новый список на каждую рекомпозицию
+    // перезапускал бы подписку на центр колонки
+    val yearLabels = remember(years) { years.map { it.toString() } }
+    // Обе колонки пишут в один draft: обработчик может сработать со старым
+    // замыканием, поэтому всегда применяем к актуальному значению — иначе
+    // тап по году после тапа по месяцу возвращал бы прежний месяц.
+    val currentDraft by rememberUpdatedState(draft)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        containerColor = ObjectsWhite
+        containerColor = ObjectsWhite,
+        // Ручка по канвасу 4390:95317: 32×4, #212121 при 40%
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                width = 32.dp,
+                height = 4.dp,
+                color = CalInk.copy(alpha = 0.40f)
+            )
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -512,16 +680,17 @@ internal fun CalendarPeriodSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(1.dp, ObjectsDivider, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 30.dp, vertical = 17.dp),
-                horizontalArrangement = Arrangement.spacedBy(52.dp),
+                    .padding(horizontal = 30.dp, vertical = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(36.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SnapPickerColumn(
                     labels = CalendarMonthNames,
                     selectedIndex = draft.monthValue - 1,
-                    onSelected = { index -> onDraftChange(draft.withMonth(index + 1)) }
+                    looped = true,
+                    onSelected = { index ->
+                        onDraftChange(currentDraft.withMonth(index + 1))
+                    }
                 )
                 Box(
                     Modifier
@@ -530,9 +699,11 @@ internal fun CalendarPeriodSheet(
                         .background(CalInkGray)
                 )
                 SnapPickerColumn(
-                    labels = years.map { it.toString() },
+                    labels = yearLabels,
                     selectedIndex = years.indexOf(draft.year).coerceAtLeast(0),
-                    onSelected = { index -> onDraftChange(draft.withYear(years[index])) }
+                    onSelected = { index ->
+                        onDraftChange(currentDraft.withYear(years[index]))
+                    }
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -576,22 +747,50 @@ internal fun CalendarPeriodSheet(
     }
 }
 
-/** Колонка пикера: 110×246, пункты 110×30 r20 (шаг 36), снап, центр = выбранный. */
+/**
+ * Колонка пикера (канвас 4390:95317): 110×246, пункты 110×30 r20 (шаг 36), снап,
+ * центр = выбранный. Цвет пункта затухает по расстоянию до центра: у выбранного
+ * 100% (чёрная плашка), d2 → 85%, d3 → 40%, дальше светлее.
+ * [looped] — бесконечная зацикленная прокрутка (колонка месяцев): список длинный,
+ * подпись берётся по модулю, старт по центру на выбранном, наружу уходит логический
+ * индекс (0..size-1).
+ */
 @Composable
 private fun SnapPickerColumn(
     labels: List<String>,
     selectedIndex: Int,
+    looped: Boolean = false,
     onSelected: (Int) -> Unit
 ) {
-    val state = rememberLazyListState(
-        initialFirstVisibleItemIndex = selectedIndex.coerceIn(0, labels.lastIndex.coerceAtLeast(0))
-    )
-    LaunchedEffect(state, labels) {
-        snapshotFlow { state.isScrollInProgress }
-            .filter { !it }
-            .collect {
-                val index = state.firstVisibleItemIndex.coerceIn(0, labels.lastIndex.coerceAtLeast(0))
-                if (index != selectedIndex) onSelected(index)
+    val size = labels.size.coerceAtLeast(1)
+    val repeats = if (looped) 201 else 1
+    val count = size * repeats
+    val initialIndex = if (looped) (repeats / 2) * size + selectedIndex.coerceIn(0, size - 1)
+    else selectedIndex.coerceIn(0, size - 1)
+
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    val scope = rememberCoroutineScope()
+    // Колбэк читаем «на момент вызова»: подписка на центр живёт дольше одной
+    // рекомпозиции, и старое замыкание перетирало бы уже сделанный выбор
+    // (тап по месяцу → потом тап по году возвращал прежний месяц).
+    val currentOnSelected by rememberUpdatedState(onSelected)
+    // Центральный пункт = пункт под центром окна колонки. Считаем по самой прокрутке:
+    // при остатке 0 пункт firstVisibleItemIndex стоит ровно по центру (padding 108 dp
+    // = (246 − 30) / 2), а при остатке больше половины шага (30 + зазор 6 → 18)
+    // к центру ближе уже следующий. Через layoutInfo (координаты смещены на
+    // contentPadding) выбор «плавал» на месяц — отсюда «то работает, то нет».
+    // Шаг берём в пикселях: раньше offset в px делился на шаг в dp, из-за чего
+    // плашка подсвечивала не тот пункт во время прокрутки.
+    val itemStepPx = with(LocalDensity.current) { PickerItemStep.dp.toPx() }
+    val halfStepPx = (itemStepPx / 2f).toInt()
+    fun centeredIndex(): Int = state.firstVisibleItemIndex +
+        if (state.firstVisibleItemScrollOffset >= halfStepPx) 1 else 0
+    LaunchedEffect(state, labels, looped) {
+        snapshotFlow { centeredIndex() }
+            .distinctUntilChanged()
+            .collect { index ->
+                val logical = index.coerceIn(0, count - 1) % size
+                if (logical != selectedIndex) currentOnSelected(logical)
             }
     }
     LazyColumn(
@@ -604,22 +803,37 @@ private fun SnapPickerColumn(
         verticalArrangement = Arrangement.spacedBy(6.dp),
         flingBehavior = rememberSnapFlingBehavior(state)
     ) {
-        itemsIndexed(labels) { index, label ->
-            val selected = index == selectedIndex
+        items(count) { index ->
+            // Непрерывное расстояние до центра: градиент не «прыгает» при прокрутке
+            val center = state.firstVisibleItemIndex +
+                state.firstVisibleItemScrollOffset / itemStepPx
+            val distance = kotlin.math.abs(index - center)
+            val alpha = when {
+                distance < 1.5f -> 1f
+                distance < 2.5f -> 0.85f
+                distance < 3.5f -> 0.40f
+                else -> 0.15f
+            }
+            val selected = distance < 0.5f
             Box(
                 modifier = Modifier
                     .size(width = 110.dp, height = 30.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(if (selected) CalSelected else Color.Transparent)
-                    .clickable { onSelected(index) },
+                    .clickable {
+                        currentOnSelected(index % size)
+                        // Тап — пункт доезжает до центра: пояснение 4390:95396
+                        // «центральные значения становятся выбранными»
+                        scope.launch { state.animateScrollToItem(index) }
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    label,
+                    labels[index % size],
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = (-0.4).sp,
-                    color = if (selected) ObjectsWhite else CalInk,
+                    color = if (selected) ObjectsWhite else CalInk.copy(alpha = alpha),
                     maxLines = 1
                 )
             }
@@ -640,13 +854,22 @@ internal fun ObjectsFilterSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        containerColor = ObjectsWhite
+        containerColor = ObjectsWhite,
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                width = 32.dp,
+                height = 4.dp,
+                color = CalInk.copy(alpha = 0.40f)
+            )
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -662,28 +885,57 @@ internal fun ObjectsFilterSheet(
                     color = CalInk,
                     modifier = Modifier.weight(1f)
                 )
-                Icon(
-                    painter = painterResource(R.drawable.ic_myprops_sliders),
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp),
-                    tint = Color.Unspecified
-                )
-            }
-            ObjectsFilter.entries.forEach { option ->
-                val isSelected = option == selected
+                // Канвас 4390:95664: в шапке крестик (24 в боксе 40) — закрывает шит
                 Box(
                     modifier = Modifier
+                        .size(40.dp)
+                        .clickable { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_myprops_close),
+                        contentDescription = "Закрыть",
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.Unspecified
+                    )
+                }
+            }
+            ObjectsFilter.entries.forEachIndexed { index, option ->
+                val isSelected = option == selected
+                Row(
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .height(if (index == 0) 48.dp else 46.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable { onSelect(option) },
-                    contentAlignment = Alignment.CenterStart
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         option.label,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = (-0.4).sp,
-                        color = if (isSelected) CalInk else CalInkGray
+                        // Канвас 4390:95664: подписи чёрные у ВСЕХ пунктов,
+                        // серого цвета в шите нет; выбранный помечен галочкой
+                        color = CalInk,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isSelected) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_myprops_check),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            tint = Color.Unspecified
+                        )
+                    }
+                }
+                if (index != ObjectsFilter.entries.lastIndex) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp)
+                            .height(1.dp)
+                            .background(ObjectsDivider)
                     )
                 }
             }
@@ -721,13 +973,22 @@ private val LegendEntries = listOf(
 internal fun CalendarLegendSheet(onDismiss: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        containerColor = ObjectsWhite
+        containerColor = ObjectsWhite,
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                width = 32.dp,
+                height = 4.dp,
+                color = CalInk.copy(alpha = 0.40f)
+            )
+        }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)

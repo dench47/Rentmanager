@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Тестовая (debug) сборка: своя подпись, чтобы её не путали с боевой.
+  У debug-пакета com.rentmanager.app.debug API — локальный сервер
+  (http://<local.server.ip>:8080/api/v1/), у release — https://менеджераренды.рф/api/v1/.
+-->
+<resources>
+    <string name="app_name">Менеджер аренды (dev)</string>
+</resources>

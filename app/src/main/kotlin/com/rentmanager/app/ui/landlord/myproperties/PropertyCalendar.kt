@@ -3,7 +3,7 @@ package com.rentmanager.app.ui.landlord.myproperties
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -84,10 +84,32 @@ enum class CalState { FREE, BUSY, PLANNED, OVERDUE, SELECTED }
  * Кусок дня: половинки 22/26 нужны в день передачи — выезд одного арендатора
  * и заезд другого в одну дату (пояснение дизайнера к 15-му числу).
  */
-data class CalPiece(val state: CalState, val width: Int)
+/**
+ * Кусок ячейки: половинка дня или месяца на границе аренды. Канвас 4393:107371:
+ * полоса 228 = ячейки 51,51,51,51,22 — день выезда отдан половинкой 22, а его
+ * вторая половина нарисована отдельной ячейкой.
+ * [range] — период, который представляет ИМЕННО этот кусок (у свободной половины —
+ * только она), [key] — бронь, чтобы полосы разных арендаторов не сливались,
+ * [debt] — в периоде есть непогашенный платёж (2px #FF4249).
+ */
+data class CalPiece(
+    val state: CalState,
+    val width: Int,
+    val range: ClosedRange<LocalDate>,
+    val debt: Boolean = false,
+    val key: String = ""
+)
 
-/** День: одна ячейка 48 или две половинки (22 + 26). */
-data class CalDay(val date: LocalDate, val pieces: List<CalPiece>)
+/**
+ * Ячейка полосы: одна ячейка 48 или две половинки (22 + 26).
+ * [range] — период ячейки целиком (день или месяц): нужен свободным ячейкам,
+ * выбору периода и проверке «прошлое не бронируем».
+ */
+data class CalDay(
+    val date: LocalDate,
+    val pieces: List<CalPiece>,
+    val range: ClosedRange<LocalDate> = date..date
+)
 
 /** Блок полосы: месяц (посутово) или год (помесячно). */
 data class CalBlock(
@@ -105,55 +127,144 @@ data class CalBlock(
 internal fun CalBlock.totalWidth(): Int = contentWidth + if (withDivider) CAL_BLOCK_W else 0
 
 /**
- * Состояние дня по данным объекта (см. c19_canon.md, §3):
- * свободно → занято (аренда идёт) → запланировано (бронь в будущем) →
- * просрочка (занятое прошлое при долге).
+ * Состояние ячейки по данным объекта (см. c19_canon.md, §3):
+ * свободно → занято (аренда идёт) → запланировано (бронь в будущем).
+ * Долг (`debt`) живёт отдельным флагом на куске полосы: красная 2px обводка
+ * рисуется вокруг всего периода аренды (канвас 4390:91570), а не по месяцам —
+ * иначе период рвётся на несколько сегментов.
  */
-internal fun MyPropertyItem.calStateAt(date: LocalDate): CalState {
-    val range = bookings.firstOrNull { !date.isBefore(it.start) && !date.isAfter(it.end) }
-        ?: return CalState.FREE
-    val today = LocalDate.now()
-    return when {
-        range.start.isAfter(today) -> CalState.PLANNED
-        overdue && date.isBefore(today) -> CalState.OVERDUE
-        else -> CalState.BUSY
+internal fun MyPropertyItem.bookingAt(date: LocalDate): BookingRange? =
+    bookings.firstOrNull { !date.isBefore(it.start) && !date.isAfter(it.end) }
+
+/** Бронь, пересекающая период ячейки (в помесячном виде ячейка — весь месяц). */
+internal fun MyPropertyItem.bookingIn(range: ClosedRange<LocalDate>): BookingRange? =
+    bookings.firstOrNull { !it.start.isAfter(range.endInclusive) && !it.end.isBefore(range.start) }
+
+internal fun stateOfBooking(b: BookingRange, today: LocalDate = LocalDate.now()): CalState =
+    if (b.start.isAfter(today)) CalState.PLANNED else CalState.BUSY
+
+internal fun MyPropertyItem.calStateAt(date: LocalDate): CalState =
+    bookingAt(date)?.let { stateOfBooking(it) } ?: CalState.FREE
+
+/**
+ * Выделение новых дат: чёрной плашкой становится КАЖДЫЙ свободный кусок, целиком
+ * попавший в период, — поэтому у дня с половинками подсвечивается только та
+ * половинка, по которой тапнули (занятая остаётся зелёной, вторая свободная —
+ * серой). Раньше вся ячейка подменялась одним куском 48 — выделение выглядело
+ * целым, даже если половина дня уже занята.
+ */
+private fun List<CalPiece>.withSelection(selected: ClosedRange<LocalDate>?): List<CalPiece> {
+    if (selected == null) return this
+    return map { piece ->
+        if (piece.state == CalState.FREE &&
+            !piece.range.start.isBefore(selected.start) &&
+            !piece.range.endInclusive.isAfter(selected.endInclusive)
+        ) {
+            piece.copy(state = CalState.SELECTED)
+        } else {
+            piece
+        }
     }
 }
 
 /**
- * День с половинками: если на дату заканчивается один период и начинается
- * другой — левая половина 22 отдаётся выезду, правая 26 — заезду.
+ * День с половинками. Границы аренды — как в канвасе 4393:107371 (пояснение
+ * 4390:95388: 16-е — выезд одного арендатора, но этот же день можно выбрать для
+ * заезда другого): день выезда — половинка в полосе + отдельная свободная
+ * половинка, день заезда — свободная половинка + половинка в полосе, день
+ * передачи — две половинки. Зазор 4px между ячейками действует и на половинки.
  */
 internal fun MyPropertyItem.calDayAt(date: LocalDate, selected: ClosedRange<LocalDate>?): CalDay {
-    if (selected != null && date in selected) {
-        return CalDay(date, listOf(CalPiece(CalState.SELECTED, CAL_CELL_W)))
-    }
+    val range = date..date
     val own = bookings.filter { !date.isBefore(it.start) && !date.isAfter(it.end) }
-    val state = calStateAt(date)
-    if (own.size < 2) return CalDay(date, listOf(CalPiece(state, CAL_CELL_W)))
     val today = LocalDate.now()
-    fun stateOf(r: BookingRange): CalState = when {
-        r.start.isAfter(today) -> CalState.PLANNED
-        overdue && date.isBefore(today) -> CalState.OVERDUE
-        else -> CalState.BUSY
+    val ending = own.filter { it.end == date && it.start != date }
+    val starting = own.filter { it.start == date && it.end != date }
+    val pieces = when {
+        own.isEmpty() -> listOf(CalPiece(CalState.FREE, CAL_CELL_W, range))
+        ending.isNotEmpty() && starting.isNotEmpty() -> {
+            val out = ending.first()
+            val arrive = starting.first()
+            listOf(
+                CalPiece(stateOfBooking(out, today), 22, range, out.debtAmount > 0, out.bookingKey()),
+                CalPiece(stateOfBooking(arrive, today), 22, range, arrive.debtAmount > 0, arrive.bookingKey())
+            )
+        }
+        starting.isNotEmpty() -> {
+            val arrive = starting.first()
+            listOf(
+                CalPiece(CalState.FREE, 22, range),
+                CalPiece(stateOfBooking(arrive, today), 22, range, arrive.debtAmount > 0, arrive.bookingKey())
+            )
+        }
+        ending.isNotEmpty() -> {
+            val out = ending.first()
+            listOf(
+                CalPiece(stateOfBooking(out, today), 22, range, out.debtAmount > 0, out.bookingKey()),
+                CalPiece(CalState.FREE, 22, range)
+            )
+        }
+        else -> {
+            val actual = own.maxByOrNull { it.start }!!
+            listOf(
+                CalPiece(
+                    stateOfBooking(actual, today),
+                    CAL_CELL_W,
+                    range,
+                    actual.debtAmount > 0,
+                    actual.bookingKey()
+                )
+            )
+        }
     }
-    val ending = own.filter { it.end == date }
-    val starting = own.filter { it.start == date }
-    return when {
-        ending.isNotEmpty() && starting.isNotEmpty() ->
-            CalDay(date, listOf(CalPiece(stateOf(ending.first()), 22), CalPiece(stateOf(starting.first()), 26)))
-        else -> CalDay(date, listOf(CalPiece(state, CAL_CELL_W)))
+    return CalDay(date, pieces.withSelection(selected), range)
+}
+
+/** Идентификатор брони: по нему куски одной аренды склеиваются, а разные — нет. */
+private fun BookingRange.bookingKey(): String = id ?: "$start..$end"
+
+/**
+ * Ячейка месяца помесячного вида: ячейка представляет ВЕСЬ месяц, бронь ищется по
+ * пересечению (иначе месяц начала аренды, например 22.09, остаётся серым), а на
+ * границах аренды месяц рисуется половинкой. У каждой половинки СВОЙ период —
+ * поэтому серая часть ноября после выезда 21.11 открывает свободные дни,
+ * а не карточку уехавшего арендатора.
+ */
+internal fun MyPropertyItem.calMonthAt(month: YearMonth, selected: ClosedRange<LocalDate>?): CalDay {
+    val range = month.atDay(1)..month.atEndOfMonth()
+    val b = bookingIn(range)
+    val pieces = if (b == null) {
+        listOf(CalPiece(CalState.FREE, CAL_CELL_W, range))
+    } else {
+        val today = LocalDate.now()
+        val state = stateOfBooking(b, today)
+        val key = b.bookingKey()
+        when {
+            b.start.isAfter(range.start) -> listOf(
+                CalPiece(CalState.FREE, 22, range.start..b.start.minusDays(1)),
+                CalPiece(state, 22, b.start..range.endInclusive, b.debtAmount > 0, key)
+            )
+            b.end.isBefore(range.endInclusive) -> listOf(
+                CalPiece(state, 22, range.start..b.end, b.debtAmount > 0, key),
+                CalPiece(CalState.FREE, 22, b.end.plusDays(1)..range.endInclusive)
+            )
+            else -> listOf(CalPiece(state, CAL_CELL_W, range, b.debtAmount > 0, key))
+        }
     }
+    return CalDay(range.start, pieces.withSelection(selected), range)
 }
 
 // ===================== Отрисовка полосы =====================
 
-/** Кусок строки статусов: ячейка дня, часть полосы аренды или прокладка gap. */
+/** Кусок строки статусов: кусок ячейки, часть полосы аренды или прокладка gap. */
 private class CalSeg(
-    val date: LocalDate,
+    val day: CalDay,
     val state: CalState,
     val width: Int,
-    val gap: Boolean = false
+    val range: ClosedRange<LocalDate>,
+    val gap: Boolean = false,
+    val debt: Boolean = false,
+    val key: String = ""
 )
 
 private fun isBarState(s: CalState) =
@@ -162,7 +273,8 @@ private fun isBarState(s: CalState) =
 /**
  * Раскладка строки статусов. Шаг дня всегда 52 (ячейка 48 + gap 4), поэтому
  * полосы аренды не сдвигают шкалу: полный день внутри полосы занимает 52,
- * половинки на границе (день передачи) — 22/26, прокладка добирает шаг.
+ * половинки на границе (день выезда/заезда, месяц на границе аренды) — 22/26,
+ * прокладка добирает шаг.
  */
 private fun layoutStatusRow(block: CalBlock): List<CalSeg> {
     val out = ArrayList<CalSeg>()
@@ -171,19 +283,33 @@ private fun layoutStatusRow(block: CalBlock): List<CalSeg> {
         if (pieces.size == 1) {
             val p = pieces[0]
             if (isBarState(p.state)) {
-                out += CalSeg(day.date, p.state, p.width + CAL_GAP)
+                out += CalSeg(day, p.state, p.width + CAL_GAP, p.range, debt = p.debt, key = p.key)
             } else {
-                out += CalSeg(day.date, p.state, p.width)
-                out += CalSeg(day.date, p.state, CAL_GAP, gap = true)
+                out += CalSeg(day, p.state, p.width, p.range)
+                out += CalSeg(day, p.state, CAL_GAP, p.range, gap = true)
             }
         } else {
+            // Две половинки: день заезда/выезда или месяц на границе аренды.
+            // Зазор 4px сворачиваем в ширину той половинки, которая ПРОДОЛЖАЕТ
+            // бронь (день заезда, месяц начала) — тогда соседний день той же аренды
+            // приклеивается, и полоса остаётся одним пузырём. Явный зазор 4px
+            // рисуем после половинки, которая бронь ЗАКРЫВАЕТ (день выезда,
+            // месяц окончания), и после свободных половинок.
             pieces.forEachIndexed { index, p ->
                 val last = index == pieces.lastIndex
                 if (isBarState(p.state)) {
-                    out += CalSeg(day.date, p.state, p.width + if (last) CAL_GAP else 0)
+                    out += CalSeg(
+                        day,
+                        p.state,
+                        p.width + if (last) CAL_GAP else 0,
+                        p.range,
+                        debt = p.debt,
+                        key = p.key
+                    )
+                    if (!last) out += CalSeg(day, p.state, CAL_GAP, p.range, gap = true)
                 } else {
-                    out += CalSeg(day.date, p.state, p.width)
-                    if (last) out += CalSeg(day.date, p.state, CAL_GAP, gap = true)
+                    out += CalSeg(day, p.state, p.width, p.range)
+                    out += CalSeg(day, p.state, CAL_GAP, p.range, gap = true)
                 }
             }
         }
@@ -200,19 +326,13 @@ private fun barStroke(state: CalState): Color = when (state) {
 private fun barFill(state: CalState): Color =
     if (state == CalState.PLANNED) CalPlannedBg else CalBusyBg
 
-/** Свободная ячейка, половинка или выбранный период (чёрная плашка). */
-@OptIn(ExperimentalFoundationApi::class)
+/** Свободная ячейка (в том числе половинка) или выбранный период (чёрная плашка). */
 @Composable
 private fun CalPlainCell(
     seg: CalSeg,
-    onClick: (LocalDate) -> Unit,
-    onLongClick: (LocalDate) -> Unit
+    onClick: (CalPiece) -> Unit
 ) {
-    val bg = when (seg.state) {
-        CalState.SELECTED -> CalSelected
-        CalState.OVERDUE -> CalBusyBg
-        else -> CalFree
-    }
+    val bg = if (seg.state == CalState.SELECTED) CalSelected else CalFree
     val shape = RoundedCornerShape(4.dp)
     Box(
         Modifier
@@ -220,35 +340,33 @@ private fun CalPlainCell(
             .height(CAL_CELL_H.dp)
             .clip(shape)
             .background(bg)
-            .then(
-                if (seg.state == CalState.OVERDUE) Modifier.border(1.dp, CalOverdueStroke, shape)
-                else Modifier
-            )
-            .combinedClickable(
-                onClick = { onClick(seg.date) },
-                onLongClick = { onLongClick(seg.date) }
-            )
+            .clickable { onClick(CalPiece(seg.state, seg.width, seg.range, seg.debt, seg.key)) }
     )
 }
 
-/** Полоса аренды: рамка состояния вокруг подряд идущих ячеек (внутри 36 высотой). */
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Полоса аренды: рамка вокруг подряд идущих кусков ОДНОЙ брони.
+ * Толщина: 1px — обычная полоса и долг (#FF4249, как в легенде календаря),
+ * 2px — когда по области открыта карточка: пояснение Вики (узел 4390:95386)
+ * «при нажатии на область аренды stroke увеличиваем с 1px на 2px».
+ */
 @Composable
 private fun CalBarView(
     cells: List<CalSeg>,
     state: CalState,
+    debt: Boolean,
     emphasized: Boolean,
-    onClick: (LocalDate) -> Unit,
-    onLongClick: (LocalDate) -> Unit
+    onClick: (CalPiece) -> Unit
 ) {
     val shape = RoundedCornerShape(4.dp)
-    val stroke = if (state == CalState.OVERDUE) CalOverdueStroke else barStroke(state)
+    val strokeColor = if (debt) CalOverdueStroke else barStroke(state)
+    val strokeWidth = if (emphasized) 2.dp else 1.dp
     Box(
         Modifier
             .width(cells.sumOf { it.width }.dp)
             .height(CAL_CELL_H.dp)
             .clip(shape)
-            .border(if (emphasized) 2.dp else 1.dp, stroke, shape)
+            .border(strokeWidth, strokeColor, shape)
     ) {
         Row(
             Modifier
@@ -262,10 +380,9 @@ private fun CalBarView(
                         .width(cell.width.dp)
                         .height((CAL_CELL_H - 2).dp)
                         .background(barFill(state))
-                        .combinedClickable(
-                            onClick = { onClick(cell.date) },
-                            onLongClick = { onLongClick(cell.date) }
-                        )
+                        .clickable {
+                            onClick(CalPiece(state, cell.width, cell.range, cell.debt, cell.key))
+                        }
                 )
             }
         }
@@ -276,8 +393,7 @@ private fun CalBarView(
 private fun CalStatusRow(
     block: CalBlock,
     emphasized: ClosedRange<LocalDate>?,
-    onClick: (LocalDate) -> Unit,
-    onLongClick: (LocalDate) -> Unit
+    onClick: (CalPiece) -> Unit
 ) {
     val segs = remember(block) { layoutStatusRow(block) }
     Row(
@@ -293,25 +409,27 @@ private fun CalStatusRow(
                     i++
                 }
                 !isBarState(seg.state) -> {
-                    CalPlainCell(seg, onClick, onLongClick)
+                    CalPlainCell(seg, onClick)
                     i++
                 }
                 else -> {
                     val cells = ArrayList<CalSeg>()
                     while (
                         i < segs.size && !segs[i].gap &&
-                        isBarState(segs[i].state) && segs[i].state == seg.state
+                        isBarState(segs[i].state) && segs[i].state == seg.state &&
+                        segs[i].debt == seg.debt && segs[i].key == seg.key
                     ) {
                         cells += segs[i]
                         i++
                     }
                     if (cells.isEmpty()) {
-                        CalPlainCell(seg, onClick, onLongClick)
+                        CalPlainCell(seg, onClick)
                     } else {
+                        // 2px — если карточка открыта именно по этому периоду
                         val emph = emphasized != null &&
-                            !cells.first().date.isBefore(emphasized.start) &&
-                            !cells.last().date.isAfter(emphasized.endInclusive)
-                        CalBarView(cells, seg.state, emph, onClick, onLongClick)
+                            !cells.first().range.start.isBefore(emphasized.start) &&
+                            !cells.last().range.endInclusive.isAfter(emphasized.endInclusive)
+                        CalBarView(cells, seg.state, seg.debt, emph, onClick)
                     }
                 }
             }
@@ -324,8 +442,7 @@ private fun CalStatusRow(
 private fun CalBlockView(
     block: CalBlock,
     emphasized: ClosedRange<LocalDate>?,
-    onClick: (LocalDate) -> Unit,
-    onLongClick: (LocalDate) -> Unit
+    onClick: (CalPiece) -> Unit
 ) {
     Row(verticalAlignment = Alignment.Top) {
         if (block.withDivider) {
@@ -364,7 +481,7 @@ private fun CalBlockView(
                     if (index != block.numbers.lastIndex) Spacer(Modifier.width(CAL_GAP.dp))
                 }
             }
-            CalStatusRow(block, emphasized, onClick, onLongClick)
+            CalStatusRow(block, emphasized, onClick)
         }
     }
 }
@@ -378,10 +495,10 @@ private fun CalBlockView(
 @Composable
 internal fun PropertyCalendar(
     blocks: List<CalBlock>,
-    onDayClick: (LocalDate) -> Unit,
-    onDayLongClick: (LocalDate) -> Unit,
+    onDayClick: (CalPiece) -> Unit,
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
+    /** Период, по которому открыта карточка card_inf: его полоса рисуется 2px */
     emphasized: ClosedRange<LocalDate>? = null
 ) {
     val density = LocalDensity.current
@@ -405,7 +522,7 @@ internal fun PropertyCalendar(
             verticalAlignment = Alignment.Top
         ) {
             blocks.forEach { block ->
-                CalBlockView(block, emphasized, onDayClick, onDayLongClick)
+                CalBlockView(block, emphasized, onDayClick)
             }
         }
 
@@ -483,13 +600,15 @@ internal fun buildCalBlocks(
     monthsAhead: Int = 4,
     yearsAhead: Int = 2
 ): List<CalBlock> {
+    // Прошлое не бронируется: якорь календаря не раньше текущего месяца
+    val safeAnchor = if (anchor.isBefore(YearMonth.now())) YearMonth.now() else anchor
     val blocks = ArrayList<CalBlock>()
     if (monthly) {
         for (index in 0..yearsAhead) {
-            val year = anchor.year + index
-            val days = (1..12).map { month ->
-                item.calDayAt(LocalDate.of(year, month, 1), selection)
-            }
+            val year = safeAnchor.year + index
+            // Ячейка помесячного вида — весь месяц: состояние считаем по пересечению
+            // месяца с бронью, иначе месяц начала аренды (например 22.09) оставался серым
+            val days = (1..12).map { month -> item.calMonthAt(YearMonth.of(year, month), selection) }
             blocks += CalBlock(
                 label = year.toString(),
                 numbers = CalMonthCellLabels,
@@ -500,7 +619,7 @@ internal fun buildCalBlocks(
         return blocks
     }
     for (index in 0..monthsAhead) {
-        val month = anchor.plusMonths(index.toLong())
+        val month = safeAnchor.plusMonths(index.toLong())
         val lastDay = month.lengthOfMonth()
         val days = (1..lastDay).map { day ->
             item.calDayAt(LocalDate.of(month.year, month.monthValue, day), selection)

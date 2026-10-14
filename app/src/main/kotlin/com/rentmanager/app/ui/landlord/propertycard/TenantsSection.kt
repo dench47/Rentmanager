@@ -331,16 +331,13 @@ private fun TenantAvatar(url: String?) {
                 modifier = Modifier.fillMaxSize().clip(CircleShape)
             )
         } else {
-            Box(
-                modifier = Modifier.fillMaxSize().clip(CircleShape).background(CardBackground),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_avatar_placeholder),
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
+            // Без фото — каноническая заглушка канваса 19 (4390:92155):
+            // белый круг 40 с контурным человечком #727272
+            Image(
+                painter = painterResource(R.drawable.ic_myprops_avatar),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
