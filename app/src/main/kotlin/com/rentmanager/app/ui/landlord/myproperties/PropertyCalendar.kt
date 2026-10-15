@@ -61,6 +61,9 @@ internal val CalPlannedStroke = Color(0xFF3568B6)
 /** Выбранный период — сплошная плашка #212121. */
 internal val CalSelected = Color(0xFF212121)
 
+/** Выбранный период — даты новой аренды до сохранения: #727272 (канвас 4390:94462). */
+internal val CalSelectedPeriod = Color(0xFF727272)
+
 /** Задолженность — обводка #FF4249 (1px, у выбранного — 2px). */
 internal val CalOverdueStroke = Color(0xFFFF4249)
 
@@ -336,7 +339,7 @@ private fun CalPlainCell(
     seg: CalSeg,
     onClick: (CalPiece) -> Unit
 ) {
-    val bg = if (seg.state == CalState.SELECTED) CalSelected else CalFree
+    val bg = if (seg.state == CalState.SELECTED) CalSelectedPeriod else CalFree
     val shape = RoundedCornerShape(4.dp)
     Box(
         Modifier

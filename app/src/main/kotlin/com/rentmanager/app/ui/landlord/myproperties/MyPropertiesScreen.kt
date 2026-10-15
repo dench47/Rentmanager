@@ -152,6 +152,10 @@ fun MyPropertiesScreen(
             .filter { matchesSearch(it, searchQuery) }
     }
 
+    // Пусто по фильтру (объекты есть, но не подходят под фильтр): по канвасу
+    // 4390:94483 / 4390:94473 прячем иконки поиска и справки и гасим выбор периода
+    val filterEmpty = properties.isEmpty() && propertiesRaw.isNotEmpty()
+
     // Прогрев кэша фото 40dp — карточки не мигают пустым квадратом при скролле
     val prefetchContext = LocalContext.current
     val prefetchDensity = LocalDensity.current
@@ -268,24 +272,26 @@ fun MyPropertiesScreen(
                             color = TextPrimary
                         )
                     }
-                    // Канвас 19: в тулбаре две иконки 24×24 с зазором 8 — поиск и справка
-                    Icon(
-                        painter = painterResource(R.drawable.ic_myprops_search),
-                        contentDescription = "Поиск",
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable { searchActive = true },
-                        tint = Color.Unspecified
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Icon(
-                        painter = painterResource(R.drawable.ic_myprops_help),
-                        contentDescription = "Как устроен календарь",
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable { showChessHelp = true },
-                        tint = Color.Unspecified
-                    )
+                    if (!filterEmpty) {
+                        // Канвас 19: в тулбаре две иконки 24×24 с зазором 8 — поиск и справка
+                        Icon(
+                            painter = painterResource(R.drawable.ic_myprops_search),
+                            contentDescription = "Поиск",
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable { searchActive = true },
+                            tint = Color.Unspecified
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            painter = painterResource(R.drawable.ic_myprops_help),
+                            contentDescription = "Как устроен календарь",
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable { showChessHelp = true },
+                            tint = Color.Unspecified
+                        )
+                    }
                 }
             }
 
@@ -297,6 +303,7 @@ fun MyPropertiesScreen(
             ) {
                 CalendarToolbar(
                     filter = objectsFilter,
+                    periodEnabled = !filterEmpty,
                     onPeriodClick = {
                         draftPeriod = YearMonth.of(selectedYear, selectedMonth)
                         showPeriodSheet = true
@@ -306,7 +313,7 @@ fun MyPropertiesScreen(
             }
 
             if (properties.isEmpty()) {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(121.dp))
                 PropertiesStub(
                     filter = objectsFilter,
                     hasProperties = propertiesRaw.isNotEmpty(),

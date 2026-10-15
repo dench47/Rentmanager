@@ -2,6 +2,7 @@ package com.rentmanager.app.ui.landlord.myproperties
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,6 +45,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -103,6 +105,7 @@ internal enum class ObjectsFilter(val label: String) {
 @Composable
 internal fun CalendarToolbar(
     filter: ObjectsFilter,
+    periodEnabled: Boolean = true,
     onPeriodClick: () -> Unit,
     onFilterClick: () -> Unit
 ) {
@@ -116,7 +119,7 @@ internal fun CalendarToolbar(
             modifier = Modifier
                 .height(42.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .clickable { onPeriodClick() }
+                .clickable(enabled = periodEnabled) { onPeriodClick() }
                 .padding(end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -124,7 +127,9 @@ internal fun CalendarToolbar(
             Icon(
                 painter = painterResource(R.drawable.ic_myprops_calendar),
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier
+                    .size(20.dp)
+                    .alpha(if (periodEnabled) 1f else 0.4f),
                 tint = Color.Unspecified
             )
             Text(
@@ -132,7 +137,7 @@ internal fun CalendarToolbar(
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.4).sp,
-                color = CalInk
+                color = if (periodEnabled) CalInk else CalInk.copy(alpha = 0.4f)
             )
         }
         Spacer(Modifier.weight(1f))
@@ -322,7 +327,7 @@ private fun NamecardRow(property: MyPropertyItem) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 11.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -366,8 +371,10 @@ private fun NamecardRow(property: MyPropertyItem) {
                 )
             }
         }
-        Spacer(Modifier.width(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.align(Alignment.Top),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(
                 painter = painterResource(
                     if (daily) R.drawable.ic_renttype_clock else R.drawable.ic_renttype_calendar
@@ -966,7 +973,7 @@ private val LegendEntries = listOf(
     LegendEntry("Объект занят", "Аренда идет сейчас", CalBusyBg, CalBusyStroke),
     LegendEntry("Аренда запланирована", "На этот период добавлена аренда", CalPlannedBg, CalPlannedStroke),
     LegendEntry("Свободно", "На эту дату аренда не добавлена", CalFree, null),
-    LegendEntry("Выбранный период", "Даты новой аренды до сохранения", CalSelected, null),
+    LegendEntry("Выбранный период", "Даты новой аренды до сохранения", CalSelectedPeriod, null),
     LegendEntry(
         "Есть задолженность",
         "Красная обводка обозначает просроченную оплату",
@@ -1133,29 +1140,39 @@ internal fun PropertiesStub(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        Image(
+            painter = painterResource(
+                if (hasProperties && filter != ObjectsFilter.MONTHLY) R.drawable.ic_myprops_stub_daily
+                else R.drawable.ic_myprops_stub_monthly
+            ),
+            contentDescription = null,
+            modifier = Modifier.size(140.dp)
+        )
+        Spacer(Modifier.height(6.dp))
         Text(
             title,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.4).sp,
-            color = CalInk,
+            letterSpacing = (-0.3).sp,
+            color = StubInk,
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(4.dp))
         Text(
             hint,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = (-0.2).sp,
-            color = CalInkGray,
+            letterSpacing = (-0.4).sp,
+            color = CalInk.copy(alpha = 0.85f),
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(14.dp))
         StubButton(primaryTitle, filled = true, onClick = primaryAction)
-        Spacer(Modifier.height(6.dp))
         StubButton(secondaryTitle, filled = false, onClick = secondaryAction)
     }
 }
+
+/** Тёмный цвет элементов заглушки — Graphite/Icon #010101. */
+private val StubInk = Color(0xFF010101)
 
 /** Кнопка заглушки: 372×55 r100, текст 15/600. */
 @Composable
@@ -1167,7 +1184,7 @@ private fun StubButton(title: String, filled: Boolean, onClick: () -> Unit) {
             .height(55.dp)
             .clip(shape)
             .then(
-                if (filled) Modifier.background(CalSelected)
+                if (filled) Modifier.background(StubInk)
                 else Modifier.border(1.dp, CalInk, shape)
             )
             .clickable { onClick() },
