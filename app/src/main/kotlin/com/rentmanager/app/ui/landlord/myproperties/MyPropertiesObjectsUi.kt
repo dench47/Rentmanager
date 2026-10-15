@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -258,6 +259,8 @@ internal fun CalendarObjectCard(
     selection: ClosedRange<LocalDate>?,
     onDayClick: (CalPiece) -> Unit,
     onOpenProperty: () -> Unit,
+    /** Счётчик применений периода: меняется на каждое нажатие в шите периода */
+    periodTick: Int = 0,
     /** Период, по которому открыта карточка: его полоса рисуется 2px (4390:95386) */
     emphasized: ClosedRange<LocalDate>? = null
 ) {
@@ -275,8 +278,16 @@ internal fun CalendarObjectCard(
     ) {
         NamecardRow(property)
         Spacer(Modifier.height(12.dp))
-        val blocks = remember(property, anchor, selection, daily) {
-            buildCalBlocks(property, anchor, monthly = !daily, selection = selection)
+        // Полоса ленивая: блоки (год помесячно, месяц посуточно) считаются по
+        // требованию, поэтому вперёд листается без ограничения по годам —
+        // CAL_BLOCK_LIMIT только страхует от бесконечно длинной прокрутки.
+        val blockAt = remember(property, anchor, selection, daily) {
+            { index: Int ->
+                buildCalBlock(property, anchor, index, monthly = !daily, selection = selection)
+            }
+        }
+        val labelAt = remember(anchor, daily) {
+            { index: Int -> calBlockLabel(anchor, index, monthly = !daily) }
         }
         // Помесячный вид открывается НА выбранном месяце (пояснение 4390:95394:
         // «помесячные — на соответствующем месяце»): первый блок — год якоря,
@@ -289,16 +300,15 @@ internal fun CalendarObjectCard(
                 ((anchor.monthValue - 1) * (CAL_CELL_W + CAL_GAP)).dp.roundToPx()
             }
         }
-        val scrollState = rememberScrollState(initial = offsetPx)
-        // Перезапускаем установку скролла на каждую смену периода: посуточный
-        // встаёт на 1-е число выбранного месяца, помесячный — на свой месяц
-        LaunchedEffect(anchor, daily) {
-            scrollState.animateScrollTo(offsetPx)
-        }
+        // Состояние создаётся на каждый якорь: смена периода всегда открывает
+        // ленту на нужном месяце (посуточно — с 1-го числа, помесячный — со своего)
+        val listState = remember(anchor, daily, periodTick) { LazyListState(0, offsetPx) }
         PropertyCalendar(
-            blocks = blocks,
+            blockCount = CAL_BLOCK_LIMIT,
+            blockAt = blockAt,
+            labelAt = labelAt,
             onDayClick = onDayClick,
-            scrollState = scrollState,
+            listState = listState,
             emphasized = emphasized,
             modifier = Modifier.padding(start = 1.dp)
         )
@@ -774,6 +784,7 @@ private fun SnapPickerColumn(
     // рекомпозиции, и старое замыкание перетирало бы уже сделанный выбор
     // (тап по месяцу → потом тап по году возвращал прежний месяц).
     val currentOnSelected by rememberUpdatedState(onSelected)
+    val currentSelectedIndex by rememberUpdatedState(selectedIndex)
     // Центральный пункт = пункт под центром окна колонки. Считаем по самой прокрутке:
     // при остатке 0 пункт firstVisibleItemIndex стоит ровно по центру (padding 108 dp
     // = (246 − 30) / 2), а при остатке больше половины шага (30 + зазор 6 → 18)
@@ -790,7 +801,7 @@ private fun SnapPickerColumn(
             .distinctUntilChanged()
             .collect { index ->
                 val logical = index.coerceIn(0, count - 1) % size
-                if (logical != selectedIndex) currentOnSelected(logical)
+                if (logical != currentSelectedIndex) currentOnSelected(logical)
             }
     }
     LazyColumn(

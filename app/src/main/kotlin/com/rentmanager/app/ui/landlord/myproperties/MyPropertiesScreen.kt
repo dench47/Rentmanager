@@ -116,6 +116,9 @@ fun MyPropertiesScreen(
     var selectedMonth by remember { mutableIntStateOf(today.monthValue) }
     var draftPeriod by remember { mutableStateOf(YearMonth.of(today.year, today.monthValue)) }
     var showPeriodSheet by remember { mutableStateOf(false) }
+    // Счётчик применений периода: меняется при каждом нажатии в шите, чтобы
+    // карточки сбрасывали прокрутку даже если выбран тот же период
+    var periodApplyTick by remember { mutableIntStateOf(0) }
 
     // Выбор нового периода в календаре карточки (чёрные ячейки) и панель card_inf
     var selectionPropertyId by remember { mutableStateOf<String?>(null) }
@@ -335,6 +338,7 @@ fun MyPropertiesScreen(
                             CalendarObjectCard(
                                 property = property,
                                 anchor = YearMonth.of(selectedYear, selectedMonth),
+                                periodTick = periodApplyTick,
                                 selection = selection,
                                 onDayClick = { piece -> onCalendarDayTap(property, piece) },
                                 onOpenProperty = { onPropertyClick(property.id) },
@@ -441,12 +445,14 @@ fun MyPropertiesScreen(
                 val safe = if (draftPeriod < min) min else draftPeriod
                 draftPeriod = safe
                 selectedYear = safe.year
+                periodApplyTick++
                 selectedMonth = safe.monthValue
                 showPeriodSheet = false
             },
             onCurrentMonth = {
                 val now = YearMonth.now()
                 selectedYear = now.year
+                periodApplyTick++
                 selectedMonth = now.monthValue
                 draftPeriod = now
                 showPeriodSheet = false

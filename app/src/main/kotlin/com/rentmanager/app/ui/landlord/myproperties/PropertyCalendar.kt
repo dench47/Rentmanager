@@ -4,24 +4,23 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -77,6 +76,14 @@ internal const val CAL_NUM_H = 24
 internal const val CAL_LABEL_H = 16
 internal const val CAL_BLOCK_W = 6
 
+/**
+ * Практический предел полосы: сколько блоков вперёд от якоря строит LazyRow.
+ * Блоки считаются по требованию, поэтому «бесконечность» ничего не стоит:
+ * 600 месяцев (50 лет) в посуточном виде и 600 лет в помесячном — дальше якоря
+ * (пикер периода даёт +12 лет) уехать всё равно нельзя.
+ */
+internal const val CAL_BLOCK_LIMIT = 600
+
 /** Состояние дня в полосе. */
 enum class CalState { FREE, BUSY, PLANNED, OVERDUE, SELECTED }
 
@@ -122,9 +129,6 @@ data class CalBlock(
     /** Ширина контента блока без дивайдера: шаг 52 на день. */
     val contentWidth: Int get() = days.size * (CAL_CELL_W + CAL_GAP)
 }
-
-/** Суммарная ширина блока с дивайдером — нужна для sticky-подписи. */
-internal fun CalBlock.totalWidth(): Int = contentWidth + if (withDivider) CAL_BLOCK_W else 0
 
 /**
  * Состояние ячейки по данным объекта (см. c19_canon.md, §3):
@@ -488,16 +492,26 @@ private fun CalBlockView(
 
 /**
  * Полоса-календарь карточки объекта: «подпись месяца → номера дней → статусы».
+ *
+ * Полоса ленивая ([LazyRow]): блоки строятся по требованию, поэтому вперёд можно
+ * листать без ограничения по годам — [blockCount] задаёт практический предел
+ * ([CAL_BLOCK_LIMIT]).
+ *
  * Подпись месяца липкая и двигается по формуле из пояснения дизайнера:
  * labelX = min(max(cardCenterX − labelWidth/2, monthStartX + 98),
  *              monthEndX − 98 − labelWidth).
  */
 @Composable
 internal fun PropertyCalendar(
-    blocks: List<CalBlock>,
+    /** Сколько блоков вперёд от якоря доступно для прокрутки */
+    blockCount: Int,
+    /** Блок по его номеру в полосе: считается по требованию при прокрутке */
+    blockAt: (Int) -> CalBlock,
+    /** Подпись блока по его номеру — без расчёта дней блока */
+    labelAt: (Int) -> String,
     onDayClick: (CalPiece) -> Unit,
     modifier: Modifier = Modifier,
-    scrollState: ScrollState = rememberScrollState(),
+    listState: LazyListState = rememberLazyListState(),
     /** Период, по которому открыта карточка card_inf: его полоса рисуется 2px */
     emphasized: ClosedRange<LocalDate>? = null
 ) {
@@ -515,41 +529,47 @@ internal fun PropertyCalendar(
             .clipToBounds()
             .onSizeChanged { cardWidth = it.width }
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .horizontalScroll(scrollState),
+        LazyRow(
+            Modifier.fillMaxWidth(),
+            state = listState,
             verticalAlignment = Alignment.Top
         ) {
-            blocks.forEach { block ->
-                CalBlockView(block, emphasized, onDayClick)
+            items(count = blockCount, key = { it }) { index ->
+                CalBlockView(blockAt(index), emphasized, onDayClick)
             }
         }
 
-        // Липкая подпись месяца (координаты — относительно видимой области)
-        val scroll = scrollState.value
-        val off98 = with(density) { 98.dp.toPx() }
-        var contentCursor = 0
-        blocks.forEach { block ->
-            val dividerW = with(density) {
-                (if (block.withDivider) CAL_BLOCK_W else 0).dp.roundToPx()
+        // Липкая подпись месяца (координаты — относительно видимой области).
+        // Позиции блоков читаем из layoutInfo, но перечитываем их на каждый кадр
+        // прокрутки (пара примитивов — сравнение по значению) и на первое измерение
+        // ленты: иначе подписи не появлялись до первого скролла, а с одним только
+        // derivedStateOf переставали двигаться при прокрутке.
+        val scrollTick by remember(listState) {
+            derivedStateOf { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+        }
+        val laidOut by remember(listState) {
+            derivedStateOf { listState.layoutInfo.totalItemsCount > 0 }
+        }
+        val visibleItems = remember(scrollTick, laidOut) { listState.layoutInfo.visibleItemsInfo }
+        visibleItems.forEach { item ->
+            val dividerPx = with(density) {
+                (if (item.index > 0) CAL_BLOCK_W else 0).dp.roundToPx()
             }
-            val contentStart = contentCursor + dividerW
-            val contentEnd = contentStart + with(density) { block.contentWidth.dp.roundToPx() }
-            contentCursor = contentEnd
-
+            val contentStart = (item.offset + dividerPx).toFloat()
+            val contentEnd = (item.offset + item.size).toFloat()
+            val label = labelAt(item.index)
             val labelWidth = measurer
-                .measure(AnnotatedString(block.label), labelStyle)
+                .measure(AnnotatedString(label), labelStyle)
                 .size.width.toFloat()
-            val startOnScreen = (contentStart - scroll).toFloat()
-            val endOnScreen = (contentEnd - scroll).toFloat()
+            // Уходящий блок выталкивает подпись влево ровно своим дивайдером
+            // (по направлению движения ячеек), подпись следующего уже по центру.
             val x = minOf(
-                maxOf(cardWidth / 2f - labelWidth / 2f, startOnScreen + off98),
-                endOnScreen - off98 - labelWidth
+                maxOf(cardWidth / 2f - labelWidth / 2f, contentStart),
+                contentEnd - labelWidth
             )
             if (x + labelWidth > 0f && x < cardWidth.toFloat()) {
                 Text(
-                    block.label,
+                    label,
                     style = labelStyle,
                     maxLines = 1,
                     softWrap = false,
@@ -585,52 +605,63 @@ internal fun monthNameLower(month1: Int): String =
     CalMonthFullNames[(month1 - 1).coerceIn(0, 11)].lowercase()
 
 /**
- * Блоки календаря карточки объекта.
+ * Прошлое не бронируется: якорь календаря не раньше текущего месяца.
+ */
+internal fun safeCalAnchor(anchor: YearMonth): YearMonth =
+    if (anchor.isBefore(YearMonth.now())) YearMonth.now() else anchor
+
+/**
+ * Блок календаря карточки объекта по его номеру в полосе (0 — блок якоря).
  *
  * [monthly] = true — «Помесячно»: блоки годов (подпись «2026» + 12 месяцев);
  * иначе «Посуточно»: блоки месяцев (подпись «Сентябрь 2026» + дни месяца).
  * [anchor] — период: посуточно календарь открыт с первого дня месяца,
  * помесячно — на соответствующем месяце (c19_canon.md §4).
+ * Блок считается по требованию: полоса ленивая (см. [PropertyCalendar]).
  */
-internal fun buildCalBlocks(
+internal fun buildCalBlock(
     item: MyPropertyItem,
     anchor: YearMonth,
+    index: Int,
     monthly: Boolean,
-    selection: ClosedRange<LocalDate>? = null,
-    monthsAhead: Int = 4,
-    yearsAhead: Int = 2
-): List<CalBlock> {
-    // Прошлое не бронируется: якорь календаря не раньше текущего месяца
-    val safeAnchor = if (anchor.isBefore(YearMonth.now())) YearMonth.now() else anchor
-    val blocks = ArrayList<CalBlock>()
+    selection: ClosedRange<LocalDate>? = null
+): CalBlock {
+    val safeAnchor = safeCalAnchor(anchor)
     if (monthly) {
-        for (index in 0..yearsAhead) {
-            val year = safeAnchor.year + index
-            // Ячейка помесячного вида — весь месяц: состояние считаем по пересечению
-            // месяца с бронью, иначе месяц начала аренды (например 22.09) оставался серым
-            val days = (1..12).map { month -> item.calMonthAt(YearMonth.of(year, month), selection) }
-            blocks += CalBlock(
-                label = year.toString(),
-                numbers = CalMonthCellLabels,
-                days = days,
-                withDivider = index > 0
-            )
-        }
-        return blocks
-    }
-    for (index in 0..monthsAhead) {
-        val month = safeAnchor.plusMonths(index.toLong())
-        val lastDay = month.lengthOfMonth()
-        val days = (1..lastDay).map { day ->
-            item.calDayAt(LocalDate.of(month.year, month.monthValue, day), selection)
-        }
-        blocks += CalBlock(
-            label = monthLabel(month),
-            numbers = (1..lastDay).map { it.toString() },
+        val year = safeAnchor.year + index
+        // Ячейка помесячного вида — весь месяц: состояние считаем по пересечению
+        // месяца с бронью, иначе месяц начала аренды (например 22.09) оставался серым
+        val days = (1..12).map { month -> item.calMonthAt(YearMonth.of(year, month), selection) }
+        return CalBlock(
+            label = year.toString(),
+            numbers = CalMonthCellLabels,
             days = days,
             withDivider = index > 0
         )
     }
-    return blocks
+    val month = safeAnchor.plusMonths(index.toLong())
+    val lastDay = month.lengthOfMonth()
+    val days = (1..lastDay).map { day ->
+        item.calDayAt(LocalDate.of(month.year, month.monthValue, day), selection)
+    }
+    return CalBlock(
+        label = monthLabel(month),
+        numbers = (1..lastDay).map { it.toString() },
+        days = days,
+        withDivider = index > 0
+    )
+}
+
+/**
+ * Подпись блока полосы («2026» помесячно, «Сентябрь 2026» посуточно) — считается
+ * отдельно от данных блока, чтобы прокрутка не пересчитывала дни ради текста.
+ */
+internal fun calBlockLabel(anchor: YearMonth, index: Int, monthly: Boolean): String {
+    val safeAnchor = safeCalAnchor(anchor)
+    return if (monthly) {
+        (safeAnchor.year + index).toString()
+    } else {
+        monthLabel(safeAnchor.plusMonths(index.toLong()))
+    }
 }
 

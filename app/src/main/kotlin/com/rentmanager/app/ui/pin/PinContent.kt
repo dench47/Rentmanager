@@ -11,7 +11,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -130,7 +130,8 @@ internal fun PinContent(
     // до клавиатуры: её позиция остаётся макетной (303 / 330 от низа статус-бара)
     val gap = (if (hasToolbar) GapCompact else GapEntry) -
         (if (errorMessage != null) ErrorShift else 0.dp)
-    BoxWithConstraints(
+    val compactHeight = LocalConfiguration.current.screenHeightDp < 640
+    Box(
         Modifier
             .fillMaxSize()
             .background(Color.White)
@@ -139,7 +140,7 @@ internal fun PinContent(
     ) {
         // Страховка для низких экранов — на «эталонной» высоте не срабатывает
         val topOffset = when {
-            maxHeight < 640.dp -> 8.dp
+            compactHeight -> 8.dp
             hasToolbar -> TopOffsetToolbar
             else -> TopOffsetNoToolbar
         }
