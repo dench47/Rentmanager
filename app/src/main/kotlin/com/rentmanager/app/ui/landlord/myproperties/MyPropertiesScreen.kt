@@ -32,6 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -99,6 +103,7 @@ fun MyPropertiesScreen(
     // Шит «Как устроен календарь» (иконка «?» в тулбаре) и фильтр объектов
     var showChessHelp by remember { mutableStateOf(false) }
     var showObjectsFilter by remember { mutableStateOf(false) }
+    var panelHeightPx by remember { mutableIntStateOf(0) }
 
     // Обновление списка при возврате на экран / из фона
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -144,6 +149,10 @@ fun MyPropertiesScreen(
     // список фильтруется по названию и адресу
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+
+    // Состояние списка: нужно для автоскролла, когда панель выбора периода
+    // перекрывает карточку с выбранными ячейками
+    val listState = rememberLazyListState()
 
     // Фильтр «Все объекты / Посуточно / Помесячно» + поиск
     val properties = remember(propertiesRaw, objectsFilter, searchQuery) {
@@ -328,12 +337,14 @@ fun MyPropertiesScreen(
                         .weight(1f)
                 ) {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
                             start = 20.dp,
                             end = 20.dp,
                             top = 6.dp,
-                            bottom = 20.dp
+                            // запас снизу = высота панели, иначе последнюю карточку не поднять над ней
+                            bottom = 20.dp + with(LocalDensity.current) { panelHeightPx.toDp() }
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
@@ -355,6 +366,28 @@ fun MyPropertiesScreen(
                         }
                     }
 
+                    // Автоскролл: панель выбора периода не должна перекрывать
+                    // карточку с выбранными ячейками
+                    val scrollMarginPx = with(LocalDensity.current) { 8.dp.roundToPx() }
+                    LaunchedEffect(selectionPropertyId, selectionStart, selectionEnd, panelHeightPx) {
+                        val id = selectionPropertyId ?: return@LaunchedEffect
+                        val index = properties.indexOfFirst { it.id == id }
+                        if (index < 0 || panelHeightPx == 0) return@LaunchedEffect
+                        withFrameNanos { }   // ждём пересчёта layout с новым нижним паддингом
+                        val viewport = listState.layoutInfo.viewportSize.height
+                        if (viewport <= 0) return@LaunchedEffect
+                        val item = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+                        if (item == null) {
+                            listState.animateScrollToItem(index)
+                            return@LaunchedEffect
+                        }
+                        val safeBottom = viewport - panelHeightPx - scrollMarginPx
+                        val cardBottom = item.offset + item.size
+                        if (cardBottom > safeBottom) {
+                            listState.animateScrollBy((cardBottom - safeBottom).toFloat())
+                        }
+                    }
+
                     // Нижние панели поверх списка: card_inf приоритетнее выбора
                     val infoProperty = infoPropertyId?.let { id -> properties.find { it.id == id } }
                     val infoDates = infoRange
@@ -363,6 +396,7 @@ fun MyPropertiesScreen(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
+                            .onSizeChanged { panelHeightPx = it.height }
                             .padding(bottom = 13.dp)
                     ) {
                         when {
