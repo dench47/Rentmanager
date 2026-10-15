@@ -90,6 +90,7 @@ class SecurityViewModel @Inject constructor(
                     if (!serverHasPassword && tokenManager.localPinEnabled) {
                         tokenManager.localPinEnabled = false
                         cryptoManager.clearPin()
+                        tokenManager.useBiometric = false
                     }
                     _uiState.update {
                         it.copy(
@@ -157,6 +158,7 @@ class SecurityViewModel @Inject constructor(
         } else {
             tokenManager.localPinEnabled = false
             cryptoManager.clearPin()
+            tokenManager.useBiometric = false
             _uiState.update { it.copy(localPinEnabled = false, useBiometric = false) }
         }
     }

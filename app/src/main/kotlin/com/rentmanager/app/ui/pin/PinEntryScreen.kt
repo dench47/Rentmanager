@@ -35,7 +35,7 @@ fun PinEntryScreen(
     val biometricManager = remember {
         EntryPointAccessors.fromApplication(context.applicationContext, BiometricEntryPoint::class.java).biometricAuthManager()
     }
-    val biometricEnabled = tokenManager.useBiometric && biometricManager.hasBiometricHardware()
+    val biometricEnabled = tokenManager.useBiometric && biometricManager.hasBiometricHardware() && biometricManager.hasStoredPin()
     BackHandler { (context as? FragmentActivity)?.moveTaskToBack(true) }
 
     fun launchBiometric() {

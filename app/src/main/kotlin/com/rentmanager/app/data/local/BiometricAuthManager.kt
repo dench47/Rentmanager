@@ -29,6 +29,9 @@ class BiometricAuthManager @Inject constructor(
                 BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE
     }
 
+    /** Сохранён ли PIN для входа по отпечатку: без него биометрия бесполезна. */
+    fun hasStoredPin(): Boolean = cryptoManager.getPin() != null
+
     fun authenticate(
         activity: FragmentActivity,
         title: String,

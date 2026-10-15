@@ -163,6 +163,7 @@ class PinViewModel @Inject constructor(
             }
             tokenManager.clear()
             cryptoManager.clearPin()
+            tokenManager.useBiometric = false
             onLoggedOut()
         }
     }
