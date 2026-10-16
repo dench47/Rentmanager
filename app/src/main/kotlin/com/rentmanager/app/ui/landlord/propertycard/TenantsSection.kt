@@ -45,6 +45,7 @@ import com.rentmanager.app.ui.theme.GreyText
 import com.rentmanager.app.ui.theme.Headline2MobStyle
 import com.rentmanager.app.ui.theme.SectionTitleStyle
 import com.rentmanager.app.util.DD_MM_YYYY
+import com.rentmanager.app.ui.landlord.myproperties.MonthGenitive
 import com.rentmanager.app.util.parseAnyDate
 
 private val TenantTitleStyle = Headline2MobStyle.copy(lineHeight = 18.2.sp)
@@ -64,9 +65,10 @@ fun TenantsSection(
     onToggleList: () -> Unit,
     expandedBookingId: String?,
     onToggleBooking: (String?) -> Unit,
-    onEditBooking: (BookingDto) -> Unit,
     onAttachTenant: () -> Unit,
-    onDetachTenant: (BookingDto) -> Unit
+    onDetachTenant: (BookingDto) -> Unit,
+    /** Первая загрузка карточки: не показываем пустое состояние, пока данных нет */
+    loading: Boolean = false
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Заголовок: 18/600; с бронями — строка 40 с каноническим шевроном
@@ -92,7 +94,7 @@ fun TenantsSection(
                 )
             }
         }
-        if (bookings.isEmpty()) {
+        if (bookings.isEmpty() && !loading) {
             // Пустое состояние (3801:67571): тексты → 20 → CTA
             Column(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -103,12 +105,14 @@ fun TenantsSection(
                 Text("Добавьте гостя и укажите даты проживания", style = TenantSubtitleStyle)
             }
         }
-        OutlineCtaButton(
-            text = "Прикрепить арендатора",
-            iconRes = R.drawable.ic_plus_circle_graphite,
-            borderColor = Graphite,
-            onClick = onAttachTenant
-        )
+        if (!loading || bookings.isNotEmpty()) {
+            OutlineCtaButton(
+                text = "Прикрепить арендатора",
+                iconRes = R.drawable.ic_plus_circle_graphite,
+                borderColor = Graphite,
+                onClick = onAttachTenant
+            )
+        }
         if (listExpanded && bookings.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 bookings.forEach { booking ->
@@ -118,7 +122,6 @@ fun TenantsSection(
                         property = property,
                         expanded = booking.id == expandedBookingId,
                         onToggle = { onToggleBooking(if (booking.id == expandedBookingId) null else booking.id) },
-                        onEdit = { onEditBooking(booking) },
                         onDetach = onDetachTenant
                     )
                 }
@@ -140,7 +143,6 @@ private fun TenantBookingCard(
     property: PropertyDto?,
     expanded: Boolean,
     onToggle: () -> Unit,
-    onEdit: () -> Unit,
     onDetach: (BookingDto) -> Unit
 ) {
     val context = LocalContext.current
@@ -151,12 +153,6 @@ private fun TenantBookingCard(
         ?: (property?.tenantInfo?.takeIf { activeLink && it.isNotBlank() })
     val phone = tenant?.phone?.takeIf { it.isNotBlank() }
         ?: property?.phone?.takeIf { activeLink && it.isNotBlank() }
-    val subtitle = listOfNotNull(
-        booking.guests?.takeIf { it > 0 }?.let { "${it} ${guestsWord(it)}" },
-        property?.let {
-            "договор ${contractDisplayText(it.contractNumber, it.contractDate).ifBlank { "№" }}"
-        }
-    ).joinToString(" · ")
 
     Column(
         modifier = Modifier
@@ -170,7 +166,7 @@ private fun TenantBookingCard(
                 else Modifier.padding(top = 12.dp, bottom = 12.dp)
             )
     ) {
-        // Строка заголовка: даты+договор | карандаш (только в раскрытом) | шеврон
+        // Строка заголовка: период брони | шеврон
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -187,34 +183,10 @@ private fun TenantBookingCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    bookingRangeTitle(booking.startDate, booking.endDate),
+                    bookingRangeTitle(booking.startDate, booking.endDate, property?.rentType == "посуточно"),
                     style = TenantTitleStyle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
-                )
-                if (subtitle.isNotBlank()) {
-                    Text(
-                        subtitle,
-                        style = TenantSubtitleStyle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                } else {
-                    Text("Бронь объекта", style = TenantSubtitleStyle)
-                }
-            }
-            if (expanded) {
-                Image(
-                    painter = painterResource(R.drawable.ic_edit_pencil),
-                    contentDescription = "Редактировать",
-                    // Ресурс уже включает зону 40dp и внутренний отступ глифа.
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onEdit() }
                 )
             }
             Image(
@@ -287,7 +259,7 @@ private fun TenantBookingCard(
                         onClick = {}
                     )
                 }
-                if (activeLink) {
+                if (booking.tenantId != null) {   // открепить можно любую бронь
                     com.rentmanager.app.ui.landlord.createproperty.BlackCtaButton(
                         text = "Открепить арендатора",
                         onClick = { onDetach(booking) }
@@ -343,13 +315,22 @@ private fun TenantAvatar(url: String?) {
 }
 
 
-// Период брони в баяне: всегда ДД.ММ.ГГГГ («18.09.2026 - 24.09.2026»),
-// одинаково с карточкой арендатора и остальными экранами.
-internal fun bookingRangeTitle(startIso: String, endIso: String): String {
+
+// Период брони в баяне: помесячный объект — ДД.ММ.ГГГГ («18.09.2026 - 24.09.2026»),
+// посуточный — «18-24 сентября» / «18 августа - 24 сентября» (год только при смене года).
+internal fun bookingRangeTitle(startIso: String, endIso: String, daily: Boolean): String {
     val s = parseAnyDate(startIso) ?: return startIso
     val e = parseAnyDate(endIso) ?: return endIso
-    return if (s == e) s.format(DD_MM_YYYY)
-    else "${s.format(DD_MM_YYYY)} - ${e.format(DD_MM_YYYY)}"
+    if (!daily) {
+        return if (s == e) s.format(DD_MM_YYYY) else "${s.format(DD_MM_YYYY)} - ${e.format(DD_MM_YYYY)}"
+    }
+    val sameMonth = s.year == e.year && s.monthValue == e.monthValue
+    return when {
+        s == e -> "${s.dayOfMonth} ${MonthGenitive[s.monthValue - 1]}"
+        sameMonth -> "${s.dayOfMonth}-${e.dayOfMonth} ${MonthGenitive[e.monthValue - 1]}"
+        s.year == e.year -> "${s.dayOfMonth} ${MonthGenitive[s.monthValue - 1]} - ${e.dayOfMonth} ${MonthGenitive[e.monthValue - 1]}"
+        else -> "${s.dayOfMonth} ${MonthGenitive[s.monthValue - 1]} ${s.year} - ${e.dayOfMonth} ${MonthGenitive[e.monthValue - 1]} ${e.year}"
+    }
 }
 
 // 1 гость / 2 гостя / 5 гостей

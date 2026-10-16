@@ -127,7 +127,11 @@ data class CalBlock(
     val numbers: List<String>,
     val days: List<CalDay>,
     /** Есть ли дивайдер слева (6×41 с линией 1×22 #D9D9D9) */
-    val withDivider: Boolean = true
+    val withDivider: Boolean = true,
+    /** Бронь, покрывающая день ПЕРЕД блоком: её пузырь дивайдер режет слева */
+    val cutLeftKey: String? = null,
+    /** Бронь, покрывающая день ПОСЛЕ блока: её пузырь дивайдер режет справа */
+    val cutRightKey: String? = null
 ) {
     /** Ширина контента блока без дивайдера: шаг 52 на день. */
     val contentWidth: Int get() = days.size * (CAL_CELL_W + CAL_GAP)
@@ -356,6 +360,12 @@ private fun CalPlainCell(
  * Толщина: 1px — обычная полоса и долг (#FF4249, как в легенде календаря),
  * 2px — когда по области открыта карточка: пояснение Вики (узел 4390:95386)
  * «при нажатии на область аренды stroke увеличиваем с 1px на 2px».
+ *
+ * Скругление 4 — у всех краёв, кроме тех, где пузырь режет дивайдер:
+ * [cutLeft] / [cutRight] приходят из CalStatusRow и означают, что на границе
+ * блока та же аренда продолжается (аренда 28.10–03.11: у октября прямой
+ * правый край, у ноября — левый). Бронь, просто выровненная по 1-му или
+ * последнему числу месяца, дивайдером не режется и остаётся скруглённой.
  */
 @Composable
 private fun CalBarView(
@@ -363,9 +373,16 @@ private fun CalBarView(
     state: CalState,
     debt: Boolean,
     emphasized: Boolean,
+    cutLeft: Boolean,
+    cutRight: Boolean,
     onClick: (CalPiece) -> Unit
 ) {
-    val shape = RoundedCornerShape(4.dp)
+    val shape = RoundedCornerShape(
+        topStart = if (cutLeft) 0.dp else 4.dp,
+        bottomStart = if (cutLeft) 0.dp else 4.dp,
+        topEnd = if (cutRight) 0.dp else 4.dp,
+        bottomEnd = if (cutRight) 0.dp else 4.dp
+    )
     val strokeColor = if (debt) CalOverdueStroke else barStroke(state)
     val strokeWidth = if (emphasized) 2.dp else 1.dp
     Box(
@@ -403,6 +420,9 @@ private fun CalStatusRow(
     onClick: (CalPiece) -> Unit
 ) {
     val segs = remember(block) { layoutStatusRow(block) }
+    // Границы блока: только на них пузырь может резать дивайдер
+    val blockStart = block.days.first().date
+    val blockEnd = block.days.last().range.endInclusive
     Row(
         Modifier.height(CAL_CELL_H.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -436,7 +456,16 @@ private fun CalStatusRow(
                         val emph = emphasized != null &&
                             !cells.first().range.start.isBefore(emphasized.start) &&
                             !cells.last().range.endInclusive.isAfter(emphasized.endInclusive)
-                        CalBarView(cells, seg.state, seg.debt, emph, onClick)
+                        // Пузырь режется дивайдером, только если группа начинается
+                        // (кончается) на границе блока И та же бронь идёт за ней:
+                        // только такой край остаётся прямым
+                        val cutLeft = cells.first().key.isNotEmpty() &&
+                            cells.first().day.date == blockStart &&
+                            cells.first().key == block.cutLeftKey
+                        val cutRight = cells.last().key.isNotEmpty() &&
+                            cells.last().day.date == blockEnd &&
+                            cells.last().key == block.cutRightKey
+                        CalBarView(cells, seg.state, seg.debt, emph, cutLeft, cutRight, onClick)
                     }
                 }
             }
@@ -639,7 +668,9 @@ internal fun buildCalBlock(
             label = year.toString(),
             numbers = CalMonthCellLabels,
             days = days,
-            withDivider = index > 0
+            withDivider = index > 0,
+            cutLeftKey = item.bookingAt(LocalDate.of(year, 1, 1).minusDays(1))?.bookingKey(),
+            cutRightKey = item.bookingAt(LocalDate.of(year, 12, 31).plusDays(1))?.bookingKey()
         )
     }
     val month = safeAnchor.plusMonths(index.toLong())
@@ -651,7 +682,9 @@ internal fun buildCalBlock(
         label = monthLabel(month),
         numbers = (1..lastDay).map { it.toString() },
         days = days,
-        withDivider = index > 0
+        withDivider = index > 0,
+        cutLeftKey = item.bookingAt(month.atDay(1).minusDays(1))?.bookingKey(),
+        cutRightKey = item.bookingAt(month.atEndOfMonth().plusDays(1))?.bookingKey()
     )
 }
 

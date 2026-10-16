@@ -8,6 +8,7 @@ import com.rentmanager.app.data.api.CreateBookingRequest
 import com.rentmanager.app.data.api.CreatePaymentRequest
 import com.rentmanager.app.data.api.FinanceApi
 import com.rentmanager.app.data.api.TenantApi
+import com.rentmanager.app.data.local.BookingChangeEvents
 import com.rentmanager.app.data.local.PropertyDetailCache
 import com.rentmanager.app.data.local.TenantsListCache
 import com.rentmanager.app.data.model.BookingDto
@@ -124,7 +125,8 @@ class MyPropertiesViewModel @Inject constructor(
     private val financeApi: FinanceApi,
     private val tenantApi: TenantApi,
     private val tenantsListCache: TenantsListCache,
-    private val detailCache: PropertyDetailCache
+    private val detailCache: PropertyDetailCache,
+    private val bookingChangeEvents: BookingChangeEvents
 ) : ViewModel() {
     private val _properties = MutableStateFlow<List<MyPropertyItem>>(emptyList())
     val properties: StateFlow<List<MyPropertyItem>> = _properties.asStateFlow()
@@ -227,6 +229,42 @@ class MyPropertiesViewModel @Inject constructor(
     }
 
     init {
+        refresh()
+        // Арендатора прикрепили на экране прикрепления — дорисовываем период
+        // сразу (BookingChangeEvents), не ожидая ON_RESUME-refresh
+        viewModelScope.launch {
+            bookingChangeEvents.added.collect { onBookingAdded(it) }
+        }
+    }
+
+    /**
+     * Арендатор прикреплён на другом экране: период уже занят, но брони с
+     * сервера приедут только после refresh. Дорисовываем её у себя — шахматка
+     * перекрашивается мгновенно — и сразу сверяемся с сервером: он склеивает
+     * периоды и проставляет арендатора по своим правилам.
+     */
+    private fun onBookingAdded(event: BookingChangeEvents.BookingAdded) {
+        val updated = _properties.value.map { item ->
+            if (item.id != event.propertyId) {
+                item
+            } else {
+                // Покраска без арендатора внутри периода стала арендой: подсказка
+                // «Добавить арендатора» гаснет сразу, а не после ответа сервера
+                val kept = item.bookings.filterNot {
+                    it.tenantId == null &&
+                        !it.start.isAfter(event.end) && !it.end.isBefore(event.start)
+                }
+                item.copy(
+                    bookings = kept + BookingRange(
+                        start = event.start,
+                        end = event.end,
+                        tenantId = event.tenantId
+                    )
+                )
+            }
+        }
+        _properties.value = updated
+        validateAttachSuggestion(updated)
         refresh()
     }
 

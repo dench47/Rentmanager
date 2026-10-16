@@ -7,8 +7,11 @@ import com.rentmanager.app.data.api.BookingApi
 import com.rentmanager.app.data.api.CreateBookingRequest
 import com.rentmanager.app.data.api.PropertyApi
 import com.rentmanager.app.data.api.TenantApi
+import com.rentmanager.app.data.local.BookingChangeEvents
 import com.rentmanager.app.data.model.TenantDto
 import com.rentmanager.app.util.PhoneUtils
+import com.rentmanager.app.util.DD_MM_YYYY
+import com.rentmanager.app.util.parseAnyDate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +25,8 @@ data class AttachTenantUiState(
     val isAttaching: Boolean = false,
     /** Сбой прикрепления — окно «Нет связи» (Figma 2935:40038) */
     val failed: Boolean = false,
+    /** Период пересекается с существующей арендой — текст для окна */
+    val conflictMessage: String? = null,
     /** Объект для шапки экрана (фото, название, адрес) */
     val property: com.rentmanager.app.data.model.PropertyDto? = null
 )
@@ -30,7 +35,8 @@ data class AttachTenantUiState(
 class AttachTenantViewModel @Inject constructor(
     private val propertyApi: PropertyApi,
     private val tenantApi: TenantApi,
-    private val bookingApi: BookingApi
+    private val bookingApi: BookingApi,
+    private val bookingChangeEvents: BookingChangeEvents
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AttachTenantUiState())
@@ -47,6 +53,10 @@ class AttachTenantViewModel @Inject constructor(
 
     fun clearFailure() {
         _uiState.update { it.copy(failed = false) }
+    }
+
+    fun clearConflict() {
+        _uiState.update { it.copy(conflictMessage = null) }
     }
 
     /** Пресет из карточки арендатора («Прикрепить к объекту»): ФИО/телефон
@@ -87,6 +97,10 @@ class AttachTenantViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isAttaching = true, failed = false) }
             try {
+                findOverlap(propertyId, start, end)?.let { message ->
+                    _uiState.update { it.copy(isAttaching = false, conflictMessage = message) }
+                    return@launch
+                }
                 val attachResp = propertyApi.attachTenant(
                     propertyId, AttachTenantRequest(tenantId = tenant.id)
                 )
@@ -97,12 +111,32 @@ class AttachTenantViewModel @Inject constructor(
                 bookingApi.createBooking(
                     propertyId, CreateBookingRequest(start.toString(), end.toString(), tenantId = tenant.id)
                 )
+                // Та же мгновенная перекраска шахматки, что и в ручном флоу
+                bookingChangeEvents.emitAdded(propertyId, start, end, tenant.id)
                 _uiState.update { it.copy(isAttaching = false) }
                 onSuccess()
             } catch (_: Exception) {
                 _uiState.update { it.copy(isAttaching = false, failed = true) }
             }
         }
+    }
+
+    /**
+     * Пересечение периода с ЛЮБОЙ бронью объекта (не только своего арендатора).
+     * Стык «выезд/заезд» в один день (конец = началу) пересечением не считается:
+     * Возвращает текст конфликта для окна или null, если период свободен.
+     */
+    private suspend fun findOverlap(propertyId: String, start: LocalDate, end: LocalDate): String? {
+        val existing = runCatching { bookingApi.getBookings(propertyId).body().orEmpty() }
+            .getOrDefault(emptyList())
+        val clash = existing.firstOrNull { b ->
+            val s = parseAnyDate(b.startDate) ?: return@firstOrNull false
+            val e = parseAnyDate(b.endDate) ?: return@firstOrNull false
+            !end.isBefore(s) && !start.isAfter(e) && start != e && end != s
+        } ?: return null
+        val s = parseAnyDate(clash.startDate) ?: return null
+        val e = parseAnyDate(clash.endDate) ?: return null
+        return "Этот период уже занят: " + s.format(DD_MM_YYYY) + " - " + e.format(DD_MM_YYYY)
     }
 
     /**
@@ -123,6 +157,10 @@ class AttachTenantViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isAttaching = true, failed = false) }
             try {
+                findOverlap(propertyId, start, end)?.let { message ->
+                    _uiState.update { it.copy(isAttaching = false, conflictMessage = message) }
+                    return@launch
+                }
                 // Один номер = один арендатор: если он уже есть у владельца,
                 // привязываем существующего и дубль не создаём (сервер делает так же)
                 val found = runCatching { tenantApi.getTenants().body().orEmpty() }
@@ -153,6 +191,9 @@ class AttachTenantViewModel @Inject constructor(
                 bookingApi.createBooking(
                     propertyId, CreateBookingRequest(start.toString(), end.toString(), tenantId = tenant.id)
                 )
+                // Шахматка «Моя недвижимость» перекрасит период сразу, не ожидая
+                // ON_RESUME-refresh: иначе размеченный период оставался серым
+                bookingChangeEvents.emitAdded(propertyId, start, end, tenant.id)
                 _uiState.update { it.copy(isAttaching = false) }
                 onSuccess()
             } catch (_: Exception) {

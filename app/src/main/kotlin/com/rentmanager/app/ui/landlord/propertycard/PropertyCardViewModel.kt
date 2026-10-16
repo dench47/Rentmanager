@@ -39,8 +39,9 @@ data class PropertyCardUiState(
     val meters: List<MeterDto> = emptyList(),
     /** График платежей объекта — задаёт «X ₽ / месяц(сутки)» в «Арендной плате». */
     val schedule: PaymentScheduleDto? = null,
-    /** Посуточно: дата последней брони (дд.ММ.гггг) для «Срока аренды» */
-    val lastBookingEnd: String? = null,
+    /** «Текущая аренда» (Figma 3801:67276): до какой даты идёт аренда СЕЙЧАС
+     *  (дд.мм.гггг). Пусто — аренды нет, поле показывает «—» (3801:67560). */
+    val currentRentEnd: String? = null,
     /** Задолженность по графику — плашка в карточке, как на дашборде */
     val hasDebt: Boolean = false,
     val debtAmount: Double = 0.0,
@@ -90,7 +91,7 @@ class PropertyCardViewModel @Inject constructor(
                 isLoading = true,
                 property = cachedEntry?.property,
                 schedule = cachedEntry?.schedule,
-                lastBookingEnd = cachedEntry?.lastBookingEnd,
+                currentRentEnd = cachedEntry?.currentRentEnd,
                 hasDebt = cachedEntry?.hasDebt ?: false,
                 debtAmount = cachedEntry?.debtAmount ?: 0.0,
                 meters = previousMeters
@@ -111,20 +112,31 @@ class PropertyCardViewModel @Inject constructor(
                 } catch (_: Exception) {
                     null
                 }
-                // Брони объекта: список секции «Арендаторы» + «Срок аренды» (посуточно)
+                // Брони объекта: список секции «Арендаторы» + «Текущая аренда»
                 val bookings = try {
                     bookingApi.getBookings(propertyId).body().orEmpty()
                 } catch (_: Exception) {
                     emptyList()
                 }
-                // «Срок аренды» — один источник для всех экранов: поле объекта
-                // (его правит шит «Аренда и платежи»), иначе последняя бронь.
-                // Раньше для «длительно» смотрели только поле, поэтому при
-                // прикреплённом арендаторе с бронью срок был пустым.
-                val lastBookingEnd = leaseEnd(
-                    body?.rentEndDate,
-                    bookings.mapNotNull { parseAnyDate(it.endDate) }
-                )?.format(DD_MM_YYYY)
+                // «Текущая аренда» (Figma 3801:67276) — та, что идёт СЕЙЧАС:
+                // берём конец брони, покрывающей сегодня. Помесячная аренда
+                // живёт в поле объекта (его правит шит «Аренда и платежи»),
+                // поэтому для занятого объекта оно — запасной источник.
+                // Аренды сейчас нет — значение пустое, карточка покажет «—»
+                // (Figma 3801:67560).
+                val today = LocalDate.now()
+                val currentRentEndDate = bookings
+                    .mapNotNull { b ->
+                        val start = parseAnyDate(b.startDate)
+                        val end = parseAnyDate(b.endDate)
+                        if (start != null && end != null &&
+                            !today.isBefore(start) && !today.isAfter(end)
+                        ) end else null
+                    }
+                    .maxOrNull()
+                    ?: leaseEnd(body?.rentEndDate, emptyList())
+                        ?.takeIf { !it.isBefore(today) && body?.status == "occupied" }
+                val currentRentEnd = currentRentEndDate?.format(DD_MM_YYYY)
                 // Карточки арендаторов по id — имя/компания/аватар в аккордеонах
                 val tenants = try {
                     tenantApi.getTenants().body().orEmpty().associateBy { it.id }
@@ -142,13 +154,13 @@ class PropertyCardViewModel @Inject constructor(
                 val debtAmount = if (hasDebt) PaymentOverdue.overdueAmount(schedule, payments) else 0.0
                 _uiState.value = PropertyCardUiState(
                     isLoading = false, property = body, meters = meters, schedule = schedule,
-                    lastBookingEnd = lastBookingEnd, hasDebt = hasDebt, debtAmount = debtAmount,
+                    currentRentEnd = currentRentEnd, hasDebt = hasDebt, debtAmount = debtAmount,
                     bookings = bookings, tenants = tenants
                 )
                 if (body != null) {
                     detailCache.saveProperty(body)
                     detailCache.savePaymentStats(
-                        propertyId, schedule, hasDebt, debtAmount, lastBookingEnd
+                        propertyId, schedule, hasDebt, debtAmount, currentRentEnd
                     )
                 } else {
                     _errorEvents.emit("Не удалось загрузить объект (${resp.code()})")
@@ -171,7 +183,7 @@ class PropertyCardViewModel @Inject constructor(
     fun detachBookingTenant(propertyId: String, bookingId: String, onDone: () -> Unit) {
         viewModelScope.launch {
             try {
-                val resp = bookingApi.detachBookingTenant(propertyId, bookingId)
+                val resp = bookingApi.deleteBooking(propertyId, bookingId)
                 if (!resp.isSuccessful) {
                     _errorEvents.emit("Не удалось открепить арендатора (${resp.code()})")
                     return@launch
@@ -274,7 +286,7 @@ class PropertyCardViewModel @Inject constructor(
         // могло лежать ISO «2026-11-21» — иначе считалось бы «изменилось»
         val normalized = formatDdMmYyyy(rentEndDate)
         val rentEndDateChanged = parseAnyDate(current.rentEndDate) != parseAnyDate(normalized)
-        // «Срок аренды» обновляем сразу, не дожидаясь перезагрузки экрана
+        // «Текущую аренду» обновляем сразу, не дожидаясь перезагрузки экрана
         val instantRentEnd = normalized.takeIf { it.isNotBlank() }
         saveProperty(
             current.copy(
@@ -284,7 +296,7 @@ class PropertyCardViewModel @Inject constructor(
             "Изменения сохранены",
             onSaved = { saved ->
                 if (instantRentEnd != null) {
-                    _uiState.value = _uiState.value.copy(lastBookingEnd = instantRentEnd)
+                    _uiState.value = _uiState.value.copy(currentRentEnd = instantRentEnd)
                 }
                 val schedule = _uiState.value.schedule
                 // Тип отображения = тип графика; без графика — по типу аренды объекта

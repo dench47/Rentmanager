@@ -156,7 +156,7 @@ fun RentEditSheet(
                 // Суффикс по типу графика (Figma 2700-23463: «25 000 ₽ / сутки»)
                 suffix = " ₽ / " + if (scheduleType == "auto") "месяц" else "сутки"
             )
-            // «Арендовано»: подпись сверху, снизу «до» и ввод даты прямо в поле (дд.мм.гггг)
+            // «Текущая аренда»: подпись сверху, снизу «до» и ввод даты прямо в поле (дд.мм.гггг)
             RentedUntilField(
                 date = rentEndDate,
                 onDateChange = {
@@ -197,7 +197,7 @@ private fun validateRentDate(date: String): String? {
     }
 }
 
-// Поле «Арендовано»: подпись «Арендовано» сверху тонко, снизу постоянное «до»
+// Поле «Текущая аренда»: подпись сверху тонко, снизу постоянное «до»
 // и ввод даты dd.MM.yyyy сразу в поле (точки вставляются автоматически).
 // TextFieldValue с курсором в конце — иначе после вставки точки курсор прыгал назад
 @Composable
@@ -242,7 +242,7 @@ private fun RentedUntilField(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                 decorationBox = { innerTextField ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Арендовано", style = CardSubtitleStyle)
+                        Text("Текущая аренда", style = CardSubtitleStyle)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)

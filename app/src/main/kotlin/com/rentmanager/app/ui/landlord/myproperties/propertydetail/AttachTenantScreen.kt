@@ -635,6 +635,15 @@ fun AttachTenantScreen(
         )
     }
 
+    // Период пересекается с существующей арендой (проверка в AttachTenantViewModel)
+    uiState.conflictMessage?.let { message ->
+        IconNotificationDialog(
+            iconRes = R.drawable.ic_globe_warning_vec,
+            text = message,
+            onDismiss = { viewModel.clearConflict() }
+        )
+    }
+
     // Незавершённый ввод при прошлом визите — «Продолжить»/«Начать заново»
     // (Figma 2935:40049): карточка 380 r20 pad20, заголовок 20/600 + 6 +
     // тело 15/600 серым, +20 → чёрная CTA + 6 + контурная

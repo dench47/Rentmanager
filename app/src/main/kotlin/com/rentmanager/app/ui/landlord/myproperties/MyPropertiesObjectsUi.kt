@@ -1202,7 +1202,7 @@ private fun StubButton(title: String, filled: Boolean, onClick: () -> Unit) {
 
 // ===================== Подписи периодов (как в канвасе) =====================
 
-private val MonthGenitive = listOf(
+internal val MonthGenitive = listOf(
     "января", "февраля", "марта", "апреля", "мая", "июня",
     "июля", "августа", "сентября", "октября", "ноября", "декабря"
 )

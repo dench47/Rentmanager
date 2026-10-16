@@ -3,6 +3,7 @@ package com.rentmanager.app.data.local
 import android.content.Context
 import android.content.SharedPreferences
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import com.rentmanager.app.data.model.PaymentScheduleDto
 import com.rentmanager.app.data.model.PropertyDto
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -29,11 +30,15 @@ class PropertyDetailCache @Inject constructor(
         /** График платежей: без него «Арендная плата» при входе в карточку
          *  мелькает ставкой объявления, пока график не придёт с сервера */
         val schedule: PaymentScheduleDto? = null,
-        /** Статистика «Аренда и платежи» (плашка задолженности, срок аренды):
+        /** Статистика «Аренда и платежи» (плашка задолженности, текущая аренда):
          *  кэшируется, чтобы карточка не мигала дефолтами при входе */
         val hasDebt: Boolean = false,
         val debtAmount: Double = 0.0,
-        val lastBookingEnd: String? = null
+        /** «Текущая аренда» (Figma 3801:67276): до какой даты идёт аренда
+         *  сейчас; null — аренды нет. Ключ в JSON оставлен прежним, чтобы
+         *  кэши, записанные до переименования, читались без сброса. */
+        @SerializedName("lastBookingEnd")
+        val currentRentEnd: String? = null
     )
 
     fun load(propertyId: String): Entry? {
@@ -55,7 +60,7 @@ class PropertyDetailCache @Inject constructor(
                     schedule = existing?.schedule,
                     hasDebt = existing?.hasDebt ?: false,
                     debtAmount = existing?.debtAmount ?: 0.0,
-                    lastBookingEnd = existing?.lastBookingEnd
+                    currentRentEnd = existing?.currentRentEnd
                 )
             )
         } catch (_: Exception) { }
@@ -67,7 +72,7 @@ class PropertyDetailCache @Inject constructor(
         schedule: PaymentScheduleDto?,
         hasDebt: Boolean,
         debtAmount: Double,
-        lastBookingEnd: String?
+        currentRentEnd: String?
     ) {
         try {
             val existing = load(propertyId) ?: return
@@ -76,7 +81,7 @@ class PropertyDetailCache @Inject constructor(
                     schedule = schedule,
                     hasDebt = hasDebt,
                     debtAmount = debtAmount,
-                    lastBookingEnd = lastBookingEnd
+                    currentRentEnd = currentRentEnd
                 )
             )
         } catch (_: Exception) { }

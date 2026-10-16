@@ -340,12 +340,12 @@ fun PropertyCardScreen(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp)
                         ) {
                             InfoPair("Арендная плата", property?.let { rentText(it, uiState.schedule) } ?: "", Modifier.weight(1f))
-                            // «Срок аренды» — одно значение на все экраны: поле
-                            // объекта, иначе последняя бронь (см. util/Lease.kt).
-                            // Всегда ДД.ММ.ГГГГ, ISO в интерфейс не попадает.
+                            // «Текущая аренда» (Figma 3801:67276) — аренда, идущая
+                            // сейчас: «до ДД.ММ.ГГГГ». Если аренды нет, значение
+                            // пустое и поле показывает «—» (Figma 3801:67560).
                             InfoPair(
-                                "Срок аренды",
-                                uiState.lastBookingEnd?.let { "до $it" }.orEmpty(),
+                                "Текущая аренда",
+                                uiState.currentRentEnd?.let { "до $it" }.orEmpty(),
                                 Modifier.weight(1f)
                             )
                         }
@@ -374,9 +374,9 @@ fun PropertyCardScreen(
                     onToggleList = { tenantsListExpanded = !tenantsListExpanded },
                     expandedBookingId = expandedBookingId,
                     onToggleBooking = { expandedBookingId = it },
-                    onEditBooking = { sheetBooking = it },
                     onAttachTenant = { onAttachTenant(propertyId) },
-                    onDetachTenant = { booking -> detachBookingId = booking.id; showDetachSheet = true }
+                    onDetachTenant = { booking -> detachBookingId = booking.id; showDetachSheet = true },
+                    loading = uiState.isLoading,
                 )
                 // Об объекте (Figma: заголовок → контент gap 12; карточки полей gap 6)
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
