@@ -37,6 +37,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -107,7 +108,10 @@ data class CalPiece(
     val width: Int,
     val range: ClosedRange<LocalDate>,
     val debt: Boolean = false,
-    val key: String = ""
+    val key: String = "",
+    /** В ширину вклеен 4px-зазор до следующего дня — чтобы подряд идущие
+     *  занятые дни клеились в один пузырь */
+    val foldedGap: Boolean = false
 )
 
 /**
@@ -276,7 +280,10 @@ private class CalSeg(
     val range: ClosedRange<LocalDate>,
     val gap: Boolean = false,
     val debt: Boolean = false,
-    val key: String = ""
+    val key: String = "",
+    /** В ширину вклеен 4px-зазор до следующего дня — чтобы подряд идущие
+     *  занятые дни клеились в один пузырь */
+    val foldedGap: Boolean = false
 )
 
 private fun isBarState(s: CalState) =
@@ -295,7 +302,7 @@ private fun layoutStatusRow(block: CalBlock): List<CalSeg> {
         if (pieces.size == 1) {
             val p = pieces[0]
             if (isBarState(p.state)) {
-                out += CalSeg(day, p.state, p.width + CAL_GAP, p.range, debt = p.debt, key = p.key)
+                out += CalSeg(day, p.state, p.width + CAL_GAP, p.range, debt = p.debt, key = p.key, foldedGap = true)
             } else {
                 out += CalSeg(day, p.state, p.width, p.range)
                 out += CalSeg(day, p.state, CAL_GAP, p.range, gap = true)
@@ -316,7 +323,8 @@ private fun layoutStatusRow(block: CalBlock): List<CalSeg> {
                         p.width + if (last) CAL_GAP else 0,
                         p.range,
                         debt = p.debt,
-                        key = p.key
+                        key = p.key,
+                        foldedGap = last
                     )
                     if (!last) out += CalSeg(day, p.state, CAL_GAP, p.range, gap = true)
                 } else {
@@ -403,7 +411,11 @@ private fun CalBarView(
                 Box(
                     Modifier
                         .width(cell.width.dp)
-                        .height((CAL_CELL_H - 2).dp)
+                        // Заливка внутри обводки: 36 при 1px и 34 при 2px (карточка открыта).
+                        // Раньше высота была жёсткой (CAL_CELL_H - 2), и при 2px заливка залезала
+                        // на обводку — рамка «утончалась» до 1px, а мост рисовал честные 2px и
+                        // выглядел лишней полосой у стыка.
+                        .height(CAL_CELL_H.dp - strokeWidth * 2)
                         .background(barFill(state))
                         .clickable {
                             onClick(CalPiece(state, cell.width, cell.range, cell.debt, cell.key))
@@ -463,7 +475,25 @@ private fun CalStatusRow(
                         val cutRight = cells.last().key.isNotEmpty() &&
                             cells.last().key == block.acrossRightKey &&
                             cells.last().range.endInclusive == block.days.last().range.endInclusive
-                        CalBarView(cells, seg.state, seg.debt, emph, cutLeft, cutRight, onClick)
+                        // Последняя ячейка пузыря не забирает следующий 4px-зазор: он был вклеен,
+                        // чтобы подряд идущие занятые дни клеились в один пузырь, а за пузырём
+                        // клеить нечего — иначе полоса упирается в соседнюю свободную ячейку.
+                        // Зазор отдаём Spacer-ом, чтобы шаг 52 и сетка не сдвинулись.
+                        val danglingGap = cells.last().foldedGap && !cutRight
+                        val barCells = if (danglingGap) {
+                            cells.dropLast(1) + CalSeg(
+                                day = cells.last().day,
+                                state = cells.last().state,
+                                width = cells.last().width - CAL_GAP,
+                                range = cells.last().range,
+                                debt = cells.last().debt,
+                                key = cells.last().key
+                            )
+                        } else {
+                            cells
+                        }
+                        CalBarView(barCells, seg.state, seg.debt, emph, cutLeft, cutRight, onClick)
+                        if (danglingGap) Spacer(Modifier.width(CAL_GAP.dp))
                     }
                 }
             }
@@ -471,6 +501,58 @@ private fun CalStatusRow(
     }
 }
 
+/** Толщина обводки пузыря на дате стыка: 2px, если карточка card_inf открыта
+ *  именно по этому периоду, иначе 1px. */
+private fun bridgeStroke(emphasized: ClosedRange<LocalDate>?, date: LocalDate): Dp =
+    if (emphasized != null &&
+        !emphasized.start.isAfter(date) &&
+        !emphasized.endInclusive.isBefore(date)
+    ) 2.dp else 1.dp
+
+/**
+ * Патч стыка через дивайдер: заливка пузыря плюс верхняя и нижняя линии его
+ * обводки (иначе контур на стыке рвётся). Вертикальных линий нет — они бы
+ * резали пузырь. Патч всегда лежит внутри своего блока: выход за границы
+ * item LazyRow обрезает, из-за чего и оставалась вертикальная линия соседа.
+ */
+@Composable
+private fun BridgePatch(
+    x: Dp,
+    width: Dp,
+    top: Dp,
+    stroke: Dp,
+    ink: Color,
+    fill: Color
+) {
+    Box(
+        Modifier
+            .offset(x = x, y = top)
+            .width(width)
+            .height(CAL_CELL_H.dp)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(CAL_CELL_H.dp)
+                .padding(vertical = stroke)
+                .background(fill)
+        )
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(stroke)
+                .background(ink)
+        )
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(stroke)
+                .background(ink)
+        )
+    }
+}
 /** Блок полосы: дивайдер месяца 6×41 (линия 1×22), строка номеров 24 и статусы 38. */
 @Composable
 private fun CalBlockView(
@@ -519,47 +601,35 @@ private fun CalBlockView(
                 CalStatusRow(block, emphasized, onClick)
             }
         }
-        // Мост через дивайдер: пузырь, переходящий в соседний блок, не рвётся.
-        // Закрашиваем 6px полосы дивайдера и по 2px обводок обеих половин по
-        // бокам, а сверху/снизу дорисовываем обводку — без неё контур на стыке
-        // разрывается. Вертикальных обводок у моста нет: они бы резали пузырь.
-        // Рисует мост блок СПРАВА от стыка: он отрисовывается позже соседнего,
-        // поэтому перекрытие работает без ручного порядка слоёв.
-        val bridgePiece = block.days.first().pieces.firstOrNull()
-        if (block.acrossLeftKey != null && bridgePiece?.key == block.acrossLeftKey) {
-            val bridgeStroke = if (emphasized != null &&
-                !emphasized.start.isAfter(block.days.first().date) &&
-                !emphasized.endInclusive.isBefore(block.days.first().date)
-            ) 2.dp else 1.dp
-            val bridgeInk = if (bridgePiece.debt) CalOverdueStroke else barStroke(bridgePiece.state)
-            Box(
-                Modifier
-                    .offset(x = (-2).dp, y = (CAL_LABEL_H + CAL_NUM_H).dp)
-                    .width((CAL_BLOCK_W + 4).dp)
-                    .height(CAL_CELL_H.dp)
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(CAL_CELL_H.dp)
-                        .padding(vertical = bridgeStroke)
-                        .background(barFill(bridgePiece.state))
-                )
-                Box(
-                    Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(bridgeStroke)
-                        .background(bridgeInk)
-                )
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(bridgeStroke)
-                        .background(bridgeInk)
-                )
-            }
+        // Стык через дивайдер: пузырь не рвём. Каждый блок закрашивает СВОЮ
+        // сторону стыка и не заходит в соседний item — LazyRow обрезает выход
+        // за границы item, из-за чего оставалась вертикальная обводка соседа.
+        // Патч = заливка + верхняя/нижняя линии обводки; вертикальных линий нет,
+        // иначе они режут пузырь.
+        val bridgeTop = (CAL_LABEL_H + CAL_NUM_H).dp
+        val firstPiece = block.days.first().pieces.firstOrNull()
+        val lastPiece = block.days.last().pieces.lastOrNull()
+        if (block.acrossLeftKey != null && firstPiece?.key == block.acrossLeftKey) {
+            val stroke = bridgeStroke(emphasized, block.days.first().date)
+            BridgePatch(
+                x = 0.dp,
+                width = CAL_BLOCK_W.dp + stroke,
+                top = bridgeTop,
+                stroke = stroke,
+                ink = if (firstPiece.debt) CalOverdueStroke else barStroke(firstPiece.state),
+                fill = barFill(firstPiece.state)
+            )
+        }
+        if (block.acrossRightKey != null && lastPiece?.key == block.acrossRightKey) {
+            val stroke = bridgeStroke(emphasized, block.days.last().range.endInclusive)
+            BridgePatch(
+                x = (block.contentWidth + if (block.withDivider) CAL_BLOCK_W else 0).dp - stroke,
+                width = stroke,
+                top = bridgeTop,
+                stroke = stroke,
+                ink = if (lastPiece.debt) CalOverdueStroke else barStroke(lastPiece.state),
+                fill = barFill(lastPiece.state)
+            )
         }
     }
 }
