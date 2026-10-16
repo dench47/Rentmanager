@@ -29,7 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -386,20 +393,49 @@ private fun CalBarView(
     cutRight: Boolean,
     onClick: (CalPiece) -> Unit
 ) {
-    val shape = RoundedCornerShape(
-        topStart = if (cutLeft) 0.dp else 4.dp,
-        bottomStart = if (cutLeft) 0.dp else 4.dp,
-        topEnd = if (cutRight) 0.dp else 4.dp,
-        bottomEnd = if (cutRight) 0.dp else 4.dp
-    )
     val strokeColor = if (debt) CalOverdueStroke else barStroke(state)
     val strokeWidth = if (emphasized) 2.dp else 1.dp
+    // У разрезанного края угол прямой: дивайдер не «заворачивает» пузырь,
+    // который продолжается в соседний блок
+    val cornerRadius = 4.dp
+    val shape = RoundedCornerShape(
+        topStart = if (cutLeft) 0.dp else cornerRadius,
+        bottomStart = if (cutLeft) 0.dp else cornerRadius,
+        topEnd = if (cutRight) 0.dp else cornerRadius,
+        bottomEnd = if (cutRight) 0.dp else cornerRadius
+    )
     Box(
         Modifier
             .width(cells.sumOf { it.width }.dp)
             .height(CAL_CELL_H.dp)
             .clip(shape)
-            .border(strokeWidth, strokeColor, shape)
+            // Обводка рисуется вручную ПОВЕРХ заливки: Modifier.border лежит под
+            // детьми, из-за чего заливка съедала часть обводки (рамка «утончалась»
+            // при 2px), а на разрезанной стороне оставалась вертикальная линия.
+            // Линию разрезанной стороны отсекаем clipRect — её нет ни при 1px,
+            // ни при 2px, поэтому стык не зависит от толщины обводки.
+            .drawWithContent {
+                drawContent()
+                val sw = strokeWidth.toPx()
+                val r = cornerRadius.toPx()
+                val outline = RoundRect(
+                    rect = Rect(sw / 2f, sw / 2f, size.width - sw / 2f, size.height - sw / 2f),
+                    topLeft = CornerRadius(if (cutLeft) 0f else r),
+                    topRight = CornerRadius(if (cutRight) 0f else r),
+                    bottomRight = CornerRadius(if (cutRight) 0f else r),
+                    bottomLeft = CornerRadius(if (cutLeft) 0f else r)
+                )
+                clipRect(
+                    left = if (cutLeft) sw else 0f,
+                    right = size.width - (if (cutRight) sw else 0f)
+                ) {
+                    drawPath(
+                        path = Path().apply { addRoundRect(outline) },
+                        color = strokeColor,
+                        style = Stroke(width = sw)
+                    )
+                }
+            }
     ) {
         Row(
             Modifier
@@ -613,7 +649,7 @@ private fun CalBlockView(
             val stroke = bridgeStroke(emphasized, block.days.first().date)
             BridgePatch(
                 x = 0.dp,
-                width = CAL_BLOCK_W.dp + stroke,
+                width = CAL_BLOCK_W.dp + stroke * 2,
                 top = bridgeTop,
                 stroke = stroke,
                 ink = if (firstPiece.debt) CalOverdueStroke else barStroke(firstPiece.state),
@@ -623,8 +659,8 @@ private fun CalBlockView(
         if (block.acrossRightKey != null && lastPiece?.key == block.acrossRightKey) {
             val stroke = bridgeStroke(emphasized, block.days.last().range.endInclusive)
             BridgePatch(
-                x = (block.contentWidth + if (block.withDivider) CAL_BLOCK_W else 0).dp - stroke,
-                width = stroke,
+                x = (block.contentWidth + if (block.withDivider) CAL_BLOCK_W else 0).dp - stroke * 2,
+                width = stroke * 2,
                 top = bridgeTop,
                 stroke = stroke,
                 ink = if (lastPiece.debt) CalOverdueStroke else barStroke(lastPiece.state),
