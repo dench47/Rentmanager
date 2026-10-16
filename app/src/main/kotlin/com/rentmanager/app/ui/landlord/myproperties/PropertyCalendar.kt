@@ -128,10 +128,11 @@ data class CalBlock(
     val days: List<CalDay>,
     /** Есть ли дивайдер слева (6×41 с линией 1×22 #D9D9D9) */
     val withDivider: Boolean = true,
-    /** Бронь, покрывающая день ПЕРЕД блоком: её пузырь дивайдер режет слева */
-    val cutLeftKey: String? = null,
-    /** Бронь, покрывающая день ПОСЛЕ блока: её пузырь дивайдер режет справа */
-    val cutRightKey: String? = null
+    /** Бронь, которая продолжается в этот блок из соседнего слева: её пузырь
+     *  на границе прямой, а стык закрашивает мост (см. CalBlockView) */
+    val acrossLeftKey: String? = null,
+    /** То же справа: край прямой, стык закрашивает соседний (правый) блок */
+    val acrossRightKey: String? = null
 ) {
     /** Ширина контента блока без дивайдера: шаг 52 на день. */
     val contentWidth: Int get() = days.size * (CAL_CELL_W + CAL_GAP)
@@ -420,9 +421,6 @@ private fun CalStatusRow(
     onClick: (CalPiece) -> Unit
 ) {
     val segs = remember(block) { layoutStatusRow(block) }
-    // Границы блока: только на них пузырь может резать дивайдер
-    val blockStart = block.days.first().date
-    val blockEnd = block.days.last().range.endInclusive
     Row(
         Modifier.height(CAL_CELL_H.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -456,15 +454,15 @@ private fun CalStatusRow(
                         val emph = emphasized != null &&
                             !cells.first().range.start.isBefore(emphasized.start) &&
                             !cells.last().range.endInclusive.isAfter(emphasized.endInclusive)
-                        // Пузырь режется дивайдером, только если группа начинается
-                        // (кончается) на границе блока И та же бронь идёт за ней:
-                        // только такой край остаётся прямым
+                        // Прямые края — только у той группы, которая начинается
+                        // (кончается) на границе блока И это та же бронь, что
+                        // продолжается в соседнем блоке: там же рисуется мост
                         val cutLeft = cells.first().key.isNotEmpty() &&
-                            cells.first().day.date == blockStart &&
-                            cells.first().key == block.cutLeftKey
+                            cells.first().key == block.acrossLeftKey &&
+                            cells.first().range.start == block.days.first().range.start
                         val cutRight = cells.last().key.isNotEmpty() &&
-                            cells.last().day.date == blockEnd &&
-                            cells.last().key == block.cutRightKey
+                            cells.last().key == block.acrossRightKey &&
+                            cells.last().range.endInclusive == block.days.last().range.endInclusive
                         CalBarView(cells, seg.state, seg.debt, emph, cutLeft, cutRight, onClick)
                     }
                 }
@@ -480,44 +478,88 @@ private fun CalBlockView(
     emphasized: ClosedRange<LocalDate>?,
     onClick: (CalPiece) -> Unit
 ) {
-    Row(verticalAlignment = Alignment.Top) {
-        if (block.withDivider) {
+    Box {
+        Row(verticalAlignment = Alignment.Top) {
+            if (block.withDivider) {
+                Box(
+                    Modifier
+                        .width(CAL_BLOCK_W.dp)
+                        .height((CAL_LABEL_H + CAL_NUM_H + CAL_CELL_H).dp),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Box(
+                        Modifier
+                            .width(1.dp)
+                            .height(22.dp)
+                            .background(CalDivider)
+                    )
+                }
+            }
+            Column(Modifier.width(block.contentWidth.dp)) {
+                // Строка липкой подписи — текст рисует оверлей PropertyCalendar
+                Spacer(Modifier.height(CAL_LABEL_H.dp))
+                Row(Modifier.height(CAL_NUM_H.dp)) {
+                    block.numbers.forEachIndexed { index, number ->
+                        Box(
+                            Modifier
+                                .width(CAL_CELL_W.dp)
+                                .height(CAL_NUM_H.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                number,
+                                fontSize = 13.sp,
+                                color = CalInk,
+                                maxLines = 1
+                            )
+                        }
+                        if (index != block.numbers.lastIndex) Spacer(Modifier.width(CAL_GAP.dp))
+                    }
+                }
+                CalStatusRow(block, emphasized, onClick)
+            }
+        }
+        // Мост через дивайдер: пузырь, переходящий в соседний блок, не рвётся.
+        // Закрашиваем 6px полосы дивайдера и по 2px обводок обеих половин по
+        // бокам, а сверху/снизу дорисовываем обводку — без неё контур на стыке
+        // разрывается. Вертикальных обводок у моста нет: они бы резали пузырь.
+        // Рисует мост блок СПРАВА от стыка: он отрисовывается позже соседнего,
+        // поэтому перекрытие работает без ручного порядка слоёв.
+        val bridgePiece = block.days.first().pieces.firstOrNull()
+        if (block.acrossLeftKey != null && bridgePiece?.key == block.acrossLeftKey) {
+            val bridgeStroke = if (emphasized != null &&
+                !emphasized.start.isAfter(block.days.first().date) &&
+                !emphasized.endInclusive.isBefore(block.days.first().date)
+            ) 2.dp else 1.dp
+            val bridgeInk = if (bridgePiece.debt) CalOverdueStroke else barStroke(bridgePiece.state)
             Box(
                 Modifier
-                    .width(CAL_BLOCK_W.dp)
-                    .height((CAL_LABEL_H + CAL_NUM_H + CAL_CELL_H).dp),
-                contentAlignment = Alignment.TopCenter
+                    .offset(x = (-2).dp, y = (CAL_LABEL_H + CAL_NUM_H).dp)
+                    .width((CAL_BLOCK_W + 4).dp)
+                    .height(CAL_CELL_H.dp)
             ) {
                 Box(
                     Modifier
-                        .width(1.dp)
-                        .height(22.dp)
-                        .background(CalDivider)
+                        .fillMaxWidth()
+                        .height(CAL_CELL_H.dp)
+                        .padding(vertical = bridgeStroke)
+                        .background(barFill(bridgePiece.state))
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(bridgeStroke)
+                        .background(bridgeInk)
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(bridgeStroke)
+                        .background(bridgeInk)
                 )
             }
-        }
-        Column(Modifier.width(block.contentWidth.dp)) {
-            // Строка липкой подписи — текст рисует оверлей PropertyCalendar
-            Spacer(Modifier.height(CAL_LABEL_H.dp))
-            Row(Modifier.height(CAL_NUM_H.dp)) {
-                block.numbers.forEachIndexed { index, number ->
-                    Box(
-                        Modifier
-                            .width(CAL_CELL_W.dp)
-                            .height(CAL_NUM_H.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            number,
-                            fontSize = 13.sp,
-                            color = CalInk,
-                            maxLines = 1
-                        )
-                    }
-                    if (index != block.numbers.lastIndex) Spacer(Modifier.width(CAL_GAP.dp))
-                }
-            }
-            CalStatusRow(block, emphasized, onClick)
         }
     }
 }
@@ -643,6 +685,28 @@ internal fun safeCalAnchor(anchor: YearMonth): YearMonth =
     if (anchor.isBefore(YearMonth.now())) YearMonth.now() else anchor
 
 /**
+ * Бронь, которая продолжается в соседний блок: одна и та же бронь покрывает
+ * крайний день блока И день сразу за его границей.
+ *
+ * Блоки строятся независимо, дивайдер стоит ТОЛЬКО между блоками, поэтому
+ * разрезать пузырь может лишь эта граница. Проверка идёт по броням, а не по
+ * [CalDay.date] и не по ширине куска: в помесячном виде date — это первое
+ * число месяца (ячейка = весь месяц), из-за чего сравнение дат ломается ровно
+ * на декабре (01.12 против 31.12), а кусок месяца бывает половинкой и у брони,
+ * которая начинается 1-го числа — тогда пузырь границу не переходит.
+ */
+private fun MyPropertyItem.acrossKeys(
+    blockStart: LocalDate,
+    blockEnd: LocalDate
+): Pair<String?, String?> {
+    val leftInside = bookingAt(blockStart)?.bookingKey()
+    val leftOutside = bookingAt(blockStart.minusDays(1))?.bookingKey()
+    val rightInside = bookingAt(blockEnd)?.bookingKey()
+    val rightOutside = bookingAt(blockEnd.plusDays(1))?.bookingKey()
+    return leftInside?.takeIf { it == leftOutside } to rightInside?.takeIf { it == rightOutside }
+}
+
+/**
  * Блок календаря карточки объекта по его номеру в полосе (0 — блок якоря).
  *
  * [monthly] = true — «Помесячно»: блоки годов (подпись «2026» + 12 месяцев);
@@ -664,13 +728,14 @@ internal fun buildCalBlock(
         // Ячейка помесячного вида — весь месяц: состояние считаем по пересечению
         // месяца с бронью, иначе месяц начала аренды (например 22.09) оставался серым
         val days = (1..12).map { month -> item.calMonthAt(YearMonth.of(year, month), selection) }
+        val across = item.acrossKeys(LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31))
         return CalBlock(
             label = year.toString(),
             numbers = CalMonthCellLabels,
             days = days,
             withDivider = index > 0,
-            cutLeftKey = item.bookingAt(LocalDate.of(year, 1, 1).minusDays(1))?.bookingKey(),
-            cutRightKey = item.bookingAt(LocalDate.of(year, 12, 31).plusDays(1))?.bookingKey()
+            acrossLeftKey = across.first,
+            acrossRightKey = across.second
         )
     }
     val month = safeAnchor.plusMonths(index.toLong())
@@ -678,13 +743,14 @@ internal fun buildCalBlock(
     val days = (1..lastDay).map { day ->
         item.calDayAt(LocalDate.of(month.year, month.monthValue, day), selection)
     }
+    val across = item.acrossKeys(month.atDay(1), month.atEndOfMonth())
     return CalBlock(
         label = monthLabel(month),
         numbers = (1..lastDay).map { it.toString() },
         days = days,
         withDivider = index > 0,
-        cutLeftKey = item.bookingAt(month.atDay(1).minusDays(1))?.bookingKey(),
-        cutRightKey = item.bookingAt(month.atEndOfMonth().plusDays(1))?.bookingKey()
+        acrossLeftKey = across.first,
+        acrossRightKey = across.second
     )
 }
 
